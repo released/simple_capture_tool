@@ -1,0 +1,47 @@
+#include "pch.h"
+#include "Document.h"
+#include "AnnotationGeometry.h"
+#include <set>
+namespace sct::core {
+int MosaicBlockSize(const Annotation& a){return a.mosaicStrength?4+MulDiv(std::clamp(a.mosaicStrength,1,100)-1,60,99):std::clamp(a.width*4,4,64);}
+int MosaicStrengthPercent(const Annotation& a){return a.mosaicStrength?std::clamp(a.mosaicStrength,1,100):1+MulDiv(MosaicBlockSize(a)-4,99,60);}
+void Document::Bound(std::vector<DocumentState>& states)
+{
+    while(states.size()>20) states.erase(states.begin());
+    for (;;) {
+        std::set<const Image*> unique; size_t bytes=0;
+        for(const auto& state:states) {
+            if(state.base && unique.insert(state.base.get()).second) bytes+=state.base->pixels.size();
+            for(const auto& a:state.objects) { bytes+=a.points.size()*sizeof(POINT)+a.text.GetLength()*sizeof(wchar_t);
+                if(a.asset && unique.insert(a.asset.get()).second) bytes+=a.asset->pixels.size(); }
+        }
+        if(bytes<=256ULL*1024*1024 || states.size()<=1) break;
+        states.erase(states.begin());
+    }
+}
+void Document::Commit(DocumentState state) {
+    if(!state.base||state.base->Empty()||state.objects.size()>10000)throw std::runtime_error("Invalid document or object limit (10000)");
+    size_t points=0;for(const auto& a:state.objects){points+=a.points.size();if(points>1000000)throw std::runtime_error("Document point limit (1000000)");}
+    undo_.push_back(state_);Bound(undo_);redo_.clear();state_=std::move(state);
+}
+bool Document::Undo() { if(undo_.empty()) return false; redo_.push_back(state_); state_=std::move(undo_.back()); undo_.pop_back(); return true; }
+bool Document::Redo() { if(redo_.empty()) return false; undo_.push_back(state_); state_=std::move(redo_.back()); redo_.pop_back(); return true; }
+void Document::Add(Annotation a) { auto s=state_; if(s.objects.size()>=10000) throw std::runtime_error("Object limit (10000)"); s.objects.push_back(std::move(a)); Commit(std::move(s)); }
+void Document::Replace(size_t i,Annotation a) { if(i>=state_.objects.size()) return; auto s=state_; s.objects[i]=std::move(a); Commit(std::move(s)); }
+void Document::Remove(size_t i) { if(i>=state_.objects.size()) return; auto s=state_; s.objects.erase(s.objects.begin()+i); Commit(std::move(s)); }
+void Document::Duplicate(size_t i) { if(i>=state_.objects.size()) return; auto a=state_.objects[i]; Translate(a,12,12); Add(std::move(a)); }
+void Document::Reorder(size_t i,int delta) { if(i>=state_.objects.size()) return; auto s=state_; const auto j=static_cast<size_t>(std::clamp<int>(static_cast<int>(i)+delta,0,static_cast<int>(s.objects.size())-1));
+    auto a=s.objects[i]; s.objects.erase(s.objects.begin()+i); s.objects.insert(s.objects.begin()+j,std::move(a)); Commit(std::move(s)); }
+int Document::HitTest(POINT p,int tolerance,bool direct) const
+{
+    for(int i=static_cast<int>(state_.objects.size())-1;i>=0;--i)if(HitAnnotation(state_.objects[i],p,tolerance,direct))return i;
+    return -1;
+}
+void Document::Translate(Annotation& a,int dx,int dy) { OffsetRect(&a.rect,dx,dy); for(auto& p:a.points) { p.x+=dx;p.y+=dy; } }
+void Document::Fit(Annotation& a,RECT r) {
+    const RECT old=a.rect; const double sx=static_cast<double>(r.right-r.left)/std::max<LONG>(1,old.right-old.left);
+    const double sy=static_cast<double>(r.bottom-r.top)/std::max<LONG>(1,old.bottom-old.top);
+    for(auto& p:a.points) { p.x=r.left+static_cast<LONG>(std::lround((p.x-old.left)*sx)); p.y=r.top+static_cast<LONG>(std::lround((p.y-old.top)*sy)); }
+    a.rect=r;
+}
+}

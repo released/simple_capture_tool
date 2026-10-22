@@ -1,0 +1,7 @@
+#pragma once
+#define SCT_BUILD_EXIT_MESSAGE L"SimpleCaptureTool.BuildExit.v1"
+#define SCT_BUILD_EXIT_READY 1
+#define SCT_BUILD_EXIT_BUSY 2
+#define SCT_BUILD_EXIT_UNSAVED 3
+#define SCT_BUILD_EXIT_MODAL 4
+#define SCT_BUILD_LEGACY_EXIT 40010

@@ -1,0 +1,29 @@
+#pragma once
+#ifndef VC_EXTRALEAN
+#define VC_EXTRALEAN
+#endif
+#define _WIN32_WINNT 0x0A00
+#define NOMINMAX
+#include <afxwin.h>
+#include <afxext.h>
+#include <afxcmn.h>
+#include <shellapi.h>
+#include <shlwapi.h>
+#include <wincodec.h>
+#include <wrl/client.h>
+#include <atomic>
+#include <chrono>
+#include <filesystem>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
+#include <array>
+#include <mutex>
+#include <condition_variable>
+#include <fstream>
+#include <sstream>
+#include <functional>
+#include <algorithm>
+#include <cmath>
+#include <stdexcept>
