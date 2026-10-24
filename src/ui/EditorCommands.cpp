@@ -17,26 +17,44 @@ void EditorFrame::ShowMore()
 }
 void EditorFrame::OnAction(UINT id)
 {
+    if(screenColorModal_||objectGesture_||cropGesture_){status_.SetWindowText(Tr(Text::Busy));return;}
+    EditorPolling(true);
     if(id==CloseDocument||id==CloseAllDocuments){DocumentCommand(id);return;}
     if(canvasHandle_>=0||canvasPending_){status_.SetWindowText(Tr(Text::Busy));return;}
     if(id>=TextBold&&id<=AlignRight||id>=AlignLeftMiddle&&id<=EraseColor||id==ToggleFill||id==ToggleShadow||id==FillColor){StyleCommand(id);return;}
+    if((id==Save||id==SaveAs||id==SaveProject||id==SaveAll||id==SaveAllPdf||id==Copy)&&!sidebar_.FinishProperties())return;
+    if(id>=ColorHex&&id<=CopyColorHex){try{PaletteCommand(id);}catch(const std::exception& e){CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());status_.SetWindowText(error);}return;}
+    renderSuspended_=false;
     if(!FinishText(true))return;
+    if(id==CancelCropSelection){CropCommand(id);return;}
     if(id==More){ShowMore();return;}
     if(id==SelectAllPixels||id==DeselectPixels){ClipboardCommand(id);return;}
+    if(id==SelectAllObjects){CompositionCommand(id);return;}
+    if(id==Cut&&!GuardSelection())return;
     if(!PrepareClipboardAction(id))return;
     if(job_.Busy()){if(activeAction_==0){if(pendingAction_!=SelectPixels)QueueAction(id);}else status_.SetWindowText(Tr(Text::Busy));return;}
     try {
+        if(id>=Command::CompareImages&&id<=UndoList){ImagePrecisionCommand(id);return;}
+        if(id>=CommandSearch&&id<=RenumberSteps){CommandTools(id);return;}
+        if(id==Command::InsertImages||id==CollageDocuments){LayoutCommand(id);return;}
+        if(id>=ObjectPanel&&id<=LayerVisibility){LayerCommand(id);return;}
+        if(id>=WorkspaceResources&&id<=ChooseDocument){WorkspaceCommand(id);return;}
+        if(AlignmentCommand(id))return;
+        if(id>=ApplyCrop&&id<=MoveCropContents){CropCommand(id);return;}
+        if(CompositionCommand(id))return;
+        if(id>=ToolStyles&&id<=DeleteToolStyle){ToolStyleCommand(id);return;}
+        if(id==ScreenColor){BeginScreenColor();return;}
         if(id==StampGallery||id==CursorGallery){StampMenu(id==CursorGallery);return;}
         if(id==SaveAs||id==SaveAllPdf||id==PrintImage||id==PrintPreview){OutputCommand(id);return;}
         if((id>=Effects&&id<=BackgroundEffect)||id==EffectPresets||id==SaveEffectPreset){EffectCommand(id);return;}
         if(id==Copy||id==Cut||id==SelectPixels||id==SelectAllPixels||id==DeselectPixels||id==PasteImage||(id==DeleteObject&&!pixelSelection_.IsRectEmpty())){ClipboardCommand(id);return;}
         if(id>=NewDocument&&id<=SaveEffectPreset){DocumentCommand(id);return;}
         if(id==Save||id==SaveProject){Export(id==SaveProject||(id==Save&&projectPrimary_));return;}
-        if(id==Undo||id==Redo){if(id==Undo?document_.Undo():document_.Redo()){selected_=-1;Changed();}return;}
+        if(id==Undo||id==Redo){if(id==Undo?document_.Undo():document_.Redo()){selected_=-1;SyncStyle();Layout();Changed();}return;}
         if(id==Properties){EditProperties();return;}if(id==Font){ChooseFont();return;}
-        if(id==Color){auto a=selected_>=0?document_.State().objects[selected_]:style_;CColorDialog dlg(a.color,CC_FULLOPEN,this);if(dlg.DoModal()!=IDOK)return;a.color=dlg.GetColor();if(selected_>=0){document_.Replace(selected_,a);Changed();}style_.color=a.color;SyncStyle();return;}
+        if(id==Color){auto a=selected_>=0?document_.State().objects[selected_]:style_;const HWND host=m_hWnd;const auto revision=revision_;const auto ids=Selection();CColorDialog dlg(a.color,CC_FULLOPEN,this);const auto result=dlg.DoModal();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;if(result!=IDOK||revision!=revision_||ids!=Selection())return;SetCurrentColor(dlg.GetColor());return;}
         if(id==Duplicate&&selected_>=0){document_.Duplicate(selected_);Select(static_cast<int>(document_.State().objects.size())-1);Changed();return;}
-        if(id==DeleteObject&&selected_>=0){document_.Remove(selected_);selected_=-1;Changed();return;}
+        if(id==DeleteObject&&selected_>=0){document_.Remove(selected_);selected_=-1;SyncStyle();Layout();Changed();return;}
         if((id==Forward||id==Backward)&&selected_>=0){const int delta=id==Forward?1:-1;document_.Reorder(selected_,delta);selected_=std::clamp(selected_+delta,0,static_cast<int>(document_.State().objects.size())-1);Changed();return;}
         if(id==OpenProject){CFileDialog dlg(TRUE,L"sctproj",nullptr,OFN_FILEMUSTEXIST,Tr(Text::ProjectFilter),this);if(dlg.DoModal()!=IDOK)return;openQueue_.push_back(dlg.GetPathName());OpenNext();return;}
         if(id==InsertImage){CFileDialog dlg(TRUE,L"png",nullptr,OFN_FILEMUSTEXIST,ImageOpenFilter(),this);if(dlg.DoModal()==IDOK)InsertFile(dlg.GetPathName());return;}
@@ -54,12 +72,12 @@ void EditorFrame::Export(bool project)
     CString canonical=std::filesystem::path(path.GetString()).replace_extension(project?L".sctproj":extensions[index-1]).c_str();
     if(canonical.CompareNoCase(path)!=0&&PathFileExists(canonical)&&MessageBox(canonical,Tr(Text::Save),MB_OKCANCEL|MB_ICONQUESTION)!=IDOK)return;path=canonical;
     int quality=jpegQuality_?jpegQuality_:settings.jpegQuality;
-    const auto state=document_.State();const auto revision=revision_;activeAction_=project?2:1;job_.Start([state,path,project,quality,revision]{WorkResult r;r.action=project?2:1;r.path=path;r.revision=revision;
+    const auto state=document_.State();const auto revision=revision_;activeAction_=project?2:1;StartWork([state,path,project,quality,revision]{WorkResult r;r.action=project?2:1;r.path=path;r.revision=revision;
         if(project)services::SaveProject(state,path,r.error);else if(services::RenderDocument(state,r.image,r.error))services::CaptureService::Save(r.image,path,r.error,quality);return r;});status_.SetWindowText(Tr(Text::Busy));
 }
 void EditorFrame::InsertFile(const CString& path)
 {
-    if(job_.Busy()){status_.SetWindowText(Tr(Text::Busy));return;}activeAction_=4;job_.Start([path]{WorkResult r;r.action=4;services::CaptureService::Load(path,r.image,r.error);return r;});
+    if(job_.Busy()){status_.SetWindowText(Tr(Text::Busy));return;}activeAction_=4;StartWork([path]{WorkResult r;r.action=4;services::CaptureService::Load(path,r.image,r.error);return r;});
 }
 int EditorFrame::JpegPreview(){auto source=std::make_shared<core::Image>(std::move(image_));modalImage_=source;int quality=-1;{JpegDialog dialog(this,source);if(dialog.Run()==IDOK)quality=dialog.Quality();}image_=std::move(*source);modalImage_.reset();InvalidateRect(canvas_,FALSE);return quality;}
 void EditorFrame::Insert(core::Image image)
@@ -70,6 +88,8 @@ void EditorFrame::Insert(core::Image image)
 }
 void EditorFrame::OnDropFiles(HDROP drop)
 {
-    wchar_t path[32768]{};DragQueryFile(drop,0,path,_countof(path));DragFinish(drop);if(*path)InsertFile(path);
+    const UINT count=DragQueryFile(drop,0xFFFFFFFF,nullptr,0);std::vector<CString> paths;POINT point{};DragQueryPoint(drop,&point);
+    try{if(count>64)throw std::runtime_error("Drop image count limit (64)");for(UINT i=0;i<count;++i){const UINT length=DragQueryFile(drop,i,nullptr,0);if(!length||length>=32768)throw std::runtime_error("Invalid dropped path");CString path;DragQueryFile(drop,i,path.GetBuffer(length+1),length+1);path.ReleaseBuffer();paths.push_back(std::move(path));}DragFinish(drop);drop=nullptr;InsertImages(std::move(paths),ImagePoint(point));}
+    catch(const std::exception& e){if(drop)DragFinish(drop);CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());status_.SetWindowText(error);}
 }
 }

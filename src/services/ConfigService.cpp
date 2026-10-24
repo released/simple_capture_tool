@@ -2,6 +2,9 @@
 #include "ConfigService.h"
 #include "LanguageService.h"
 #include "CaptureNaming.h"
+#include "ToolStyleService.h"
+#include "PaletteService.h"
+#include "EditorShortcutService.h"
 namespace sct::services {
 CString ConfigService::ExecutableDirectory()
 {
@@ -37,6 +40,10 @@ bool ConfigService::Load(Settings& output, CString& error) const
             else if (key == "LanguageFile") {if(!SafeLanguageFile(wide.c_str()))throw std::runtime_error("Invalid language filename");s.languageFile=wide.c_str();}
             else if (key == "HomeFeatures") {if(value.size()>2048||value.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_,")!=std::string::npos)throw std::runtime_error("Invalid home feature list");s.homeFeatures=wide.c_str();s.homeFeaturesConfigured=true;}
             else if (key == "EditorHome") {if(value.size()>4096||value.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_,")!=std::string::npos)throw std::runtime_error("Invalid editor home list");s.editorHome=wide.c_str();s.editorHomeConfigured=true;}
+            else if (key == "ToolStyles") {s.toolStyles=wide.c_str();CString styleError;if(!ValidateToolStyleData(s.toolStyles,styleError))throw std::runtime_error("Invalid portable tool styles");}
+            else if(key=="Palette"){s.palette=wide.c_str();PaletteData data;if(!DecodePalette(s.palette,data,error))throw std::runtime_error("Invalid portable palette");}
+            else if(key=="EditorShortcuts"){s.editorShortcuts=wide.c_str();EditorShortcuts bindings;if(!EffectiveEditorShortcuts(s.editorShortcuts,bindings,error))throw std::runtime_error("Invalid editor shortcuts");}
+            else if(key=="EditorHomeChildren"){if(value.size()>4096||value.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_,")!=std::string::npos)throw std::runtime_error("Invalid editor home child list");s.editorHomeChildren=wide.c_str();s.editorHomeChildrenConfigured=true;}
             else if (key == "CloseToTray") s.closeToTray = value == "1";
             else if (key == "SaveAfter") s.saveAfter = false;
             else if (key == "ImageSavePolicy") manualPolicy=value=="1";
@@ -70,6 +77,10 @@ bool ConfigService::Load(Settings& output, CString& error) const
 }
 bool ConfigService::Save(const Settings& s, CString& error) const
 {
+    if(!ValidateToolStyleData(s.toolStyles,error))return false;
+    EditorShortcuts bindings;if(!EffectiveEditorShortcuts(s.editorShortcuts,bindings,error))return false;
+    PaletteData palette;if(!DecodePalette(s.palette,palette,error))return false;
+    if(s.editorHomeChildrenConfigured){if(s.editorHomeChildren.GetLength()>4096){error=L"Editor home child list exceeds limit";return false;}for(wchar_t c:std::wstring(s.editorHomeChildren))if(!((c>=L'a'&&c<=L'z')||(c>=L'A'&&c<=L'Z')||(c>=L'0'&&c<=L'9')||c==L'_'||c==L',')){error=L"Invalid editor home child list";return false;}}
     if(s.editorHomeConfigured){if(s.editorHome.GetLength()>4096){error=L"Editor home list exceeds limit";return false;}for(wchar_t c:std::wstring(s.editorHome)){if(!((c>=L'a'&&c<=L'z')||(c>=L'A'&&c<=L'Z')||(c>=L'0'&&c<=L'9')||c==L'_'||c==L',')){error=L"Invalid editor home list";return false;}}}
     if(!ValidateCapturePattern(s.filePattern,error))return false;
     std::wostringstream text;
@@ -85,6 +96,10 @@ bool ConfigService::Save(const Settings& s, CString& error) const
     text<<L"[Interface]\nLanguageFile="<<s.languageFile.GetString()<<L"\n";
     if(s.homeFeaturesConfigured)text<<L"HomeFeatures="<<s.homeFeatures.GetString()<<L"\n";
     if(s.editorHomeConfigured)text<<L"EditorHome="<<s.editorHome.GetString()<<L"\n";
+    if(s.editorHomeChildrenConfigured)text<<L"EditorHomeChildren="<<s.editorHomeChildren.GetString()<<L"\n";
+    if(!s.toolStyles.IsEmpty())text<<L"ToolStyles="<<s.toolStyles.GetString()<<L"\n";
+    if(!s.palette.IsEmpty())text<<L"Palette="<<s.palette.GetString()<<L"\n";
+    if(!s.editorShortcuts.IsEmpty())text<<L"EditorShortcuts="<<s.editorShortcuts.GetString()<<L"\n";
     for(size_t i=0;i<s.presets.size()&&i<20;++i){CString name=s.presets[i].name;name.Replace(L"\r",L" ");name.Replace(L"\n",L" ");const RECT& r=s.presets[i].rect;
         text<<L"PresetName"<<i<<L"="<<name.GetString()<<L"\nPresetRect"<<i<<L"="<<r.left<<L","<<r.top<<L","<<r.right<<L","<<r.bottom<<L"\n";}
     const auto wide = text.str();

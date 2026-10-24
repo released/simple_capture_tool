@@ -37,7 +37,7 @@ BEGIN_MESSAGE_MAP(EditorFrame,CFrameWnd)
     ON_MESSAGE(LanguageChanged,&EditorFrame::OnLanguageChanged)
     ON_COMMAND_RANGE(Command::Save,Command::Color,&EditorFrame::OnAction)
     ON_COMMAND_RANGE(Command::More,Command::JpegQuality,&EditorFrame::OnAction)
-    ON_COMMAND_RANGE(Command::NewDocument,Command::EraseColor,&EditorFrame::OnAction)
+    ON_COMMAND_RANGE(Command::NewDocument,Command::UndoList,&EditorFrame::OnAction)
     ON_COMMAND_RANGE(Command::EditorToolFirst,Command::EditorToolLast,&EditorFrame::OnToolCommand)
     ON_COMMAND_RANGE(Command::PaletteFirst,Command::PaletteLast,&EditorFrame::OnPalette)
     ON_CBN_SELCHANGE(Command::ToolChoice,&EditorFrame::OnToolChanged)
@@ -65,7 +65,7 @@ int EditorFrame::OnCreate(LPCREATESTRUCT cs)
     if(CFrameWnd::OnCreate(cs)==-1)return -1;
     ::SetProp(m_hWnd,L"SCT.LocaleRoot",reinterpret_cast<HANDLE>(1));
     SetIcon(AfxGetApp()->LoadIcon(IDI_APP_ICON),TRUE);SetIcon(AfxGetApp()->LoadIcon(IDI_APP_ICON),FALSE);
-    ribbon_.Create(this);palette_.Create(this);
+    ribbon_.Create(this);palette_.Create(this);sidebar_.owner=this;
     tools_.Create(WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST|WS_VSCROLL,CRect(),this,ToolChoice);
     // Batch choice insertion and initial fonts; native combo popup layout is expensive per item.
     tools_.SetRedraw(FALSE);
@@ -90,16 +90,16 @@ int EditorFrame::OnCreate(LPCREATESTRUCT cs)
     tips_.Create(this,TTS_ALWAYSTIP);tips_.SetMaxTipWidth(Px(m_hWnd,700));tips_.AddTool(&status_,LPSTR_TEXTCALLBACK);tips_.SetDelayTime(TTDT_AUTOPOP,20000);
     ApplyFont(*this,font_);
     for(auto* combo:{&tools_,&width_,&fontSize_,&lineStyle_,&opacity_,&zoomChoice_})combo->SetRedraw(TRUE);
-    SyncStyle();Layout();DragAcceptFiles(TRUE);SetTimer(1,40,nullptr);RequestRender();return 0;
+    ReloadEditorShortcuts();SyncStyle();Layout();DragAcceptFiles(TRUE);EditorPolling(true);RequestRender();return 0;
 }
 void EditorFrame::OnSize(UINT t,int x,int y){CancelCanvasResize();CFrameWnd::OnSize(t,x,y);Layout();}
 void EditorFrame::OnGetMinMaxInfo(MINMAXINFO* i){CFrameWnd::OnGetMinMaxInfo(i);i->ptMinTrackSize={Px(m_hWnd,680),Px(m_hWnd,480)};}
-LRESULT EditorFrame::OnDpiChanged(WPARAM,LPARAM value){const RECT& r=*reinterpret_cast<RECT*>(value);SetWindowPos(nullptr,r.left,r.top,r.right-r.left,r.bottom-r.top,SWP_NOZORDER);ApplyFont(*this,font_);Layout();return 0;}
+LRESULT EditorFrame::OnDpiChanged(WPARAM,LPARAM value){const RECT& r=*reinterpret_cast<RECT*>(value);SetWindowPos(nullptr,r.left,r.top,r.right-r.left,r.bottom-r.top,SWP_NOZORDER);ApplyFont(*this,font_);sidebar_.RefreshLanguage();Layout();return 0;}
 LRESULT EditorFrame::OnLanguageChanged(WPARAM,LPARAM)
 {
     SetWindowText(Caption()+L" - "+Tr(Text::Editor));RefreshBoundText(m_hWnd);const int selected=tools_.GetCurSel();tools_.ResetContent();
     for(auto key:ToolLabels())tools_.AddString(Tr(key));tools_.SetCurSel(selected);const int dash=lineStyle_.GetCurSel();lineStyle_.ResetContent();for(auto key:{Text::SolidLine,Text::DashedLine,Text::DottedLine})lineStyle_.AddString(Tr(key));lineStyle_.SetCurSel(dash);
-    ribbon_.Refresh();ApplyFont(*this,font_);SyncStyle();Layout();NotifyWorkspace();return 0;
+    ReloadEditorShortcuts();ribbon_.Refresh();ApplyFont(*this,font_);sidebar_.RefreshLanguage();SyncStyle();Layout();NotifyWorkspace();return 0;
 }
 void EditorFrame::AutomaticOutput(const std::shared_ptr<const core::Image>& source,const CString& path,const CString& error)
 {
@@ -113,7 +113,7 @@ void EditorFrame::OnPaint()
 }
 void EditorFrame::PaintContent(CDC& dc)
 {
-    if(canvas_.IsRectEmpty())return;viewport::PaintFrame(dc,canvas_,m_hWnd);dc.FillSolidRect(canvas_,RGB(48,50,54));int saved=dc.SaveDC();dc.IntersectClipRect(canvas_);
+    if(canvas_.IsRectEmpty())return;viewport::PaintFrame(dc,canvas_,m_hWnd);dc.FillSolidRect(canvas_,viewport::SurroundColor);int saved=dc.SaveDC();dc.IntersectClipRect(canvas_);
     const core::Image& display=image_.Empty()?(modalImage_?*modalImage_:*document_.State().base):image_;
     if(!display.Empty()){
         const CRect dest=ScreenRect({0,0,display.width,display.height});CRect visible;visible.IntersectRect(dest,canvas_);
@@ -123,22 +123,24 @@ void EditorFrame::PaintContent(CDC& dc)
         Gdiplus::Bitmap bitmap(display.width,display.height,display.width*4,PixelFormat32bppARGB,const_cast<BYTE*>(display.pixels.data()));Gdiplus::Graphics g(dc);
         g.DrawImage(&bitmap,Gdiplus::Rect(dest.left,dest.top,dest.Width(),dest.Height()));
     }
-    RECT box{};bool show=false;if(dragging_&&clickCandidate_<0){box=draft_.rect;show=draft_.tool!=core::Tool::Eraser&&draft_.tool!=core::Tool::SmartEraser&&(style_.tool==core::Tool::Select||draft_.tool!=core::Tool::Pen)&&!PaintArrowControls(dc,draft_);}else if(!dragging_&&selected_>=0&&selected_<static_cast<int>(document_.State().objects.size())){const auto& a=document_.State().objects[selected_];box=a.rect;show=!PaintArrowControls(dc,a);}
+    const bool composition=PaintCrop(dc)||PaintComposition(dc);RECT box{};bool show=false;if(!composition&&dragging_&&clickCandidate_<0){box=draft_.rect;show=draft_.tool!=core::Tool::Eraser&&draft_.tool!=core::Tool::SmartEraser&&(style_.tool==core::Tool::Select||draft_.tool!=core::Tool::Pen)&&!PaintArrowControls(dc,draft_);}else if(!composition&&!dragging_&&selected_>=0&&selected_<static_cast<int>(document_.State().objects.size())&&VisibleSelection()){const auto& a=document_.State().objects[selected_];box=a.rect;show=!PaintArrowControls(dc,a);}
     if(!pixelSelection_.IsRectEmpty()&&style_.tool==core::Tool::PixelSelect){box=pixelSelection_;show=true;}
     if(show){CRect r=ScreenRect(box);selection::Box(dc,r);
         const int size=Px(m_hWnd,4);for(int yy=0;yy<3;++yy)for(int xx=0;xx<3;++xx)if(xx!=1||yy!=1){int x=r.left+r.Width()*xx/2,y=r.top+r.Height()*yy/2;selection::Handle(dc,{x,y},size);}}
-    PaintCanvasControls(dc);dc.RestoreDC(saved);
+    PaintSnapGuides(dc);PaintCanvasControls(dc);dc.RestoreDC(saved);
 }
-void EditorFrame::Changed(){dirty_=true;++revision_;renderPending_=true;RequestRender();ClampViewport();NotifyWorkspace();InvalidateRect(canvas_,FALSE);}
+void EditorFrame::Changed(){if(!cropRegion_.IsRectEmpty())CancelCrop();dirty_=true;++revision_;renderPending_=true;RequestRender();ClampViewport();sidebar_.Refresh();NotifyWorkspace();InvalidateRect(canvas_,FALSE);}
 void EditorFrame::RequestRender()
 {
-    if(!renderPending_||job_.Busy())return;renderPending_=false;auto state=document_.State();const auto revision=revision_,preview=previewGeneration_;
-    const bool pixels=dragging_&&style_.tool==core::Tool::PixelSelect&&pixelMoving_&&!pixelOriginal_.IsRectEmpty();const bool drawing=dragging_&&clickCandidate_<0&&style_.tool!=core::Tool::Crop&&(style_.tool!=core::Tool::PixelSelect||pixels);const RECT source=pixelOriginal_,destination=pixelSelection_;
-    if(drawing&&!pixels){if(style_.tool==core::Tool::Select&&selected_>=0)state.objects[selected_]=draft_;else state.objects.push_back(draft_);}
-    activeAction_=0;job_.Start([state,revision,preview,drawing,pixels,source,destination]{WorkResult r;r.action=0;r.revision=revision;r.preview=preview;if(services::RenderDocument(state,r.image,r.error)){if(pixels){auto asset=std::make_shared<core::Image>(r.image.Crop(source));core::ClearRegion(r.image,source);core::Annotation a;a.tool=core::Tool::Picture;a.rect=destination;a.asset=asset;services::RenderObject(r.image,a);}else if(!drawing){double scale=std::min({1.0,144.0/r.image.width,96.0/r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,static_cast<int>(r.image.width*scale)),std::max(1,static_cast<int>(r.image.height*scale)));}}return r;});
+    if(!renderPending_||renderSuspended_)return;EditorPolling(true);if(job_.Busy())return;renderPending_=false;auto state=document_.State();const auto revision=revision_,preview=previewGeneration_;const auto cache=previewCache_;size_t prefix=state.objects.size();
+    const bool pixels=dragging_&&style_.tool==core::Tool::PixelSelect&&pixelMoving_&&!pixelOriginal_.IsRectEmpty();const bool drawing=objectGesture_&&!objectMarquee_||dragging_&&clickCandidate_<0&&style_.tool!=core::Tool::Crop&&(style_.tool!=core::Tool::PixelSelect||pixels);const RECT source=pixelOriginal_,destination=pixelSelection_;
+    if(objectGesture_&&!objectMarquee_){state=objectPreview_;prefix=objectDragIds_.empty()?0:static_cast<size_t>(*std::min_element(objectDragIds_.begin(),objectDragIds_.end()));}
+    else if(drawing&&!pixels){if(style_.tool==core::Tool::Select&&selected_>=0){prefix=static_cast<size_t>(selected_);state.objects[selected_]=draft_;}else state.objects.push_back(draft_);}
+    activeAction_=0;StartWork([state=std::move(state),cache,prefix,revision,preview,drawing,pixels,source,destination]{WorkResult r;r.action=0;r.revision=revision;r.preview=preview;bool rendered=false;if(drawing)rendered=cache->Render(state,r.image,r.error,revision,prefix);else{cache->Clear();rendered=services::RenderDocument(state,r.image,r.error);}if(rendered){if(pixels){auto asset=std::make_shared<core::Image>(r.image.Crop(source));core::ClearRegion(r.image,source);core::Annotation a;a.tool=core::Tool::Picture;a.rect=destination;a.asset=asset;services::RenderObject(r.image,a);}else if(!drawing){double scale=std::min({1.0,144.0/r.image.width,96.0/r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,static_cast<int>(r.image.width*scale)),std::max(1,static_cast<int>(r.image.height*scale)));}}return r;});
 }
 void EditorFrame::OnTimer(UINT_PTR)
 {
+    if(screenColorModal_)return;
     auto r=job_.Take();try{if(r){if(!r->error.IsEmpty()){if(r->action==13||(canvasPending_&&activeAction_==13)){canvasPending_=false;InvalidateRect(canvas_,FALSE);}status_.SetWindowText(r->error);pendingAction_=0;CompleteClipboardCopy(false);}
         else if(r->action==0){if(r->revision==revision_&&r->preview==previewGeneration_){image_=std::move(r->image);if(!r->thumbnail.Empty()){thumbnail_=std::move(r->thumbnail);rendered_=r->revision;NotifyWorkspace();}InvalidateRect(canvas_,FALSE);}}
         else if(r->action==1||r->action==2){if(r->action==1)path_=r->path;else projectPath_=r->path;projectPrimary_=r->action==2;dirty_=r->revision!=revision_;status_.SetWindowText(CString(Tr(Text::Saved))+r->path);NotifyWorkspace();}
@@ -146,7 +148,7 @@ void EditorFrame::OnTimer(UINT_PTR)
         else if(r->action==4){Insert(std::move(r->image));}
         else if(r->action==5){PublishClipboardResult(*r);}
         else if(r->action==7){if(!r->state.base)r->state.base=std::make_shared<const core::Image>(std::move(r->image));EditorWorkspace::Open(std::move(r->state),r->path,r->path.IsEmpty());}
-        else if(r->action==8){document_.Commit(std::move(r->state));style_.tool=core::Tool::Select;tools_.SetCurSel(static_cast<int>(style_.tool));Select(document_.State().objects.empty()?-1:static_cast<int>(document_.State().objects.size())-1);Changed();}
+        else if(r->action==8){if(r->revision&&r->revision!=revision_){status_.SetWindowText(Tr(Text::Busy));}else{document_.Commit(std::move(r->state));style_.tool=core::Tool::Select;selected_=-1;Changed();if(!r->selected.empty())SetSelection(std::move(r->selected));else Select(document_.State().objects.empty()?-1:static_cast<int>(document_.State().objects.size())-1);}}
         else if(r->action==9){status_.SetWindowText(Tr(Text::Saved));}
         else if(r->action==10){if(!LoadEffectPreset(r->path))status_.SetWindowText(Tr(Text::InvalidValue));}
         else if(r->action==11){ImagePreviewDialog preview(this,std::move(r->image),Text::PrintPreview);preview.Run();}
@@ -154,12 +156,18 @@ void EditorFrame::OnTimer(UINT_PTR)
         else if(r->action==13)CompleteCanvasResize(*r);
         else if(r->action==14)CompleteImagePaste(*r);
         else if(r->action==15){const HWND host=m_hWnd;ShowNewImage(r->dimensions);if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;}
+        else if(r->action==16){const HWND host=m_hWnd;ShowScreenColor(std::move(r->image),r->screen);if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;}
+        else if(r->action==17)CompleteCrop(*r);
+        else if(r->action==18)CompleteLayout(*r);
+        else if(r->action==19){const HWND host=m_hWnd;CompleteComparison(*r);if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;}
+        else if(r->action==20)CompletePrecision(*r);
     }}catch(const std::exception& e){CompleteClipboardCopy(false);CString error;error.Format(L"%s %hs",Tr(Text::Failed),e.what());status_.SetWindowText(error);}
     ApplyCanvasResize();RunPendingAction();
     PollClipboardPaste();
-    OpenNext();RequestRender();
+    OpenNext();RequestRender();const HWND host=m_hWnd;RunQueuedLayout();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;
+    EditorPolling(EditorWorkPending());
 }
-void EditorFrame::OnClose(){openQueue_.clear();pendingAction_=0;job_.cancel=true;dragging_=false;canvasHandle_=-1;textEditing_=false;if(GetCapture()==this)ReleaseCapture();CFrameWnd::OnClose();}
-void EditorFrame::OnDestroy(){KillTimer(1);CompleteClipboardCopy(false);pasteTicket_=0;if(auto* w=dynamic_cast<EditorWorkspace*>(workspace_))w->ChildClosed(m_hWnd);CFrameWnd::OnDestroy();}
+void EditorFrame::OnClose(){openQueue_.clear();pendingLayoutPaths_.clear();pendingAction_=0;job_.cancel=true;dragging_=false;canvasHandle_=-1;textEditing_=false;if(GetCapture()==this)ReleaseCapture();CFrameWnd::OnClose();}
+void EditorFrame::OnDestroy(){KillTimer(1);editorPollMs_=0;CompleteClipboardCopy(false);pasteTicket_=0;if(auto* w=dynamic_cast<EditorWorkspace*>(workspace_))w->ChildClosed(m_hWnd);CFrameWnd::OnDestroy();}
 BOOL EditorFrame::OnNotify(WPARAM wp,LPARAM lp,LRESULT* result){auto* header=reinterpret_cast<NMHDR*>(lp);if(header&&header->hwndFrom==tips_.GetSafeHwnd()&&header->code==TTN_GETDISPINFOW){status_.GetWindowText(tipText_);reinterpret_cast<NMTTDISPINFOW*>(lp)->lpszText=const_cast<LPWSTR>(tipText_.GetString());*result=0;return TRUE;}return CFrameWnd::OnNotify(wp,lp,result);}
 }

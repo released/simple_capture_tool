@@ -1,5 +1,6 @@
 #pragma once
 #include "Image.h"
+#include "DocumentResources.h"
 namespace sct::core {
 enum class Tool { Pen, Rectangle, Ellipse, Arrow, Mosaic, Crop, Text, Select, Step, Highlight, Redact, Blur, Picture, Magnifier, Spotlight,
     Line,RoundRectangle,Callout,Stamp,CursorStamp,Eraser,SmartEraser,Fill,Eyedropper,PixelSelect,CurvedArrow };
@@ -15,6 +16,8 @@ struct Annotation {
     bool anchored = false;
     bool filled=false,shadow=false;
     int lineStyle=0,alignment=0,alpha=255,mosaicStrength=0,eraseMode=0;
+    uint32_t group=0;bool locked=false;
+    CString label;bool hidden=false;
     std::shared_ptr<const Image> asset;
 };
 int MosaicBlockSize(const Annotation&);
@@ -32,6 +35,8 @@ public:
     int Height() const { return state_.base ? state_.base->height : 0; }
     void Commit(DocumentState state);
     bool Undo(); bool Redo();
+    bool NavigateHistory(int offset);
+    const DocumentState* HistoryState(int offset)const;
     void Add(Annotation object);
     void Replace(size_t index, Annotation object);
     void Remove(size_t index);
@@ -41,6 +46,9 @@ public:
     static void Translate(Annotation& object, int dx, int dy);
     static void Fit(Annotation& object, RECT rect);
     void Reset(DocumentState state) { state_=std::move(state); undo_.clear(); redo_.clear(); }
+    void Account(DocumentResources&)const;
+    size_t UndoCount()const{return undo_.size();}size_t RedoCount()const{return redo_.size();}
+    void ClearHistory(){std::vector<DocumentState>().swap(undo_);std::vector<DocumentState>().swap(redo_);}
 private:
     static void Bound(std::vector<DocumentState>& states);
     DocumentState state_;

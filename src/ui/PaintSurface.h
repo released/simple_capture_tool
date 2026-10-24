@@ -2,6 +2,8 @@
 namespace sct::ui {
 class PaintSurface final {
 public:
+    size_t Bytes()const{return static_cast<size_t>(std::max<LONG>(0,size_.cx))*std::max<LONG>(0,size_.cy)*4;}
+    void Release(){bitmap_.DeleteObject();dc_.DeleteDC();size_={0,0};}
     template<class Draw>void Paint(CWnd& window,CDC& target,COLORREF background,Draw draw){
         CRect bounds;window.GetClientRect(bounds);if(bounds.IsRectEmpty())return;
         if(!dc_.GetSafeHdc()&&!dc_.CreateCompatibleDC(&target)){Direct(target,bounds,background,draw);return;}

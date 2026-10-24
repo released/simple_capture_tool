@@ -8,22 +8,30 @@
 #include "RecordingBar.h"
 #include "CountdownWindow.h"
 #include "SelectionWindow.h"
+class SimpleCaptureToolApp;
 namespace sct::ui {
 class FormDialog;
 class MainFrame final:public CFrameWnd {
-public:MainFrame();static bool SaveEditorHome(const CString& keys,CString& error);static bool DispatchAppCommand(UINT,HWND owner);
+public:MainFrame();static bool SaveEditorHome(const CString& keys,CString& error,const CString* children=nullptr);static bool SaveToolStyles(const CString&,CString&);static bool SavePalette(const CString&,CString&);static bool SaveEditorShortcuts(const CString&,CString&,const CString* expected=nullptr);static bool DispatchAppCommand(UINT,HWND owner);
 protected:
     BOOL PreTranslateMessage(MSG*)override;
     afx_msg int OnCreate(LPCREATESTRUCT);afx_msg void OnClose();afx_msg void OnDestroy();afx_msg void OnSize(UINT,int,int);afx_msg void OnTimer(UINT_PTR);afx_msg void OnAction(UINT);
     afx_msg LRESULT OnTray(WPARAM,LPARAM);afx_msg LRESULT OnTaskbarCreated(WPARAM,LPARAM);afx_msg LRESULT OnDpiChanged(WPARAM,LPARAM);DECLARE_MESSAGE_MAP()
     afx_msg LRESULT OnLanguageChanged(WPARAM,LPARAM);
     afx_msg LRESULT OnBuildExit(WPARAM,LPARAM);
+    afx_msg LRESULT OnActivateExisting(WPARAM,LPARAM);
     afx_msg LRESULT OnHotkey(WPARAM,LPARAM);afx_msg LRESULT OnDeferredHotkey(WPARAM,LPARAM);
     afx_msg void OnEnterMenuLoop(BOOL);afx_msg void OnExitMenuLoop(BOOL);
 private:
+    friend class ::SimpleCaptureToolApp;
     friend class ShellAccess;
     friend class CaptureLatencyAccess;
     friend class ImageHomeAccess;
+    friend class InstanceAccess;
+    friend class ToolStyleAccess;
+    friend class WorkspaceToolsAccess;
+    friend class CommandToolsAccess;
+    friend class EditorMenusAccess;
     explicit MainFrame(bool isolated);
     friend class EnhancementAccess;
     friend class PreferenceAccess;
@@ -55,6 +63,7 @@ private:
     std::vector<HWND> hiddenEditors_;HWND activeTarget_=nullptr,lastExternal_=nullptr;
     HWND commandOwner_=nullptr;UINT deferredHotkey_=0;int menuDepth_=0;bool isolated_=false;
     std::function<void(UINT)> commandAudit_;
+    std::function<void(HWND)> instanceActivationAudit_;
     bool capturePolling_=false;std::function<void(const WorkResult&)> deliveryAudit_;
 };
 }

@@ -1,4 +1,14 @@
 #pragma once
+namespace sct::services {void CommandToolsChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void EditableLayoutChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);void SidebarChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void WorkspaceToolsChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void EditorPerformanceChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void ObjectAlignmentChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void DefaultCursorChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void CropWorkflowChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);void EditorMenusChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void CompositionChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void ToolStyleChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void ColorPickerChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 namespace sct::services {void ImageHomeChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 namespace sct::services {void PasteOriginalChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 namespace sct::services {void CaptureLatencyChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}

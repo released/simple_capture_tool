@@ -16,10 +16,10 @@ inline void AdjustClientRect(CRect& rect,CWnd& window,bool menu=false){AdjustWin
 inline CString Caption() { return CString(Tr(Text::App)) + L" " SCT_VERSION_W; }
 inline CString ImageOpenFilter(bool projects=false){CString pattern=L"*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif";if(projects)pattern+=L";*.sctproj";return CString(Tr(projects?Text::ImagesProjects:Text::ImageFiles))+L" ("+pattern+L")|"+pattern+L"||";}
 inline bool CanonicalOutputPath(CWnd& owner,const CString& requested,const wchar_t* extension,CString& output){output=std::filesystem::path(requested.GetString()).replace_extension(extension).c_str();return output.CompareNoCase(requested)==0||!PathFileExists(output)||owner.MessageBox(output,Tr(Text::SaveAs),MB_OKCANCEL|MB_ICONQUESTION)==IDOK;}
-inline void ApplyFont(CWnd& parent, CFont& font)
+inline void ApplyFont(CWnd& parent, CFont& font,int points=10)
 {
     HFONT old=static_cast<HFONT>(font.Detach());
-    font.CreateFont(-MulDiv(10,LayoutDpi(parent.GetSafeHwnd()),72),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,
+    font.CreateFont(-MulDiv(points,LayoutDpi(parent.GetSafeHwnd()),72),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,
         DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Microsoft JhengHei UI");
     for (CWnd* child = parent.GetWindow(GW_CHILD); child; child = child->GetNextWindow()) child->SetFont(&font);
     if(old) DeleteObject(old);
@@ -55,12 +55,22 @@ enum Command : UINT {
     NewDocument=42000,OpenImages,SaveAs,SaveAll,CloseDocument,CloseAllDocuments,PasteNewDocument,Cut,SelectPixels,SelectAllPixels,DeselectPixels,
     ZoomFit,ZoomActual,ZoomIn,ZoomOut,ShowThumbnails,ToggleFullScreen,Effects,FrameEffect,ShadowEffect,WatermarkEffect,BackgroundEffect,
     PrintImage,PrintPreview,SaveAllPdf,StampGallery,CursorGallery,FillColor,ToggleFill,ToggleShadow,TextBold,TextItalic,TextUnderline,AlignLeft,AlignCenter,AlignRight,
-    EffectPresets,SaveEffectPreset,AlignLeftMiddle,AlignCenterMiddle,AlignRightMiddle,TextTransparent,TextOpaque,EraseTransparent,RepairAutomatic,EraseColor,
+    EffectPresets,SaveEffectPreset,AlignLeftMiddle,AlignCenterMiddle,AlignRightMiddle,TextTransparent,TextOpaque,EraseTransparent,RepairAutomatic,EraseColor,ScreenColor,ToolStyles,SaveToolStyle,DeleteToolStyle,
+    SelectAllObjects,GroupObjects,UngroupObjects,LockObjects,UnlockObjects,UnlockAllObjects,
+    ApplyCrop,CancelCropSelection,MoveCropContents,
+    ObjectAlignLeft,ObjectAlignCenter,ObjectAlignRight,ObjectAlignTop,ObjectAlignMiddle,ObjectAlignBottom,ObjectSpaceHorizontal,ObjectSpaceVertical,AlignToCanvas,SnapObjects,
+    WorkspaceResources,ReclaimCaches,ClearUndoHistory,RenameDocument,ChooseDocument,ColorHex,ColorPalette,FavoriteColor,CopyColorHex,
+    InsertImages,CollageDocuments,ObjectPanel,PropertyPanel,LayerRename,LayerVisibility,
+    CommandSearch,EditorShortcutSettings,RenumberSteps,
+    CompareImages,PreciseCrop,RotateAngle,UndoList,
     CustomizeEditorHome=42400,EditorHomeList,EditorHomeUp,EditorHomeDown,EditorHomeDefaults,EditorHomeAll,EditorHomeNone,
-    RibbonTabs=42900,WorkspaceTabs,WorkspaceClose,ThumbnailPane,ZoomChoice,ZoomSlider,HorizontalScroll,VerticalScroll,FontSizeChoice,LineStyleChoice,OpacityChoice,RibbonOverflow,MosaicSlider,
+    RibbonTabs=42900,WorkspaceTabs,WorkspaceClose,ThumbnailPane,ZoomChoice,ZoomSlider,HorizontalScroll,VerticalScroll,FontSizeChoice,LineStyleChoice,OpacityChoice,RibbonOverflow,MosaicSlider,WorkspaceChoose,
     EditorToolFirst=43000,EditorToolLast=43255,
     PaletteFirst=43400,PaletteLast=43431,StampFirst=43500,StampLast=43563,
-    EffectFirst=43600,EffectLast=43663,ActiveWindow=43700,RestoreEditor
+    EffectFirst=43600,EffectLast=43663,ActiveWindow=43700,RestoreEditor,ToolStyleFirst=43800,ToolStyleLast=43831,
+    EditorMenuFirst=44000,EditorMenuLast=44255,EditorHomeChildrenList=44300,
+    SidebarTabs=44400,SidebarList,SidebarClose,SidebarApply,SidebarValueFirst=44420,SidebarValueLast=44427,
+    SearchQuery=44500,SearchList,CompareMode,CompareDivider
 };
 constexpr UINT TrayMessage = WM_APP + 21;
 }

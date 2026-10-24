@@ -10,6 +10,8 @@ const std::vector<RibbonCommand>& RibbonCommands();
 std::vector<RibbonCommand> EditorHomeCommands(const services::Settings&);
 CString EditorHomeKeys(const std::vector<RibbonCommand>&);
 CString CompleteEditorHomeKeys(const services::Settings&);
-void BuildAllEditorMenu(CMenu&);
+std::vector<HomeButton> AllEditorFamilies();
+void BuildAllEditorMenu(CMenu&,bool menuAliases=false);
+UINT EditorMenuId(UINT);UINT EditorMenuCommand(UINT);
 void ConfigureEditorHome(CWnd* owner);
 }

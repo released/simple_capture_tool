@@ -1,0 +1,469 @@
+{
+  "Project": "simple_capture_tool",
+  "Date": "2026-10-25",
+  "Result": "PASS",
+  "Version": "1.0.0.041",
+  "Original": {
+    "Bytes": 5540352,
+    "SHA256": "156F423AB42565FD22552014E05230240A1D3725C20E5A171C0D3CA90D04027D"
+  },
+  "Baseline": {
+    "Bytes": 5544960,
+    "SHA256": "F998B60A85E63736C7A6395515D79C7CCEE12007CFCC9BA0B3D51F5203C2084F"
+  },
+  "Candidate": {
+    "Bytes": 2215936,
+    "SHA256": "AE682DAC40F86DD4980DFDB626697FC8BB571A4F4F156CAFC3729DA8860C2E6D"
+  },
+  "Debug": {
+    "Bytes": 11669504,
+    "SHA256": "0A27A6863192FED9B3F39957E71FC740251B6A184D861DC764C67A6A0E1779AE"
+  },
+  "Configuration": "VS2022 MSVC14.44.35207 x64 Release static MFC/CRT; /O2 /GL /GS exceptions retained, PE 0x8160",
+  "Changes": [
+    "Separate 35 test compilation units and dispatch into SctIncludeTests=true artifacts/tests with separate objects",
+    "Disable unused automatic MFC feature-pack dialog registration; custom EditorRibbon retained",
+    "Private exact startup probe initializes real MainFrame, no production mutex/tray/hotkeys/capture/clipboard/activation",
+    "Remove developer-only ffprobe from portable package, keep local developer installation/FFmpeg/runtime licenses"
+  ],
+  "Builds": "Canonical Release/Debug, 0 warnings/errors; no running production target required closing",
+  "Functional": {
+    "Scopes": {
+      "Instance": 46,
+      "EditorMenus": 288,
+      "ImagePrecision": 99,
+      "EditorPerformance": 62
+    },
+    "EachConfiguration": 495,
+    "Retail": "Actual canonical Release/Debug hash-matched real-MainFrame lifecycle; 26 child controls; normal exit",
+    "RetailDeveloperFlags": [
+      {
+        "Exit": 64,
+        "Argument": "--self-test"
+      },
+      {
+        "Exit": 64,
+        "Argument": "--recording-test"
+      },
+      {
+        "Exit": 64,
+        "Argument": "--ui-test"
+      },
+      {
+        "Exit": 64,
+        "Argument": "--enhancement-test"
+      },
+      {
+        "Exit": 64,
+        "Argument": "--enhancement-ui-test"
+      },
+      {
+        "Exit": 64,
+        "Argument": "--preferences-test"
+      },
+      {
+        "Exit": 64,
+        "Argument": "--alignment-test"
+      },
+      {
+        "Exit": 64,
+        "Argument": "--capture-test-surface"
+      },
+      {
+        "Exit": 64,
+        "Argument": "--single-instance-child"
+      },
+      {
+        "Exit": 64,
+        "Argument": "--startup-probe --self-test"
+      }
+    ],
+    "Reuse": "Unchanged 040 broader editor/core feature evidence explicitly reused, not rerun"
+  },
+  "Performance": {
+    "Samples": 7,
+    "Order": "baseline calibration before candidate; alternating AB/BA measured pairs",
+    "Limits": {
+      "StartupMs": {
+        "Median": 139.9452,
+        "MAD": 2.738200000000006,
+        "AllowedDelta": 25
+      },
+      "PeakBytes": {
+        "Median": 15314944,
+        "MAD": 16384,
+        "AllowedDelta": 1048576
+      },
+      "CpuMs": {
+        "Median": 109.375,
+        "MAD": 15.625,
+        "AllowedDelta": 47
+      },
+      "WorkflowMs": {
+        "Median": 1.2567000000000002,
+        "MAD": 0.12020000000000008,
+        "AllowedDelta": 2
+      }
+    },
+    "Checks": [
+      {
+        "Metric": "StartupMs",
+        "BaselineMedian": 146.993,
+        "CandidateMedian": 133.1986,
+        "Limit": 171.993,
+        "Pass": true
+      },
+      {
+        "Metric": "PeakBytes",
+        "BaselineMedian": 15335424,
+        "CandidateMedian": 14811136,
+        "Limit": 16384000,
+        "Pass": true
+      },
+      {
+        "Metric": "CpuMs",
+        "BaselineMedian": 109.375,
+        "CandidateMedian": 109.375,
+        "Limit": 156.375,
+        "Pass": true
+      },
+      {
+        "Metric": "WorkflowMs",
+        "BaselineMedian": 1.3880000000000001,
+        "CandidateMedian": 1.181,
+        "Limit": 3.388,
+        "Pass": true
+      }
+    ],
+    "Calibration": [
+      {
+        "Variant": "baseline",
+        "StartupMs": 137.74450000000002,
+        "WorkflowMs": 0.9440000000000001,
+        "CpuMs": 93.75,
+        "PeakBytes": 15298560,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 140.04330000000002,
+        "WorkflowMs": 1.2567000000000002,
+        "CpuMs": 140.625,
+        "PeakBytes": 15302656,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 140.97830000000002,
+        "WorkflowMs": 0.6309,
+        "CpuMs": 93.75,
+        "PeakBytes": 15298560,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 139.9452,
+        "WorkflowMs": 1.1365,
+        "CpuMs": 109.375,
+        "PeakBytes": 15351808,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 135.4205,
+        "WorkflowMs": 1.196,
+        "CpuMs": 93.75,
+        "PeakBytes": 15286272,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 134.87730000000002,
+        "WorkflowMs": 1.2845,
+        "CpuMs": 109.375,
+        "PeakBytes": 15331328,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 137.207,
+        "WorkflowMs": 1.2872000000000001,
+        "CpuMs": 125,
+        "PeakBytes": 15314944,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      }
+    ],
+    "Baseline": [
+      {
+        "Variant": "baseline",
+        "StartupMs": 174.6463,
+        "WorkflowMs": 1.2057,
+        "CpuMs": 93.75,
+        "PeakBytes": 15310848,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 138.52970000000002,
+        "WorkflowMs": 1.3880000000000001,
+        "CpuMs": 109.375,
+        "PeakBytes": 15351808,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 146.993,
+        "WorkflowMs": 1.4082000000000001,
+        "CpuMs": 93.75,
+        "PeakBytes": 15335424,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 156.1558,
+        "WorkflowMs": 1.2666000000000002,
+        "CpuMs": 109.375,
+        "PeakBytes": 15310848,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 144.6619,
+        "WorkflowMs": 1.4162000000000001,
+        "CpuMs": 78.125,
+        "PeakBytes": 15306752,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 136.7087,
+        "WorkflowMs": 1.1593,
+        "CpuMs": 125,
+        "PeakBytes": 15286272,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "baseline",
+        "StartupMs": 138.0318,
+        "WorkflowMs": 1.2072,
+        "CpuMs": 78.125,
+        "PeakBytes": 15372288,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      }
+    ],
+    "Candidate": [
+      {
+        "Variant": "candidate",
+        "StartupMs": 126.2681,
+        "WorkflowMs": 1.181,
+        "CpuMs": 109.375,
+        "PeakBytes": 14774272,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "candidate",
+        "StartupMs": 133.1986,
+        "WorkflowMs": 1.0511000000000001,
+        "CpuMs": 78.125,
+        "PeakBytes": 14811136,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "candidate",
+        "StartupMs": 125.7424,
+        "WorkflowMs": 1.5871000000000002,
+        "CpuMs": 109.375,
+        "PeakBytes": 14790656,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "candidate",
+        "StartupMs": 126.6909,
+        "WorkflowMs": 1.1648,
+        "CpuMs": 109.375,
+        "PeakBytes": 14819328,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "candidate",
+        "StartupMs": 122.19550000000001,
+        "WorkflowMs": 1.1809,
+        "CpuMs": 109.375,
+        "PeakBytes": 14798848,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "candidate",
+        "StartupMs": 152.821,
+        "WorkflowMs": 0.8539,
+        "CpuMs": 78.125,
+        "PeakBytes": 14815232,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      },
+      {
+        "Variant": "candidate",
+        "StartupMs": 135.4322,
+        "WorkflowMs": 1.1815,
+        "CpuMs": 125,
+        "PeakBytes": 14798848,
+        "Controls": "Button:25|Static:1",
+        "Report": "startup-only"
+      }
+    ],
+    "Scope": "Startup, control shape, 50 bounded WM_NULL dispatches, process CPU and peak working set; not capture/hardware/render throughput"
+  },
+  "Package": {
+    "BeforeZipBytes": 113652962,
+    "AfterZipBytes": 56701312,
+    "BeforeDeliveryBytes": 273593723,
+    "AfterDeliveryBytes": 136378558,
+    "CandidateZipSHA256": "F4E8F2F3D57FA96FD505D86BBD8D7FD72111D4FCA58B198ED691DE8FB24CE38D",
+    "Before": [
+      {
+        "Path": "libwebp-LICENSE.txt",
+        "Bytes": 3053,
+        "CompressedBytes": 1515
+      },
+      {
+        "Path": "LICENSE",
+        "Bytes": 1089,
+        "CompressedBytes": 642
+      },
+      {
+        "Path": "README.md",
+        "Bytes": 49841,
+        "CompressedBytes": 21055
+      },
+      {
+        "Path": "THIRD_PARTY_NOTICES.md",
+        "Bytes": 2232,
+        "CompressedBytes": 1154
+      },
+      {
+        "Path": "build/SimpleCaptureTool.exe",
+        "Bytes": 5544960,
+        "CompressedBytes": 2489498
+      },
+      {
+        "Path": "runtime/tools/ffmpeg-manifest.json",
+        "Bytes": 5633,
+        "CompressedBytes": 1549
+      },
+      {
+        "Path": "runtime/tools/ffmpeg.exe",
+        "Bytes": 134092288,
+        "CompressedBytes": 55621882
+      },
+      {
+        "Path": "runtime/tools/ffprobe.exe",
+        "Bytes": 133886976,
+        "CompressedBytes": 55510988
+      },
+      {
+        "Path": "runtime/tools/LICENSE.txt",
+        "Bytes": 7651,
+        "CompressedBytes": 2617
+      }
+    ],
+    "After": [
+      {
+        "Path": "libwebp-LICENSE.txt",
+        "Bytes": 3053,
+        "CompressedBytes": 1515
+      },
+      {
+        "Path": "LICENSE",
+        "Bytes": 1089,
+        "CompressedBytes": 642
+      },
+      {
+        "Path": "README.md",
+        "Bytes": 50447,
+        "CompressedBytes": 21338
+      },
+      {
+        "Path": "THIRD_PARTY_NOTICES.md",
+        "Bytes": 2232,
+        "CompressedBytes": 1154
+      },
+      {
+        "Path": "build/SimpleCaptureTool.exe",
+        "Bytes": 2215936,
+        "CompressedBytes": 1048724
+      },
+      {
+        "Path": "runtime/tools/ffmpeg-manifest.json",
+        "Bytes": 5862,
+        "CompressedBytes": 1592
+      },
+      {
+        "Path": "runtime/tools/ffmpeg.exe",
+        "Bytes": 134092288,
+        "CompressedBytes": 55621882
+      },
+      {
+        "Path": "runtime/tools/LICENSE.txt",
+        "Bytes": 7651,
+        "CompressedBytes": 2617
+      }
+    ],
+    "MainFrameControls": 26,
+    "ProbeExit": 0,
+    "SyntheticCodecs": [
+      {
+        "Audio": "aac",
+        "Bytes": 6588,
+        "Container": "mp4",
+        "Result": "PASS"
+      },
+      {
+        "Audio": "aac",
+        "Bytes": 6643,
+        "Container": "mov",
+        "Result": "PASS"
+      },
+      {
+        "Audio": "pcm_s16le",
+        "Bytes": 41376,
+        "Container": "avi",
+        "Result": "PASS"
+      }
+    ],
+    "FootprintNote": "Includes portable EXE, required runtime and public readme/license/provenance files. README and derived package manifest updated; all installed runtime bytes preserved."
+  },
+  "Clean": {
+    "Result": "PASS",
+    "RemovedCompilerFiles": 644,
+    "ProtectedBuildFiles": 4,
+    "ProtectedFixtures": 17,
+    "NestedHelpIdempotence": "PASS",
+    "PrivateINIAndCatalogAndCounterHashes": "4 unchanged",
+    "InstalledRuntimeHashes": "4 unchanged including ffprobe"
+  },
+  "TestHarnessCorrection": "Initial extracted-package fixture checked children before OnCreate finished; retained failure, normal closed its exact owned PID, waited for controls/WM_NULL in corrected verifier. Product binary unchanged.",
+  "Limitations": [
+    "Native desktop connection unavailable; user-authorized isolated automation only",
+    "No physical screenshots/recording/global hotkeys/clipboard/mixed-DPI/clean-PC acceptance in this batch",
+    "No new claim of controlled editor-render throughput improvement"
+  ]
+}

@@ -13,11 +13,6 @@ int EditorFrame::CanvasGrip(CPoint p)const
     if(dragging_||panning_||textEditing_||canvasPending_||!canvas_.PtInRect(p)||Handle(p)>=0)return -1;
     const int tolerance=Px(m_hWnd,5);for(int grip:{3,2,1}){const auto point=CanvasGripPoint(grip);if(abs(p.x-point.x)<=tolerance&&abs(p.y-point.y)<=tolerance)return grip;}return -1;
 }
-BOOL EditorFrame::OnSetCursor(CWnd* window,UINT hit,UINT message)
-{
-    if(hit==HTCLIENT){CPoint p;GetCursorPos(&p);ScreenToClient(&p);const int grip=canvasHandle_>=0?canvasHandle_:CanvasGrip(p);if(grip>=0){::SetCursor(::LoadCursor(nullptr,grip==1?IDC_SIZEWE:grip==2?IDC_SIZENS:IDC_SIZENWSE));return TRUE;}}
-    return CFrameWnd::OnSetCursor(window,hit,message);
-}
 bool EditorFrame::BeginCanvasResize(CPoint p)
 {
     const int grip=CanvasGrip(p);if(grip<0)return false;
@@ -45,8 +40,9 @@ void EditorFrame::EndCanvasResize(CPoint p)
 void EditorFrame::ApplyCanvasResize()
 {
     if(!canvasPending_||job_.Busy())return;
+    EditorPolling(true);
     try{const auto state=document_.State();const auto revision=revision_;const auto size=canvasTarget_;const CString error=Tr(Text::CanvasLimit);activeAction_=13;
-        job_.Start([state,revision,size,error]{WorkResult r;r.action=13;r.revision=revision;
+        StartWork([state,revision,size,error]{WorkResult r;r.action=13;r.revision=revision;
             try{if(!core::ExpandCanvas(state,size.cx,size.cy,r.state))r.error=error;else if(services::RenderDocument(r.state,r.image,r.error)){const double scale=std::min({1.0,144.0/r.image.width,96.0/r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,static_cast<int>(r.image.width*scale)),std::max(1,static_cast<int>(r.image.height*scale)));}}
             catch(const std::exception& e){r.error.Format(L"%s (%hs)",error.GetString(),e.what());}catch(...){r.error=error;}return r;});status_.SetWindowText(Tr(Text::Busy));
     }catch(...){canvasPending_=false;status_.SetWindowText(Tr(Text::CanvasLimit));InvalidateRect(canvas_,FALSE);}

@@ -7,6 +7,7 @@
 #include "ProjectService.h"
 #include "../core/ImageOperations.h"
 #include "../ui/EditorFrame.h"
+#include "../ui/EditorViewportVisuals.h"
 #include <future>
 namespace sct::ui {
 class CanvasResizeAccess {
@@ -36,6 +37,7 @@ class CanvasResizeAccess {
             bool separated=true;for(CWnd* child=page->GetWindow(GW_CHILD);child;child=child->GetNextWindow())if(child->GetStyle()&WS_VISIBLE){CRect rect,overlap;child->GetWindowRect(rect);page->ScreenToClient(rect);separated=separated&&!overlap.IntersectRect(frame,rect);}check(separated,"viewport frame never overlaps ribbon, properties, status or native scrollbar controls");
             CRect horizontal,vertical;page->horizontal_.GetWindowRect(horizontal);page->vertical_.GetWindowRect(vertical);page->ScreenToClient(horizontal);page->ScreenToClient(vertical);check(horizontal.left==frame.left&&horizontal.top==frame.bottom&&horizontal.Width()==frame.Width()&&vertical.left==frame.right&&vertical.top==frame.top&&vertical.Height()==frame.Height(),"native scrollbars align outside all four visible border strips");
             auto painted=Paint(page);check(FramePixels(painted,page->canvas_,border),"all four border strips have exact slate pixels at100/125/150-percent test DPI");check(ColorAt(painted,page->canvas_.TopLeft(),RGB(255,255,255))&&ColorAt(painted,{frame.left,frame.top-1},RGB(249,250,251)),"white source begins inside the border without losing its first pixel or merging into the properties background");
+            const auto imageRect=page->ScreenRect({0,0,320,220});check(ColorAt(painted,{page->canvas_.right-1,page->canvas_.bottom-1},RGB(223,223,223))&&ColorAt(painted,{imageRect.left,imageRect.bottom+Px(page->m_hWnd,16)},viewport::SurroundColor),"outside-image editor surround is exact DFDFDF without changing white source pixels");
             page->SendMessage(WM_COMMAND,EditorToolFirst+static_cast<UINT>(core::Tool::Pen));const CPoint edge(frame.CenterPoint().x,frame.top);Mouse(page,WM_LBUTTONDOWN,edge);Mouse(page,WM_LBUTTONUP,edge);check(!page->dragging_&&page->canvasHandle_<0&&page->revision_==revision&&page->document_.State().objects.empty(),"clicking the decorative border cannot draw an object or start canvas resizing");page->SendMessage(WM_COMMAND,EditorToolFirst+static_cast<UINT>(core::Tool::Select));
             page->ZoomTo(8);page->offsetX_=page->offsetY_=0;page->ClampViewport();const auto start=page->canvas_.CenterPoint(),end=start-CSize(40,24);page->SendMessage(WM_MBUTTONDOWN,MK_MBUTTON,MAKELPARAM(start.x,start.y));page->SendMessage(WM_MOUSEMOVE,MK_MBUTTON,MAKELPARAM(end.x,end.y));page->SendMessage(WM_MBUTTONUP,0,MAKELPARAM(end.x,end.y));painted=Paint(page);check(page->offsetX_==40&&page->offsetY_==24&&FramePixels(painted,page->canvas_,border),"native zoom/pan moves the image while preserving the complete fixed viewport frame");const auto point=page->ImagePoint(page->ScreenRect({40,30,40,30}).TopLeft());check(point==CPoint(40,30),"border inset and panning preserve shared image hit-test coordinates");
             if(width==1500){page->ZoomTo(1,true);CString file;file.Format(L"viewport-%s-%d.png",language,dpi);SaveEvidence(page,dir/file.GetString(),check);}

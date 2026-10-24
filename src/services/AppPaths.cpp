@@ -8,6 +8,8 @@ std::filesystem::path PortableRootFor(const std::filesystem::path& directory)
     auto path=directory.lexically_normal();if(path.filename().empty())path=path.parent_path();
     if(Named(path,L"build"))return path.parent_path();
     if(Named(path,L"debug")&&Named(path.parent_path(),L"artifacts"))return path.parent_path().parent_path();
+    if((Named(path,L"Release")||Named(path,L"Debug"))&&Named(path.parent_path(),L"tests")&&
+       Named(path.parent_path().parent_path(),L"artifacts"))return path.parent_path().parent_path().parent_path();
     return path;
 }
 std::filesystem::path Root(){return PortableRootFor(ConfigService::ExecutableDirectory().GetString());}

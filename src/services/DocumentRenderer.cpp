@@ -34,7 +34,7 @@ namespace sct::services {
 CSize MeasureAnnotationText(const core::Annotation& a){const int style=(a.bold?FontStyleBold:0)|(a.italic?FontStyleItalic:0)|(a.underline?FontStyleUnderline:0);FontFamily family(a.font),fallback(L"Arial");const auto* chosen=family.GetLastStatus()==Ok?&family:&fallback;StringFormat format;format.SetFormatFlags(StringFormatFlagsNoClip);GraphicsPath path;path.AddString(a.text,a.text.GetLength(),chosen,style,static_cast<REAL>(a.fontSize),PointF(0,0),&format);RectF bounds;path.GetBounds(&bounds);return {std::max(1,static_cast<int>(ceil(bounds.GetRight()))+2),std::max(1,static_cast<int>(ceil(bounds.GetBottom()))+2)};}
 bool RenderObject(core::Image& image,const core::Annotation& a)
 {
-    using core::Tool; if(image.Empty()) return false;
+    using core::Tool; if(image.Empty()) return false;if(a.hidden)return true;
     if(a.tool==Tool::Crop) { auto crop=image.Crop(a.rect); if(crop.Empty()) return false; image=std::move(crop); return true; }
     if(a.tool==Tool::Mosaic) { image.Pixelate(a.rect,core::MosaicBlockSize(a)); return true; }
     if(a.tool==Tool::Blur) { Blur(image,a.rect,a.width*3); return true; }

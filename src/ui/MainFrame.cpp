@@ -8,7 +8,8 @@
 #include "../services/LanguageService.h"
 #include "../resource.h"
 #include "../core/BuildExitProtocol.h"
-namespace {UINT taskbarCreated=RegisterWindowMessage(L"TaskbarCreated"),buildExit=RegisterWindowMessage(SCT_BUILD_EXIT_MESSAGE);}
+#include "../services/SingleInstance.h"
+namespace {UINT taskbarCreated=RegisterWindowMessage(L"TaskbarCreated"),buildExit=RegisterWindowMessage(SCT_BUILD_EXIT_MESSAGE),activateExisting=sct::services::SingleInstance::ActivationMessage();}
 namespace sct::ui {
 BEGIN_MESSAGE_MAP(MainFrame,CFrameWnd)
  ON_WM_CREATE()
@@ -25,6 +26,7 @@ BEGIN_MESSAGE_MAP(MainFrame,CFrameWnd)
  ON_MESSAGE(TrayMessage,&MainFrame::OnTray)
  ON_REGISTERED_MESSAGE(taskbarCreated,&MainFrame::OnTaskbarCreated)
  ON_REGISTERED_MESSAGE(buildExit,&MainFrame::OnBuildExit)
+ ON_REGISTERED_MESSAGE(activateExisting,&MainFrame::OnActivateExisting)
  ON_MESSAGE(WM_DPICHANGED,&MainFrame::OnDpiChanged)
  ON_MESSAGE(LanguageChanged,&MainFrame::OnLanguageChanged)
  ON_COMMAND_RANGE(HomeSettings,LanguageSettings,&MainFrame::OnAction)
@@ -63,7 +65,7 @@ BOOL MainFrame::PreTranslateMessage(MSG* m)
 {
     if(m->message==WM_KEYDOWN&&m->wParam==VK_ESCAPE&&job_.Busy()){job_.cancel=true;return TRUE;}return CFrameWnd::PreTranslateMessage(m);
 }
-void MainFrame::AddTray(){tray_.cbSize=sizeof(tray_);tray_.hWnd=m_hWnd;tray_.uID=1;tray_.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;tray_.uCallbackMessage=TrayMessage;tray_.hIcon=AfxGetApp()->LoadIcon(IDI_APP_ICON);wcsncpy_s(tray_.szTip,Tr(Text::App),_TRUNCATE);Shell_NotifyIcon(NIM_ADD,&tray_);}
+void MainFrame::AddTray(){if(isolated_)return;tray_.cbSize=sizeof(tray_);tray_.hWnd=m_hWnd;tray_.uID=1;tray_.uFlags=NIF_MESSAGE|NIF_ICON|NIF_TIP;tray_.uCallbackMessage=TrayMessage;tray_.hIcon=AfxGetApp()->LoadIcon(IDI_APP_ICON);wcsncpy_s(tray_.szTip,Tr(Text::App),_TRUNCATE);Shell_NotifyIcon(NIM_ADD,&tray_);}
 LRESULT MainFrame::OnTaskbarCreated(WPARAM,LPARAM){AddTray();return 0;}
 void MainFrame::BuildTrayMenu(CMenu& menu)
 {

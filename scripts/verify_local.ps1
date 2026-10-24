@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
+[ValidateSet('ImagePrecision','CommandTools','ObjectPayload','EditableLayout','Sidebar','WorkspaceTools','EditorPerformance','ObjectAlignment','DefaultCursor','CropWorkflow','EditorMenus','Composition','ToolStyles','RibbonFont','ColorPicker','ToolTabs','Instance','CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
     [switch]$Full,
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Release',
     [switch]$SkipBuild,
@@ -13,6 +13,23 @@ if($Recording -and $Configuration -eq 'Debug'){throw 'Recording/media verificati
 $projectRoot=Split-Path -Parent $PSScriptRoot
 $configurations=if($Configuration -eq 'Both'){@('Release','Debug')}else{@($Configuration)}
 $testArguments=@{
+    ImagePrecision='--alignment-test --test-image-precision-only';
+    CommandTools='--alignment-test --test-command-tools-only';
+    ObjectPayload='--alignment-test --test-object-payload-only';
+    EditableLayout='--alignment-test --test-editable-layout-only';
+    Sidebar='--alignment-test --test-sidebar-only';
+    WorkspaceTools='--alignment-test --test-workspace-tools-only';
+    EditorPerformance='--alignment-test --test-editor-performance-only';
+    ObjectAlignment='--alignment-test --test-object-alignment-only';
+    DefaultCursor='--alignment-test --test-default-cursor-only';
+    CropWorkflow='--alignment-test --test-crop-workflow-only';
+    EditorMenus='--alignment-test --test-editor-menus-only';
+    Composition='--alignment-test --test-composition-only';
+    ToolStyles='--alignment-test --test-tool-styles-only';
+    RibbonFont='--alignment-test --test-ribbon-font-only';
+    ColorPicker='--alignment-test --test-color-picker-only';
+    ToolTabs='--alignment-test --test-tool-tabs-only';
+    Instance='--alignment-test --test-instance-only';
     CanvasFrame='--alignment-test --test-canvas-frame-only';
     ImageHome='--alignment-test --test-image-home-only';
     PasteOriginal='--alignment-test --test-paste-original-only';
@@ -32,6 +49,9 @@ foreach($config in $configurations){foreach($name in $tests){Write-Output "PLAN 
 if($Full){Write-Output 'PLAN explicit full mode includes controlled exception and Debug assertion probes.'}
 if($Recording){Write-Output 'PLAN explicit recording/media checks on Release.'}
 if($PlanOnly){return}
+$vswhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+$msbuild=if(-not $SkipBuild){& $vswhere -latest -products '*' -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1}
+if(-not $SkipBuild -and -not $msbuild){throw 'MSBuild with C++/MFC is required for the isolated test variant.'}
 $protectedHashes=@{}
 foreach($relative in 'build\SimpleCaptureTool.ini','build\lang_en.ini','build\lang_tw.ini','runtime\capture_sequence.dat'){
     $file=Join-Path $projectRoot $relative;if(Test-Path -LiteralPath $file){$protectedHashes[$file]=(Get-FileHash -LiteralPath $file).Hash}
@@ -50,9 +70,9 @@ Push-Location $projectRoot
 Start-Transcript -LiteralPath (Join-Path $evidenceRoot $(if($Full){'verification.log'}else{'verification-scoped.log'})) -Force | Out-Null
 try{
     foreach($config in $configurations){
-        if(-not $SkipBuild){$batch=if($config -eq 'Release'){'scripts\build_release.bat'}else{'scripts\build_debug.bat'};& cmd.exe /c $batch;if($LASTEXITCODE -ne 0){throw "$config build failed"}}
-        $binary=Join-Path $projectRoot $(if($config -eq 'Release'){'build\SimpleCaptureTool.exe'}else{'artifacts\debug\SimpleCaptureTool.exe'})
-        if(-not (Test-Path -LiteralPath $binary) -or (Get-Item -LiteralPath $binary).VersionInfo.FileVersion -ne $sourceVersion){throw "Missing/stale $config EXE; build the current source before verifying. Nothing will be run."}
+        if(-not $SkipBuild){& $msbuild (Join-Path $projectRoot 'SimpleCaptureTool.vcxproj') /m /p:Configuration=$config /p:Platform=x64 /p:SctIncludeTests=true;if($LASTEXITCODE -ne 0){throw "$config test-variant build failed"}}
+        $binary=Join-Path $projectRoot "artifacts\tests\$config\SimpleCaptureTool.Tests.exe"
+        if(-not (Test-Path -LiteralPath $binary) -or (Get-Item -LiteralPath $binary).VersionInfo.FileVersion -ne $sourceVersion){throw "Missing/stale $config test variant; omit -SkipBuild to generate it. Nothing will be run."}
         $configurationEvidence=Join-Path $evidenceRoot $config
         if($Full){
             Invoke-Test $binary '--enhancement-ui-test --test-failure' 1 10
@@ -77,7 +97,7 @@ try{
             Get-Content -LiteralPath $log -Tail 1
         }
     }
-    if($Recording){Invoke-Test (Join-Path $projectRoot 'build\SimpleCaptureTool.exe') '--recording-test' 0 120;& (Join-Path $PSScriptRoot 'verify_media.ps1')}
+    if($Recording){Invoke-Test (Join-Path $projectRoot 'artifacts\tests\Release\SimpleCaptureTool.Tests.exe') '--recording-test' 0 120;& (Join-Path $PSScriptRoot 'verify_media.ps1')}
     foreach($file in $protectedHashes.Keys){if(-not (Test-Path -LiteralPath $file) -or (Get-FileHash -LiteralPath $file).Hash -ne $protectedHashes[$file]){throw "Verification changed user state: $file"}}
     . (Join-Path $PSScriptRoot 'output_paths.ps1');Assert-ReleaseLayout $projectRoot
     Write-Output 'PASS selected scopes only; user INI/catalog/counter hashes and EXE/INI-only build preserved.'
