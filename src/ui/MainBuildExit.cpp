@@ -12,8 +12,7 @@ LRESULT MainFrame::OnBuildExit(WPARAM query,LPARAM){
     for(HWND window:editors_)inspect(dynamic_cast<EditorFrame*>(CWnd::FromHandlePermanent(window)));
     EnumThreadWindows(GetCurrentThreadId(),[](HWND window,LPARAM value)->BOOL{auto* state=reinterpret_cast<int*>(value);if(auto* page=dynamic_cast<EditorFrame*>(CWnd::FromHandlePermanent(window))){if(page->HasUnsavedChanges())*state=SCT_BUILD_EXIT_UNSAVED;else if(page->WorkingForBuild()&&*state!=SCT_BUILD_EXIT_UNSAVED)*state=SCT_BUILD_EXIT_BUSY;}return TRUE;},reinterpret_cast<LPARAM>(&state));
     if(state==SCT_BUILD_EXIT_UNSAVED)return state;
-    if(recorder_.State()!=services::RecordingState::Idle){if(!query)recorder_.Stop();return SCT_BUILD_EXIT_BUSY;}
-    if(countdownMode_){if(!query){countdownMode_=0;countdown_.Close();pendingRecord_=false;RestoreEditors();}return SCT_BUILD_EXIT_BUSY;}
+    if(countdownMode_){if(!query){countdownMode_=0;countdown_.Close();RestoreEditors();}return SCT_BUILD_EXIT_BUSY;}
     if(selecting_){bool found=false;EnumThreadWindows(GetCurrentThreadId(),[](HWND window,LPARAM value)->BOOL{if(dynamic_cast<SelectionWindow*>(CWnd::FromHandlePermanent(window))){*reinterpret_cast<bool*>(value)=true;return FALSE;}return TRUE;},reinterpret_cast<LPARAM>(&found));
         if(!found)return SCT_BUILD_EXIT_MODAL;
         if(!query)EnumThreadWindows(GetCurrentThreadId(),[](HWND window,LPARAM)->BOOL{if(auto* selection=dynamic_cast<SelectionWindow*>(CWnd::FromHandlePermanent(window))){selection->Finish(false);return FALSE;}return TRUE;},0);

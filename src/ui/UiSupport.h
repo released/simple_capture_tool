@@ -14,7 +14,7 @@ inline int LayoutDpi(HWND hwnd) { const UINT dpi=GetDpiForWindow(hwnd); return l
 inline int Px(HWND hwnd, int value) { return MulDiv(value, LayoutDpi(hwnd), 96); }
 inline void AdjustClientRect(CRect& rect,CWnd& window,bool menu=false){AdjustWindowRectExForDpi(&rect,window.GetStyle(),menu,window.GetExStyle(),GetDpiForWindow(window.GetSafeHwnd()));}
 inline CString Caption() { return CString(Tr(Text::App)) + L" " SCT_VERSION_W; }
-inline CString ImageOpenFilter(bool projects=false){CString pattern=L"*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif";if(projects)pattern+=L";*.sctproj";return CString(Tr(projects?Text::ImagesProjects:Text::ImageFiles))+L" ("+pattern+L")|"+pattern+L"||";}
+inline CString ImageOpenFilter(bool projects=false){CString pattern=L"*.png;*.jpg;*.jpeg;*.bmp;*.gif";if(projects)pattern+=L";*.sctproj";return CString(Tr(projects?Text::ImagesProjects:Text::ImageFiles))+L" ("+pattern+L")|"+pattern+L"||";}
 inline bool CanonicalOutputPath(CWnd& owner,const CString& requested,const wchar_t* extension,CString& output){output=std::filesystem::path(requested.GetString()).replace_extension(extension).c_str();return output.CompareNoCase(requested)==0||!PathFileExists(output)||owner.MessageBox(output,Tr(Text::SaveAs),MB_OKCANCEL|MB_ICONQUESTION)==IDOK;}
 inline void ApplyFont(CWnd& parent, CFont& font,int points=10)
 {
@@ -62,7 +62,11 @@ enum Command : UINT {
     WorkspaceResources,ReclaimCaches,ClearUndoHistory,RenameDocument,ChooseDocument,ColorHex,ColorPalette,FavoriteColor,CopyColorHex,
     InsertImages,CollageDocuments,ObjectPanel,PropertyPanel,LayerRename,LayerVisibility,
     CommandSearch,EditorShortcutSettings,RenumberSteps,
-    CompareImages,PreciseCrop,RotateAngle,UndoList,
+    CompareImages,PreciseCrop,RotateAngle,UndoList,AutoCrop,BringToFront,SendToBack,SaveObjectTemplate,LoadObjectTemplate,SplitImage,SelectionNewImage,
+    ColorGamma,ColorSepia,ColorReplace,ColorLevels,
+    DuplicatePage,CaptureInto,ExportGuide,ObjectsHere,PictureRotate,PictureFlipH,PictureFlipV,FindText,InputLevels,Perspective,
+    PixelRect,PixelEllipse,PixelLasso,PixelReplace,PixelAdd,PixelSubtract,
+    CropPictureObject,PictureCropBounds,ResetPictureCrop,PixelMagic,PixelByColor,PixelInvert,PixelGrow,PixelShrink,ShapeTriangle,ShapeDiamond,ShapePentagon,ShapeHexagon,DragImage,RunFont,RunSize,RunColor,RunBold,RunItalic,RunUnderline,RunClear,
     CustomizeEditorHome=42400,EditorHomeList,EditorHomeUp,EditorHomeDown,EditorHomeDefaults,EditorHomeAll,EditorHomeNone,
     RibbonTabs=42900,WorkspaceTabs,WorkspaceClose,ThumbnailPane,ZoomChoice,ZoomSlider,HorizontalScroll,VerticalScroll,FontSizeChoice,LineStyleChoice,OpacityChoice,RibbonOverflow,MosaicSlider,WorkspaceChoose,
     EditorToolFirst=43000,EditorToolLast=43255,
@@ -70,7 +74,9 @@ enum Command : UINT {
     EffectFirst=43600,EffectLast=43663,ActiveWindow=43700,RestoreEditor,ToolStyleFirst=43800,ToolStyleLast=43831,
     EditorMenuFirst=44000,EditorMenuLast=44255,EditorHomeChildrenList=44300,
     SidebarTabs=44400,SidebarList,SidebarClose,SidebarApply,SidebarValueFirst=44420,SidebarValueLast=44427,
-    SearchQuery=44500,SearchList,CompareMode,CompareDivider
+    SearchQuery=44500,SearchList,CompareMode,CompareDivider,
+    GuideList=44600,GuideUp,GuideDown,GuideTitleEdit,GuideCaptionEdit,HistogramBlack,HistogramWhite,HistogramSelection,
+    PreviewOriginal=44700,PreviewSplit,PreviewDivider
 };
 constexpr UINT TrayMessage = WM_APP + 21;
 }

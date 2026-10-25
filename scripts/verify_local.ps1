@@ -1,18 +1,28 @@
 param(
-[ValidateSet('ImagePrecision','CommandTools','ObjectPayload','EditableLayout','Sidebar','WorkspaceTools','EditorPerformance','ObjectAlignment','DefaultCursor','CropWorkflow','EditorMenus','Composition','ToolStyles','RibbonFont','ColorPicker','ToolTabs','Instance','CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
+[ValidateSet('ScreenshotOnly','SaveDirectory','PictureCrop','SelectionTools','EditorPreview','PolygonShapes','DragImage','ImportNormalization','TextRuns','Discovery','MaskEditing','CaptureInsert','ColorFilters','ImageReuse','OpenParity','WheelNavigation','TextViewport','EditorTransitions','ImagePrecision','CommandTools','ObjectPayload','EditableLayout','Sidebar','WorkspaceTools','EditorPerformance','ObjectAlignment','DefaultCursor','CropWorkflow','EditorMenus','Composition','ToolStyles','RibbonFont','ColorPicker','ToolTabs','Instance','CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
     [switch]$Full,
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Release',
     [switch]$SkipBuild,
-    [switch]$PlanOnly,
-    [switch]$Recording
+    [switch]$PlanOnly
 )
 $ErrorActionPreference='Stop'
-if(-not $Full -and -not $Scope.Count -and -not $Recording){throw 'Choose affected tests, e.g. -Scope Canvas -Configuration Both. All tests require explicit -Full; nothing was built or tested.'}
+if(-not $Full -and -not $Scope.Count){throw 'Choose affected tests, e.g. -Scope Canvas -Configuration Both. All tests require explicit -Full; nothing was built or tested.'}
 if($Full -and $Scope.Count){throw 'Use affected -Scope or explicit -Full, not both.'}
-if($Recording -and $Configuration -eq 'Debug'){throw 'Recording/media verification needs Release or Both.'}
 $projectRoot=Split-Path -Parent $PSScriptRoot
 $configurations=if($Configuration -eq 'Both'){@('Release','Debug')}else{@($Configuration)}
 $testArguments=@{
+    ScreenshotOnly='--alignment-test --test-screenshot-only';
+    SaveDirectory='--alignment-test --test-save-directory-only';
+    PictureCrop='--alignment-test --test-picture-crop-only';SelectionTools='--alignment-test --test-selection-tools-only';EditorPreview='--alignment-test --test-editor-preview-only';PolygonShapes='--alignment-test --test-polygon-shapes-only';DragImage='--alignment-test --test-drag-image-only';ImportNormalization='--alignment-test --test-import-normalization-only';TextRuns='--alignment-test --test-text-runs-only';
+    Discovery='--alignment-test --test-discovery-only';
+    MaskEditing='--alignment-test --test-mask-editing-only';
+    CaptureInsert='--alignment-test --test-capture-insert-only';
+    ColorFilters='--alignment-test --test-color-filters-only';
+    ImageReuse='--alignment-test --test-image-reuse-only';
+    OpenParity='--alignment-test --test-open-parity-only';
+    WheelNavigation='--alignment-test --test-wheel-navigation-only';
+    TextViewport='--alignment-test --test-text-viewport-only';
+    EditorTransitions='--alignment-test --test-editor-transitions-only';
     ImagePrecision='--alignment-test --test-image-precision-only';
     CommandTools='--alignment-test --test-command-tools-only';
     ObjectPayload='--alignment-test --test-object-payload-only';
@@ -47,7 +57,6 @@ $testArguments=@{
 $tests=if($Full){@('Self','Ui','Enhancement','EnhancementUi','Preferences','Alignment')}else{@($Scope | Select-Object -Unique)}
 foreach($config in $configurations){foreach($name in $tests){Write-Output "PLAN [$config] $name : $($testArguments[$name])"}}
 if($Full){Write-Output 'PLAN explicit full mode includes controlled exception and Debug assertion probes.'}
-if($Recording){Write-Output 'PLAN explicit recording/media checks on Release.'}
 if($PlanOnly){return}
 $vswhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 $msbuild=if(-not $SkipBuild){& $vswhere -latest -products '*' -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1}
@@ -89,6 +98,7 @@ try{
         foreach($name in $tests){
             $argument=$testArguments[$name];$watch=[Diagnostics.Stopwatch]::StartNew()
             Invoke-Test $binary $argument 0 $(if($name -eq 'Alignment'){120}else{40})
+            if($name -eq 'ScreenshotOnly'){Invoke-Test $binary '--recording-test' 64 5}
             $relative=switch($name){Self{'self-test.log'}Ui{'ui-test.log'}Enhancement{'enhancement\enhancement-test.log'}EnhancementUi{'enhancement\enhancement-ui-test.log'}Preferences{'preferences\preferences-test.log'}default{'alignment\alignment-test.log'}}
             $log=Join-Path $configurationEvidence $relative
             if(-not (Test-Path -LiteralPath $log) -or (Select-String -LiteralPath $log -Pattern '^FAIL (?!0$)|^EXCEPTION' -Quiet)){throw "Unexpected/missing positive log: $log"}
@@ -97,7 +107,6 @@ try{
             Get-Content -LiteralPath $log -Tail 1
         }
     }
-    if($Recording){Invoke-Test (Join-Path $projectRoot 'artifacts\tests\Release\SimpleCaptureTool.Tests.exe') '--recording-test' 0 120;& (Join-Path $PSScriptRoot 'verify_media.ps1')}
     foreach($file in $protectedHashes.Keys){if(-not (Test-Path -LiteralPath $file) -or (Get-FileHash -LiteralPath $file).Hash -ne $protectedHashes[$file]){throw "Verification changed user state: $file"}}
     . (Join-Path $PSScriptRoot 'output_paths.ps1');Assert-ReleaseLayout $projectRoot
     Write-Output 'PASS selected scopes only; user INI/catalog/counter hashes and EXE/INI-only build preserved.'

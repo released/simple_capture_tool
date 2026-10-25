@@ -3,7 +3,8 @@
 #include "DocumentResources.h"
 namespace sct::core {
 enum class Tool { Pen, Rectangle, Ellipse, Arrow, Mosaic, Crop, Text, Select, Step, Highlight, Redact, Blur, Picture, Magnifier, Spotlight,
-    Line,RoundRectangle,Callout,Stamp,CursorStamp,Eraser,SmartEraser,Fill,Eyedropper,PixelSelect,CurvedArrow };
+    Line,RoundRectangle,Callout,Stamp,CursorStamp,Eraser,SmartEraser,Fill,Eyedropper,PixelSelect,CurvedArrow,Polygon };
+struct TextRun {int start=0,length=0;CString font=L"Microsoft JhengHei UI";int size=28;COLORREF color=RGB(240,40,40);bool bold=false,italic=false,underline=false;};
 struct Annotation {
     Tool tool = Tool::Pen;
     std::vector<POINT> points;
@@ -19,6 +20,8 @@ struct Annotation {
     uint32_t group=0;bool locked=false;
     CString label;bool hidden=false;
     std::shared_ptr<const Image> asset;
+    RECT sourceCrop{};
+    std::vector<TextRun> textRuns;
 };
 int MosaicBlockSize(const Annotation&);
 int MosaicStrengthPercent(const Annotation&);

@@ -2,6 +2,16 @@
 #include "SingleInstanceTest.h"
 #include "AlignmentTest.h"
 namespace sct::services {void ImagePrecisionChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void EditorTransitionsChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void TextViewportChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void WheelNavigationChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void OpenParityChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void ImageReuseChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void ColorFiltersChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void DiscoveryChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);void MaskEditingChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);void CaptureInsertChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void EditorEnhancementChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&,int);}
+namespace sct::services {void ScreenshotOnlyChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void SaveDirectoryChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 #include "NativeTestInput.h"
 #include "NativeSaveTest.h"
 #include "ConfigService.h"
@@ -68,6 +78,24 @@ public:static void Run(Check check,std::ofstream& log,const std::filesystem::pat
 namespace sct::services {
 int RunAlignmentTests(){const auto dir=paths::TestEvidence()/L"alignment";std::filesystem::create_directories(dir);std::ofstream log(dir/L"alignment-test.log");int total=0,fail=0;Check check=[&](bool ok,const char* name){++total;if(!ok)++fail;log<<(ok?"PASS ":"FAIL ")<<name<<"\n";log.flush();};
     try{NativeTestInput input;CString error;InitializeLanguages(ConfigService::ExecutableDirectory(),error);
+        if(CString(GetCommandLine()).Find(L"--test-screenshot-only")>=0){ScreenshotOnlyChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-save-directory-only")>=0){SaveDirectoryChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-picture-crop-only")>=0){EditorEnhancementChecks(check,log,dir,1);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-selection-tools-only")>=0){EditorEnhancementChecks(check,log,dir,2);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-editor-preview-only")>=0){EditorEnhancementChecks(check,log,dir,3);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-polygon-shapes-only")>=0){EditorEnhancementChecks(check,log,dir,4);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-drag-image-only")>=0){EditorEnhancementChecks(check,log,dir,5);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-import-normalization-only")>=0){EditorEnhancementChecks(check,log,dir,6);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-text-runs-only")>=0){EditorEnhancementChecks(check,log,dir,7);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-editor-transitions-only")>=0){EditorTransitionsChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-text-viewport-only")>=0){TextViewportChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-wheel-navigation-only")>=0){WheelNavigationChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-open-parity-only")>=0){OpenParityChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-discovery-only")>=0){DiscoveryChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-mask-editing-only")>=0){MaskEditingChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-capture-insert-only")>=0){CaptureInsertChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-color-filters-only")>=0){ColorFiltersChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-image-reuse-only")>=0){ImageReuseChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-image-precision-only")>=0){ImagePrecisionChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-command-tools-only")>=0){CommandToolsChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-object-payload-only")>=0){ObjectEditingCoreChecks(check,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}

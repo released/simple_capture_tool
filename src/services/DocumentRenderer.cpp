@@ -1,4 +1,6 @@
 #include "pch.h"
+#include "../core/AnnotationExtensions.h"
+#include "RichTextService.h"
 #include "DocumentRenderer.h"
 #include "../core/PixelTools.h"
 #include <gdiplus.h>
@@ -54,15 +56,15 @@ bool RenderObject(core::Image& image,const core::Annotation& a)
     pen.SetDashStyle(a.lineStyle==1?DashStyleDash:a.lineStyle==2?DashStyleDot:DashStyleSolid);
     RectF r(static_cast<REAL>(a.rect.left),static_cast<REAL>(a.rect.top),static_cast<REAL>(w),static_cast<REAL>(h));
     SolidBrush brush(Ink(a.color,a.alpha));
-    if(a.tool==Tool::Rectangle||a.tool==Tool::Ellipse||a.tool==Tool::RoundRectangle||a.tool==Tool::Callout){
-        GraphicsPath shape;if(a.tool==Tool::Rectangle)shape.AddRectangle(r);else if(a.tool==Tool::Ellipse)shape.AddEllipse(r);else{const REAL radius=std::min({18.f,r.Width/3,r.Height/3}),d=radius*2;shape.AddArc(r.X,r.Y,d,d,180.f,90.f);shape.AddArc(r.GetRight()-d,r.Y,d,d,270.f,90.f);shape.AddArc(r.GetRight()-d,r.GetBottom()-d,d,d,0.f,90.f);shape.AddArc(r.X,r.GetBottom()-d,d,d,90.f,90.f);shape.CloseFigure();}
+    if(a.tool==Tool::Rectangle||a.tool==Tool::Ellipse||a.tool==Tool::RoundRectangle||a.tool==Tool::Callout||a.tool==Tool::Polygon){
+        GraphicsPath shape;if(a.tool==Tool::Polygon){if(a.points.size()<3)return true;std::vector<PointF> vertices;for(auto p:a.points)vertices.emplace_back(static_cast<REAL>(p.x),static_cast<REAL>(p.y));shape.AddPolygon(vertices.data(),static_cast<INT>(vertices.size()));}else if(a.tool==Tool::Rectangle)shape.AddRectangle(r);else if(a.tool==Tool::Ellipse)shape.AddEllipse(r);else{const REAL radius=std::min({18.f,r.Width/3,r.Height/3}),d=radius*2;shape.AddArc(r.X,r.Y,d,d,180.f,90.f);shape.AddArc(r.GetRight()-d,r.Y,d,d,270.f,90.f);shape.AddArc(r.GetRight()-d,r.GetBottom()-d,d,d,0.f,90.f);shape.AddArc(r.X,r.GetBottom()-d,d,d,90.f,90.f);shape.CloseFigure();}
         if(a.shadow){auto shadow=shape.Clone();Matrix shift;shift.Translate(4,5);shadow->Transform(&shift);SolidBrush shade(Color(90,0,0,0));g.FillPath(&shade,shadow);delete shadow;}
         if(a.filled||a.tool==Tool::Callout){SolidBrush fill(Ink(a.background,a.alpha));g.FillPath(&fill,&shape);}g.DrawPath(&pen,&shape);
         if(a.tool==Tool::Callout){PointF tail[]={{r.X+r.Width*.2f,r.GetBottom()},{r.X+r.Width*.1f,r.GetBottom()+std::min(30.f,r.Height*.4f)},{r.X+r.Width*.4f,r.GetBottom()}};SolidBrush fill(Ink(a.background));g.FillPolygon(&fill,tail,3);g.DrawLines(&pen,tail,3);core::Annotation text=a;text.tool=Tool::Text;text.rect.left+=a.width+8;text.rect.top+=a.width+4;text.rect.right-=a.width+8;text.rect.bottom-=a.width+4;text.textBackground=false;text.shadow=false;g.Flush();return RenderObject(image,text);}
     }
     else if(a.tool==Tool::Highlight || a.tool==Tool::Redact) { SolidBrush fill(Ink(a.color,a.tool==Tool::Redact?255:a.opacity)); g.FillRectangle(&fill,r); }
     else if(a.tool==Tool::Picture && a.asset && !a.asset->Empty()) {
-        Bitmap asset(a.asset->width,a.asset->height,a.asset->width*4,PixelFormat32bppARGB,const_cast<BYTE*>(a.asset->pixels.data()));ImageAttributes attributes;ColorMatrix matrix={1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,a.alpha/255.f,0,0,0,0,0,1};attributes.SetColorMatrix(&matrix);g.DrawImage(&asset,r,0,0,static_cast<REAL>(a.asset->width),static_cast<REAL>(a.asset->height),UnitPixel,&attributes);
+        Bitmap asset(a.asset->width,a.asset->height,a.asset->width*4,PixelFormat32bppARGB,const_cast<BYTE*>(a.asset->pixels.data()));ImageAttributes attributes;ColorMatrix matrix={1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,a.alpha/255.f,0,0,0,0,0,1};attributes.SetColorMatrix(&matrix);const auto crop=core::PictureSource(a);g.DrawImage(&asset,r,static_cast<REAL>(crop.left),static_cast<REAL>(crop.top),static_cast<REAL>(crop.Width()),static_cast<REAL>(crop.Height()),UnitPixel,&attributes);
     } else if(a.tool==Tool::Magnifier) {
         Bitmap src(source.width,source.height,source.width*4,PixelFormat32bppARGB,source.pixels.data());
         const REAL fx=a.anchored?static_cast<REAL>(std::clamp<LONG>(a.focus.x,0,image.width-1)):r.X+r.Width/2;
@@ -81,6 +83,7 @@ bool RenderObject(core::Image& image,const core::Annotation& a)
         if(a.alignment>=3)format.SetLineAlignment(StringAlignmentCenter);
         if(a.tool==Tool::Step) { format.SetAlignment(StringAlignmentCenter); format.SetLineAlignment(StringAlignmentCenter); }
         if(a.textBackground && a.tool==Tool::Text) { SolidBrush bg(Ink(a.background)); g.FillRectangle(&bg,r); }
+        if(a.tool==Tool::Text&&!a.textRuns.empty()){auto formatted=RenderRichText(a);Bitmap rendered(formatted.width,formatted.height,formatted.width*4,PixelFormat32bppARGB,formatted.pixels.data());if(a.textOutline){const int radius=std::clamp(a.width/2,1,16);core::Image outline=formatted;for(size_t i=0;i<outline.pixels.size();i+=4){outline.pixels[i]=GetBValue(a.outline);outline.pixels[i+1]=GetGValue(a.outline);outline.pixels[i+2]=GetRValue(a.outline);}Bitmap border(outline.width,outline.height,outline.width*4,PixelFormat32bppARGB,outline.pixels.data());for(int y=-radius;y<=radius;++y)for(int x=-radius;x<=radius;++x)if(x*x+y*y<=radius*radius)g.DrawImage(&border,r.X+x,r.Y+y);}g.DrawImage(&rendered,r.X,r.Y);return g.GetLastStatus()==Ok;}
         GraphicsPath path; path.AddString(text,text.GetLength(),chosen,style,static_cast<REAL>(a.fontSize),r,&format);
         if(a.textOutline) { Pen outline(Ink(a.outline),static_cast<REAL>(std::max(1,a.width))); outline.SetLineJoin(LineJoinRound); g.DrawPath(&outline,&path); }
         SolidBrush fg(a.tool==Tool::Step?Color(255,255,255,255):Ink(a.color,a.alpha)); g.FillPath(&fg,&path);

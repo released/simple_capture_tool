@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "ObjectComposition.h"
+#include "AnnotationExtensions.h"
 #include <set>
 #include <map>
 namespace sct::core::composition {
@@ -10,7 +11,7 @@ LONG Coordinate(double value){if(!std::isfinite(value)||value < -1000000||value>
 void Coordinates(const Annotation& a){for(auto value:{a.rect.left,a.rect.top,a.rect.right,a.rect.bottom})Coordinate(value);for(auto p:a.points){Coordinate(p.x);Coordinate(p.y);}}
 void Translate(Annotation& a,int dx,int dy){for(auto& p:a.points)p={Coordinate(static_cast<double>(p.x)+dx),Coordinate(static_cast<double>(p.y)+dy)};a.rect={Coordinate(static_cast<double>(a.rect.left)+dx),Coordinate(static_cast<double>(a.rect.top)+dy),Coordinate(static_cast<double>(a.rect.right)+dx),Coordinate(static_cast<double>(a.rect.bottom)+dy)};}
 }
-void Validate(const DocumentState& state){std::map<uint32_t,bool> locks;for(const auto& a:state.objects){
+void Validate(const DocumentState& state){std::map<uint32_t,bool> locks;size_t runs=0;for(const auto& a:state.objects){ValidateExtensions(a);runs+=a.textRuns.size();if(runs>100000)throw std::runtime_error("Document text run limit");
     if(a.label.GetLength()>80||std::any_of(a.label.GetString(),a.label.GetString()+a.label.GetLength(),[](wchar_t c){return c<32||c==127;}))throw std::runtime_error("Invalid object label (80 characters, no controls)");
     if(a.group>10000)throw std::runtime_error("Invalid object group");if(a.group){auto found=locks.emplace(a.group,a.locked);if(!found.second&&found.first->second!=a.locked)throw std::runtime_error("Inconsistent group lock");}
 }}
@@ -26,10 +27,10 @@ DocumentState Transform(const DocumentState& state,const Indices& input,RECT des
     if(scale&&(sx<=0||sy<=0))throw std::runtime_error("Invalid group size");
     for(int i:ids){auto& a=result.objects[i];if(!scale){Translate(a,destination.left-box.left,destination.top-box.top);continue;}
         auto x=[&](LONG value){return Coordinate(destination.left+(static_cast<double>(value)-box.left)*sx);};auto y=[&](LONG value){return Coordinate(destination.top+(static_cast<double>(value)-box.top)*sy);};
-        for(auto& p:a.points)p={x(p.x),y(p.y)};a.rect={x(a.rect.left),y(a.rect.top),x(a.rect.right),y(a.rect.bottom)};const double factor=std::sqrt(sx*sy);a.fontSize=static_cast<int>(std::lround(std::clamp(a.fontSize*factor,6.,512.)));a.width=static_cast<int>(std::lround(std::clamp(a.width*factor,1.,128.)));
+        for(auto& p:a.points)p={x(p.x),y(p.y)};a.rect={x(a.rect.left),y(a.rect.top),x(a.rect.right),y(a.rect.bottom)};const double factor=std::sqrt(sx*sy);a.fontSize=static_cast<int>(std::lround(std::clamp(a.fontSize*factor,6.,512.)));a.width=static_cast<int>(std::lround(std::clamp(a.width*factor,1.,128.)));for(auto& run:a.textRuns)run.size=static_cast<int>(std::lround(std::clamp(run.size*factor,6.,512.)));
     }return result;
 }
-DocumentState Recolor(const DocumentState& state,const Indices& input,COLORREF color){RequireEditable(state,input);auto result=state;for(int i:Expand(state,input))result.objects[i].color=color;return result;}
+DocumentState Recolor(const DocumentState& state,const Indices& input,COLORREF color){RequireEditable(state,input);auto result=state;for(int i:Expand(state,input)){result.objects[i].color=color;for(auto& run:result.objects[i].textRuns)run.color=color;}return result;}
 DocumentState Remove(const DocumentState& state,const Indices& input){const auto ids=Expand(state,input);RequireEditable(state,ids);auto result=state;for(auto it=ids.rbegin();it!=ids.rend();++it)result.objects.erase(result.objects.begin()+*it);return result;}
 void Append(DocumentState& destination,const std::vector<Annotation>& objects,int dx,int dy){if(destination.objects.size()+objects.size()>10000)throw std::runtime_error("Object limit (10000)");DocumentState incoming;incoming.objects=objects;Validate(incoming);auto result=destination;std::map<uint32_t,uint32_t> groups;
     for(auto a:objects){if(a.group){auto found=groups.find(a.group);if(found==groups.end())found=groups.emplace(a.group,FreeGroup(result)).first;a.group=found->second;}Translate(a,dx,dy);result.objects.push_back(std::move(a));}Validate(result);destination=std::move(result);

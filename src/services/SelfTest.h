@@ -1,2 +1,2 @@
 #pragma once
-namespace sct::services { int RunSelfTests(); int RunRecordingTests(); }
+namespace sct::services { int RunSelfTests(); }

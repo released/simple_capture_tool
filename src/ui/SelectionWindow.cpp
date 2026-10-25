@@ -2,6 +2,7 @@
 #include "SelectionWindow.h"
 #include "FormDialog.h"
 #include "../core/Document.h"
+#include "../core/InteractionGeometry.h"
 #include <dwmapi.h>
 #include <gdiplus.h>
 #pragma comment(lib,"msimg32.lib")
@@ -79,7 +80,7 @@ void SelectionWindow::Clamp()
 }
 core::Region SelectionWindow::Current()const {core::Region r;r.rect=selected_;r.shape=shape_.GetCurSel()==1?core::RegionShape::Ellipse:shape_.GetCurSel()==2?core::RegionShape::Freehand:core::RegionShape::Rectangle;r.points=points_;return r;}
 void SelectionWindow::AddCurrent(){if(!selected_.IsRectEmpty()&&regions_.size()<100){regions_.push_back(Current());selected_.SetRectEmpty();points_.clear();locked_=false;shape_.SetCurSel(3);Invalidate(FALSE);}}
-void SelectionWindow::OnMouseMove(UINT,CPoint p)
+void SelectionWindow::OnMouseMove(UINT flags,CPoint p)
 {
     cursor_=p;
     if(toolbarVisible_&&toolbar_.PtInRect(p)&&!dragging_)return;
@@ -93,7 +94,7 @@ void SelectionWindow::OnMouseMove(UINT,CPoint p)
     else if(dragging_){if(handle_==-2){const int dx=std::clamp<int>(p.x-start_.x,-original_.left,image_->width-original_.right),dy=std::clamp<int>(p.y-start_.y,-original_.top,image_->height-original_.bottom);selected_=original_;selected_.OffsetRect(dx,dy);points_=originalPoints_;for(auto& q:points_){q.x+=dx;q.y+=dy;}}
         else if(handle_>=0){CRect r=original_;int xx=handle_%3,yy=handle_/3;if(xx==0)r.left=std::min(p.x,r.right-1);if(xx==2)r.right=std::max(p.x,r.left+1);if(yy==0)r.top=std::min(p.y,r.bottom-1);if(yy==2)r.bottom=std::max(p.y,r.top+1);
             core::Annotation a;a.rect=original_;a.points=originalPoints_;core::Document::Fit(a,r);points_=a.points;selected_=r;Clamp();}
-        else {if(shape_.GetCurSel()==2&&points_.size()<1000000){points_.push_back(p);selected_.left=std::min(selected_.left,p.x);selected_.top=std::min(selected_.top,p.y);selected_.right=std::max(selected_.right,std::min<LONG>(p.x+1,image_->width));selected_.bottom=std::max(selected_.bottom,std::min<LONG>(p.y+1,image_->height));}else{selected_=CRect(start_,p);selected_.NormalizeRect();}}}
+        else {if(shape_.GetCurSel()==2&&points_.size()<1000000){points_.push_back(p);selected_.left=std::min(selected_.left,p.x);selected_.top=std::min(selected_.top,p.y);selected_.right=std::max(selected_.right,std::min<LONG>(p.x+1,image_->width));selected_.bottom=std::max(selected_.bottom,std::min<LONG>(p.y+1,image_->height));}else{if(flags&MK_CONTROL)p=core::SquareEnd(start_,p,image_->width,image_->height);selected_=CRect(start_,p);selected_.NormalizeRect();}}}
     Invalidate(FALSE);
 }
 void SelectionWindow::OnLButtonDown(UINT flags,CPoint p)

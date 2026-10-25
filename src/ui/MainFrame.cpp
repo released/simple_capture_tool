@@ -70,7 +70,7 @@ LRESULT MainFrame::OnTaskbarCreated(WPARAM,LPARAM){AddTray();return 0;}
 void MainFrame::BuildTrayMenu(CMenu& menu)
 {
     menu.CreatePopupMenu();if(HasTrayEditor())menu.AppendMenu(MF_STRING,RestoreEditor,Tr(Text::RestoreEditor));for(auto item:{std::pair<UINT,Text>{Open,Text::Open},{Full,Text::Full},{Region,Text::Region},{Window,Text::Window},{CurrentMonitor,Text::CurrentMonitor},{ChooseMonitor,Text::ChooseMonitor},{LastRegion,Text::LastRegion},{Presets,Text::RegionPresets},
-        {Fixed,Text::FixedRegion},{Scroll,Text::Scroll},{ManualScroll,Text::ManualScroll},{MenuCapture,Text::MenuCapture},{Record,Text::Recording},{Pause,Text::Pause},{Stop,Text::Stop},{Settings,Text::Settings},{CaptureOptions,Text::CaptureOptions},{Hotkeys,Text::Hotkeys},{Exit,Text::Exit}})
+        {Fixed,Text::FixedRegion},{Scroll,Text::Scroll},{ManualScroll,Text::ManualScroll},{MenuCapture,Text::MenuCapture},{Settings,Text::Settings},{CaptureOptions,Text::CaptureOptions},{Hotkeys,Text::Hotkeys},{Exit,Text::Exit}})
         menu.AppendMenu(MF_STRING,item.first,Tr(item.second));
 }
 void MainFrame::TrayMenu(){CMenu menu;BuildTrayMenu(menu);CPoint p;GetCursorPos(&p);SetForegroundWindow();UINT id=menu.TrackPopupMenu(TPM_RETURNCMD|TPM_RIGHTBUTTON,p.x,p.y,this);if(id)OnAction(id);PostMessage(WM_NULL);}
@@ -79,8 +79,7 @@ void MainFrame::OnClose(){if(settings_.closeToTray&&!exiting_){CloseEditors();Sh
 void MainFrame::OnDestroy(){KillTimer(CapturePollTimer);capturePolling_=false;RestoreEditors();countdown_.Close();if(!isolated_){for(UINT i=1;i<=HotkeyCatalog().size();++i)UnregisterHotKey(m_hWnd,i);Shell_NotifyIcon(NIM_DELETE,&tray_);}SetMenu(nullptr);menu_.DestroyMenu();CFrameWnd::OnDestroy();}
 void MainFrame::ExitApplication()
 {
-    if(countdownMode_){countdownMode_=0;countdown_.Close();pendingRecord_=false;}
-    if(recorder_.State()!=services::RecordingState::Idle){recorder_.Stop();status_.SetWindowText(Tr(Text::Finalizing));return;}
+    if(countdownMode_){countdownMode_=0;countdown_.Close();}
     if(job_.Busy()||selecting_){job_.cancel=true;status_.SetWindowText(Tr(Text::Busy));return;}
     CloseEditors();
     exiting_=true;CFrameWnd::OnClose();

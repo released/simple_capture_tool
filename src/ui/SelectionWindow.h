@@ -1,6 +1,7 @@
 #pragma once
 #include "../core/Selection.h"
 #include "../services/CaptureService.h"
+namespace sct::services {struct CapturedCursor;}
 namespace sct::ui {
 enum class SelectionMode { Region, Window, Fixed };
 struct SelectionOptions {bool magnifier=true,grid=true,dimOutside=true,finishOnRelease=false;};
@@ -8,6 +9,7 @@ struct SelectionResult {
     services::CaptureTarget target;
     std::shared_ptr<const core::Image> frozen;
     std::vector<core::Region> regions;
+    std::shared_ptr<const services::CapturedCursor> cursor;
 };
 class SelectionWindow final:public CWnd {
 public:
@@ -24,6 +26,7 @@ private:
     friend class CaptureAlignmentAccess;
     friend class MainFrame;
     friend class SavePaintAccess;
+    friend class OpenParityAccess;
     void Finish(bool);void Coordinates();void Clamp();int Handle(CPoint)const;void AddCurrent();core::Region Current()const;void PaintFrame(CDC&);
     std::shared_ptr<const core::Image> image_;
     CDC frameDc_;CBitmap frameBitmap_;

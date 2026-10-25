@@ -22,7 +22,7 @@ if (Test-Path -LiteralPath (Join-Path $buildDirectory 'packages')) {
         if ($item.Name -match '^verify-[0-9a-f]{32}$') { Add-Move "build\packages\$($item.Name)" "artifacts\package-verification\legacy\$($item.Name)" }
     }
 }
-Add-Move 'build\packages' 'dist'
+Add-Move 'build\packages' 'artifacts\retired\legacy-packages'
 Add-Move 'build\tools' 'runtime\tools'
 Add-Move 'build\captures' 'runtime\captures'
 Add-Move 'build\capture_sequence.dat' 'runtime\capture_sequence.dat'

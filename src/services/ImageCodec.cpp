@@ -2,8 +2,6 @@
 #include "ImageCodec.h"
 #include "../core/ImageOperations.h"
 #include "PdfService.h"
-#include <webp/encode.h>
-#include <webp/decode.h>
 using Microsoft::WRL::ComPtr;
 namespace {
 struct Apartment { HRESULT hr=CoInitializeEx(nullptr,COINIT_MULTITHREADED); ~Apartment(){if(SUCCEEDED(hr)) CoUninitialize();} };
@@ -13,7 +11,7 @@ namespace sct::services {
 bool EncodeImage(const core::Image& image,const CString& extension,int quality,std::vector<BYTE>& bytes,CString& error)
 {
     if(image.Empty()) { error=L"Empty image";return false; } Apartment apartment;
-    CString ext=extension;ext.TrimLeft(L".");ext.MakeLower();if(ext==L"webp"){uint8_t* output=nullptr;size_t size=WebPEncodeLosslessBGRA(image.pixels.data(),image.width,image.height,image.width*4,&output);if(!size||size>512ULL*1024*1024){if(output)WebPFree(output);error=L"Cannot encode WebP (maximum dimension is 16383)";return false;}bytes.assign(output,output+size);WebPFree(output);return true;}
+    CString ext=extension;ext.TrimLeft(L".");ext.MakeLower();if(ext!=L"png"&&ext!=L"jpg"&&ext!=L"jpeg"&&ext!=L"bmp"&&ext!=L"gif"&&ext!=L"pdf"){error=L"Unsupported image format";return false;}
     if(ext==L"pdf")return EncodePdfImage(image,bytes,error);
     const bool png=ext==L"png",jpeg=ext==L"jpg"||ext==L"jpeg",gif=ext==L"gif";
     if(!png&&!jpeg&&!gif&&ext!=L"bmp") {error=L"Unsupported image extension: "+ext;return false;}
@@ -43,7 +41,7 @@ bool EncodeImage(const core::Image& image,const CString& extension,int quality,s
 bool DecodeImage(const BYTE* bytes,size_t size,core::Image& image,CString& error,size_t maximumBytes)
 {
     if(!bytes||size==0||size>512ULL*1024*1024) {error=L"Invalid encoded image length";return false;}
-    if(size>=12&&!memcmp(bytes,"RIFF",4)&&!memcmp(bytes+8,"WEBP",4)){int width=0,height=0;core::Image decoded;if(!WebPGetInfo(bytes,size,&width,&height)||static_cast<uint64_t>(width)*height*4>maximumBytes||!decoded.Create(width,height)||!WebPDecodeBGRAInto(bytes,size,decoded.pixels.data(),decoded.pixels.size(),width*4)){error=L"Invalid WebP or decoded size limit";return false;}image=std::move(decoded);return true;}Apartment apartment;
+    if(size>=12&&!memcmp(bytes,"RIFF",4)&&!memcmp(bytes+8,"WEBP",4)){error=L"Unsupported image format";return false;}Apartment apartment;
     ComPtr<IWICImagingFactory> factory;ComPtr<IWICStream> stream;ComPtr<IWICBitmapDecoder> decoder;ComPtr<IWICBitmapFrameDecode> frame;ComPtr<IWICFormatConverter> converter;
     HRESULT hr=CoCreateInstance(CLSID_WICImagingFactory,nullptr,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&factory));
     if(SUCCEEDED(hr)) hr=factory->CreateStream(&stream);

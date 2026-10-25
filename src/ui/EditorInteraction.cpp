@@ -3,6 +3,8 @@
 #include "FormDialog.h"
 #include "../core/ImageOperations.h"
 #include "../core/AnnotationGeometry.h"
+#include "../core/InteractionGeometry.h"
+#include "../core/AnnotationExtensions.h"
 namespace sct::ui {
 CPoint EditorFrame::ImagePoint(CPoint p)const
 {
@@ -30,7 +32,10 @@ void EditorFrame::OnLButtonDown(UINT flags,CPoint p)
     if(finishText){selected_=-1;SyncStyle();Layout();InvalidateRect(canvas_,FALSE);return;}
     if(!canvas_.PtInRect(p)||canvasPending_||(job_.Busy()&&activeAction_!=0)||pendingAction_==SelectPixels)return;
     if(BeginCanvasResize(p))return;
+    if(PictureCropDown(p))return;
+    if(colorSelectionMode_){ColorSelectionDown(p);return;}
     if(CropDown(p))return;
+    if(MaskDown(p))return;
     if(BeginComposition(flags,p))return;
     clickCandidate_=-1;pressPoint_=p;const bool force=GetKeyState(VK_MENU)<0,pixelTool=style_.tool==core::Tool::PixelSelect||style_.tool==core::Tool::Eyedropper||style_.tool==core::Tool::Fill;
     const int hit=!force&&!pixelTool?document_.HitTest(ImagePoint(p),std::max(2,static_cast<int>(5/zoom_)),true):-1;
@@ -46,14 +51,16 @@ void EditorFrame::OnLButtonDown(UINT flags,CPoint p)
     if(style_.tool==core::Tool::Fill){auto a=style_;a.points={start_};a.rect={0,0,document_.Width(),document_.Height()};document_.Add(a);Changed();return;}
     if(style_.tool==core::Tool::Select){handle_=Handle(p);if(handle_<0)Select(document_.HitTest(start_,std::max(2,static_cast<int>(5/zoom_))),false);
         if(selected_<0||!GuardSelection(true)){Layout();return;}draft_=original_=document_.State().objects[selected_];if(handle_<0)BeginSnapping({selected_});else ClearSnapping();
-    }else {clickCandidate_=hit;selected_=-1;draft_=style_;draft_.group=0;draft_.locked=false;draft_.points={start_};draft_.rect={start_.x,start_.y,start_.x,start_.y};text_.GetWindowText(draft_.text);CString width;width_.GetLBText(width_.GetCurSel(),width);draft_.width=_wtoi(width);
+    }else {clickCandidate_=hit;selected_=-1;draft_=style_;draft_.sourceCrop={};if(draft_.tool!=core::Tool::Text&&draft_.tool!=core::Tool::Callout)draft_.textRuns.clear();draft_.group=0;draft_.locked=false;draft_.points={start_};draft_.rect={start_.x,start_.y,start_.x,start_.y};text_.GetWindowText(draft_.text);CString width;width_.GetLBText(width_.GetCurSel(),width);draft_.width=_wtoi(width);
 if(draft_.tool==core::Tool::Step){int next=1;for(const auto& a:document_.State().objects)if(a.tool==core::Tool::Step)next=std::max(next,a.number+1);if(next>100000){status_.SetWindowText(Tr(Text::StepLimit));return;}draft_.number=next;}}
     dragging_=true;SetCapture();
 }
 void EditorFrame::OnMouseMove(UINT,CPoint p)
 {
     if(GetCapture()==this)ApplyCanvasCursor(p);
+    if(PictureCropMove(p))return;
     if(CropMove(p))return;
+    if(MaskMove(p))return;
     if(UpdateComposition(p))return;
     if(canvasHandle_>=0){UpdateCanvasResize(p);return;}
     if(!dragging_&&CanvasGrip(p)>=0){status_.SetWindowText(Tr(Text::CanvasDragHelp));return;}
@@ -64,13 +71,15 @@ void EditorFrame::OnMouseMove(UINT,CPoint p)
     if(style_.tool==core::Tool::Select){draft_=original_;
         if(handle_<0){try{CRect target=original_.rect;target.OffsetRect(q.x-start_.x,q.y-start_.y);target=SnapMove(target);draft_=core::alignment::MoveObject(original_,target.left-original_.rect.left,target.top-original_.rect.top);}catch(const std::exception&){snapX_.reset();snapY_.reset();draft_=original_;status_.SetWindowText(Tr(Text::InvalidValue));}}
         else if(handle_>=100)core::SetArrowNode(draft_,handle_-100,q);
-        else {RECT r=original_.rect;const int xx=handle_%3,yy=handle_/3;if(xx==0)r.left=std::min(q.x,r.right-1);if(xx==2)r.right=std::max(q.x,r.left+1);if(yy==0)r.top=std::min(q.y,r.bottom-1);if(yy==2)r.bottom=std::max(q.y,r.top+1);core::Document::Fit(draft_,r);}
-    }else {if(draft_.tool==core::Tool::CurvedArrow)core::StartCurvedArrow(draft_,start_,q);else{if((draft_.tool==core::Tool::Pen||draft_.tool==core::Tool::Eraser||draft_.tool==core::Tool::SmartEraser)&&draft_.points.size()<1000000)draft_.points.push_back(q);else draft_.points={start_,q};core::BoundPoints(draft_);}}
+        else {RECT r=original_.rect;const int xx=handle_%3,yy=handle_/3;if(xx==0)r.left=std::min(q.x,r.right-1);if(xx==2)r.right=std::max(q.x,r.left+1);if(yy==0)r.top=std::min(q.y,r.bottom-1);if(yy==2)r.bottom=std::max(q.y,r.top+1);if(GetKeyState(VK_SHIFT)<0){try{r=core::AspectResize(original_.rect,handle_,q);}catch(const std::exception&){draft_=original_;Preview();status_.SetWindowText(Tr(Text::InvalidValue));return;}}core::Document::Fit(draft_,r);}
+    }else {auto endpoint=q;if(GetKeyState(VK_SHIFT)<0&&core::ConstraintTool(draft_.tool))endpoint=draft_.tool==core::Tool::Line||draft_.tool==core::Tool::Arrow?core::AngleEnd(start_,q,document_.Width(),document_.Height()):core::SquareEnd(start_,q,document_.Width(),document_.Height());if(draft_.tool==core::Tool::Polygon)core::MakePolygon(draft_,start_,endpoint,std::clamp(draft_.number,3,6));else if(draft_.tool==core::Tool::CurvedArrow)core::StartCurvedArrow(draft_,start_,q);else{if((draft_.tool==core::Tool::Pen||draft_.tool==core::Tool::Eraser||draft_.tool==core::Tool::SmartEraser)&&draft_.points.size()<1000000)draft_.points.push_back(q);else draft_.points={start_,endpoint};core::BoundPoints(draft_);}}
     Preview();ViewStatus();InvalidateRect(canvas_,FALSE);
 }
 void EditorFrame::OnLButtonUp(UINT f,CPoint p)
 {
+    if(PictureCropUp(p))return;
     if(CropUp(p))return;
+    if(MaskUp(p))return;
     if(EndComposition(p))return;
     if(canvasHandle_>=0){EndCanvasResize(p);return;}
     if(panning_){OnMButtonUp(f,p);return;}if(!dragging_)return;OnMouseMove(f,p);const int candidate=clickCandidate_;clickCandidate_=-1;dragging_=false;ClearSnapping();ReleaseCapture();++previewGeneration_;renderPending_=true;
@@ -87,14 +96,7 @@ void EditorFrame::OnLButtonUp(UINT f,CPoint p)
         if(draft_.tool==core::Tool::Picture&&!draft_.asset)return;document_.Add(draft_);selected_=draft_.tool==core::Tool::Pen||draft_.tool==core::Tool::Eraser||draft_.tool==core::Tool::SmartEraser||draft_.tool==core::Tool::Step?-1:static_cast<int>(document_.State().objects.size())-1;}
     Changed();if(style_.tool==core::Tool::Select)Layout();}catch(const std::exception& e){CString error;error.Format(L"%s %hs",Tr(Text::Failed),e.what());status_.SetWindowText(error);InvalidateRect(canvas_,FALSE);}
 }
-BOOL EditorFrame::OnMouseWheel(UINT flags,short delta,CPoint)
-{
-    if(canvasHandle_>=0||objectGesture_||cropGesture_)return TRUE;
-    if(flags&MK_CONTROL){ZoomTo(zoom_*(delta>0?1.2:1/1.2));return TRUE;}
-    else if(flags&MK_SHIFT)offsetX_=std::max(0,offsetX_-delta);else offsetY_=std::max(0,offsetY_-delta);
-    ClampViewport();InvalidateRect(canvas_,FALSE);return TRUE;
-}
-void EditorFrame::OnToolChanged(){CancelCrop();CancelComposition();if(!FinishText(true)){tools_.SetCurSel(static_cast<int>(style_.tool));return;}if(style_.tool==core::Tool::Highlight){highlightColor_=style_.color;highlightOpacity_=style_.opacity;}style_.tool=static_cast<core::Tool>(tools_.GetCurSel());style_.group=0;style_.locked=false;selected_=-1;if(style_.tool==core::Tool::Highlight){style_.color=highlightColor_;style_.opacity=highlightOpacity_;}LoadToolStyle();if(style_.tool!=core::Tool::PixelSelect)pixelSelection_.SetRectEmpty();SyncStyle();Layout();ribbon_.CheckTool(static_cast<int>(style_.tool));if(style_.tool==core::Tool::Picture)OnAction(InsertImage);InvalidateRect(canvas_,FALSE);}
+void EditorFrame::OnToolChanged(){ChangeTool(tools_.GetCurSel());}
 void EditorFrame::EditProperties()
 {
     auto a=selected_>=0?document_.State().objects[selected_]:style_;
@@ -112,7 +114,7 @@ void EditorFrame::EditProperties()
 void EditorFrame::ChooseFont()
 {
     auto a=selected_>=0?document_.State().objects[selected_]:style_;LOGFONT lf{};lf.lfHeight=-a.fontSize;lf.lfWeight=a.bold?FW_BOLD:FW_NORMAL;lf.lfItalic=a.italic;lf.lfUnderline=a.underline;wcscpy_s(lf.lfFaceName,a.font);
-    CFontDialog dlg(&lf,CF_SCREENFONTS|CF_INITTOLOGFONTSTRUCT|CF_EFFECTS,nullptr,this);dlg.m_cf.rgbColors=a.color;if(dlg.DoModal()!=IDOK)return;dlg.GetCurrentFont(&lf);a.font=lf.lfFaceName;a.fontSize=std::clamp<int>(abs(lf.lfHeight),6,512);a.bold=lf.lfWeight>=FW_BOLD;a.italic=lf.lfItalic!=0;a.underline=lf.lfUnderline!=0;a.color=dlg.GetColor();
+    CFontDialog dlg(&lf,CF_SCREENFONTS|CF_INITTOLOGFONTSTRUCT|CF_EFFECTS,nullptr,this);dlg.m_cf.rgbColors=a.color;if(dlg.DoModal()!=IDOK)return;dlg.GetCurrentFont(&lf);a.font=lf.lfFaceName;a.fontSize=std::clamp<int>(abs(lf.lfHeight),6,512);a.bold=lf.lfWeight>=FW_BOLD;a.italic=lf.lfItalic!=0;a.underline=lf.lfUnderline!=0;a.color=dlg.GetColor();a.textRuns.clear();
     if(selected_>=0){document_.Replace(selected_,a);Changed();}style_=a;style_.tool=static_cast<core::Tool>(tools_.GetCurSel());
 }
 BOOL EditorFrame::PreTranslateMessage(MSG* m)
@@ -123,8 +125,9 @@ if(m->message==WM_KEYDOWN||m->message==WM_SYSKEYDOWN){if(canvasHandle_>=0||canva
         if(textEditing_&&((ctrl&&m->wParam==VK_RETURN)||m->wParam==VK_ESCAPE)){FinishText(m->wParam!=VK_ESCAPE);return TRUE;}
         if(RouteEditorShortcut(m,editing))return TRUE;
         if(!editing){
+            if(m->wParam==VK_APPS||(m->wParam==VK_F10&&GetKeyState(VK_SHIFT)<0)){OnContextMenu(this,{-1,-1});return TRUE;}
             if(m->wParam==VK_RETURN&&style_.tool==core::Tool::Crop){OnAction(ApplyCrop);return TRUE;}
-            if(m->wParam==VK_ESCAPE){CancelCrop();CancelComposition();selected_=-1;pixelSelection_.SetRectEmpty();pixelMoving_=false;if(dragging_){dragging_=false;ReleaseCapture();Preview();}SyncStyle();Layout();InvalidateRect(canvas_,FALSE);return TRUE;}
+            if(m->wParam==VK_ESCAPE){pictureCropMode_=false;colorSelectionMode_=0;CancelMask();CancelCrop();CancelComposition();selected_=-1;pixelSelection_.SetRectEmpty();pixelMoving_=false;if(dragging_){dragging_=false;ReleaseCapture();Preview();}SyncStyle();Layout();InvalidateRect(canvas_,FALSE);return TRUE;}
             if(selected_>=0&&GetFocus()!=&tools_&&GetFocus()!=&width_&&m->wParam>=VK_LEFT&&m->wParam<=VK_DOWN){if(objectGesture_||job_.Busy()&&activeAction_!=0){status_.SetWindowText(Tr(Text::Busy));return TRUE;}int step=GetKeyState(VK_SHIFT)<0?10:1;NudgeSelection(m->wParam==VK_LEFT?-step:m->wParam==VK_RIGHT?step:0,m->wParam==VK_UP?-step:m->wParam==VK_DOWN?step:0);return TRUE;}
         }
     }return CFrameWnd::PreTranslateMessage(m);

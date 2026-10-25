@@ -4,7 +4,7 @@
 #include "../core/Document.h"
 #include <gdiplus.h>
 namespace sct::ui {
-const std::vector<Text>& ToolLabels(){static const std::vector<Text> labels={Text::Pen,Text::Rectangle,Text::Ellipse,Text::Arrow,Text::Mosaic,Text::Crop,Text::TextTool,Text::SelectObject,Text::Step,Text::Highlight,Text::Redact,Text::Blur,Text::Picture,Text::Magnifier,Text::Spotlight,Text::Line,Text::RoundRectangle,Text::Callout,Text::Stamp,Text::CursorStamp,Text::Eraser,Text::SmartEraser,Text::Fill,Text::Eyedropper,Text::PixelSelection,Text::CurvedArrow};return labels;}
+const std::vector<Text>& ToolLabels(){static const std::vector<Text> labels={Text::Pen,Text::Rectangle,Text::Ellipse,Text::Arrow,Text::Mosaic,Text::Crop,Text::TextTool,Text::SelectObject,Text::Step,Text::Highlight,Text::Redact,Text::Blur,Text::Picture,Text::Magnifier,Text::Spotlight,Text::Line,Text::RoundRectangle,Text::Callout,Text::Stamp,Text::CursorStamp,Text::Eraser,Text::SmartEraser,Text::Fill,Text::Eyedropper,Text::PixelSelection,Text::CurvedArrow,Text::Polygon};return labels;}
 const std::array<COLORREF,16>& QuickColors(){static const std::array<COLORREF,16> c={RGB(0,0,0),RGB(255,255,255),RGB(110,110,110),RGB(240,40,40),RGB(245,135,35),RGB(250,210,25),RGB(30,160,75),RGB(35,170,220),RGB(35,85,210),RGB(130,65,185),RGB(235,110,170),RGB(115,70,40),RGB(175,220,185),RGB(195,225,250),RGB(255,235,180),RGB(230,225,240)};return c;}
 BEGIN_MESSAGE_MAP(PaletteBar,CWnd)
  ON_WM_RBUTTONUP()

@@ -46,8 +46,8 @@
   <ItemGroup><ResourceCompile Include="src\SimpleCaptureTool.rc"/></ItemGroup>
   <ItemGroup><Image Include="src\res\SimpleCaptureTool.ico"/></ItemGroup>
   <ItemDefinitionGroup>
-    <ClCompile><AdditionalIncludeDirectories>$(ProjectDir)src;$(ProjectDir)tools\libwebp\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><RuntimeLibrary Condition="'$(Configuration)'=='Release'">MultiThreaded</RuntimeLibrary><RuntimeLibrary Condition="'$(Configuration)'=='Debug'">MultiThreadedDebug</RuntimeLibrary></ClCompile>
-    <Link><AdditionalDependencies>d3d11.lib;dxgi.lib;windowsapp.lib;dwmapi.lib;avrt.lib;$(ProjectDir)artifacts\deps\webp\$(Configuration)\libwebp.lib;$(ProjectDir)artifacts\deps\webp\$(Configuration)\libsharpyuv.lib;%(AdditionalDependencies)</AdditionalDependencies><EnableDpiAwareness>false</EnableDpiAwareness><ProgramDatabaseFile>$(IntDir)$(TargetName).pdb</ProgramDatabaseFile><ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary></Link>
+    <ClCompile><AdditionalIncludeDirectories>$(ProjectDir)src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><RuntimeLibrary Condition="'$(Configuration)'=='Release'">MultiThreaded</RuntimeLibrary><RuntimeLibrary Condition="'$(Configuration)'=='Debug'">MultiThreadedDebug</RuntimeLibrary></ClCompile>
+    <Link><AdditionalDependencies>d3d11.lib;dxgi.lib;windowsapp.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies><EnableDpiAwareness>false</EnableDpiAwareness><ProgramDatabaseFile>$(IntDir)$(TargetName).pdb</ProgramDatabaseFile><ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary></Link>
     <Manifest><EnableDpiAwareness>false</EnableDpiAwareness><AdditionalManifestFiles>$(ProjectDir)src\app.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles></Manifest>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Platform)'=='x64'">
@@ -57,5 +57,4 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <Target Name="PrepareWebP" BeforeTargets="ClCompile"><Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)scripts\setup_webp.ps1&quot; -Configuration $(Configuration)" /></Target>
 </Project>

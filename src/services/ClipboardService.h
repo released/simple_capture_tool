@@ -2,7 +2,7 @@
 #include "../core/Image.h"
 #include "../core/Document.h"
 namespace sct::services {
-inline constexpr const wchar_t* EditableClipboardFormat=L"SimpleCaptureTool.EditableObjects.v7";
+inline constexpr const wchar_t* EditableClipboardFormat=L"SimpleCaptureTool.EditableObjects.v8";
 struct ClipboardPacket {
     HGLOBAL dib=nullptr,png=nullptr,objects=nullptr;
     ~ClipboardPacket(){if(dib)GlobalFree(dib);if(png)GlobalFree(png);if(objects)GlobalFree(objects);}

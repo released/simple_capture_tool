@@ -6,6 +6,13 @@
 #include "PaletteService.h"
 #include "EditorShortcutService.h"
 namespace sct::services {
+namespace {
+bool ValidImageDirectory(const CString& value){
+    if(value.GetLength()>32760)return false;
+    for(wchar_t c:std::wstring(value))if(c<32||c==127)return false;
+    return value.IsEmpty()||std::filesystem::path(value.GetString()).is_absolute();
+}
+}
 CString ConfigService::ExecutableDirectory()
 {
     wchar_t path[32768] = {};
@@ -29,14 +36,13 @@ bool ConfigService::Load(Settings& output, CString& error) const
             if (!size) throw std::runtime_error("Invalid UTF-8");
             std::wstring wide(size, 0); MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value.c_str(), -1, wide.data(), size);
             if (key == "Directory") s.directory = wide.c_str();
+            else if (key == "LastImageDirectory") {if(value.find('\0')!=std::string::npos||!ValidImageDirectory(wide.c_str()))throw std::runtime_error("Invalid image save directory");s.lastImageDirectory=wide.c_str();}
             else if (key == "Format") s.format = wide.c_str();
-            else if (key == "Container") s.container = wide.c_str();
-            else if (key == "Audio") s.audio = std::stoi(value);
-            else if (key == "Fps") s.fps = std::stoi(value);
             else if (key == "Delay") s.delay = std::stoi(value);
             else if (key == "FixedWidth") s.fixedWidth = std::stoi(value);
             else if (key == "FixedHeight") s.fixedHeight = std::stoi(value);
             else if (key == "Cursor") s.cursor = value == "1";
+            else if (key == "EditableCursor") s.editableCursor = value == "1";
             else if (key == "LanguageFile") {if(!SafeLanguageFile(wide.c_str()))throw std::runtime_error("Invalid language filename");s.languageFile=wide.c_str();}
             else if (key == "HomeFeatures") {if(value.size()>2048||value.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_,")!=std::string::npos)throw std::runtime_error("Invalid home feature list");s.homeFeatures=wide.c_str();s.homeFeaturesConfigured=true;}
             else if (key == "EditorHome") {if(value.size()>4096||value.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_,")!=std::string::npos)throw std::runtime_error("Invalid editor home list");s.editorHome=wide.c_str();s.editorHomeConfigured=true;}
@@ -66,8 +72,7 @@ bool ConfigService::Load(Settings& output, CString& error) const
         }
         s.directory = paths::UpgradeCaptureDirectory(s.directory);
         if (!manualPolicy||(s.format != L"png" && s.format != L"jpg" && s.format != L"bmp")) s.format = L"jpg";
-        if (s.container != L"mp4" && s.container != L"avi" && s.container != L"mov") s.container = L"mp4";
-        s.audio = std::clamp(s.audio, 0, 4); s.fps = std::clamp(s.fps, 5, 60); s.delay = std::clamp(s.delay, 0, 30);
+        s.delay = std::clamp(s.delay, 0, 30);
         s.fixedWidth = std::clamp(s.fixedWidth, 16, 16000); s.fixedHeight = std::clamp(s.fixedHeight, 16, 16000);
         s.jpegQuality=std::clamp(s.jpegQuality,1,100);
         s.scrollDelay=std::clamp(s.scrollDelay,50,10000);CString patternError;if(!ValidateCapturePattern(s.filePattern,patternError))throw std::runtime_error("Invalid capture filename pattern");
@@ -77,6 +82,7 @@ bool ConfigService::Load(Settings& output, CString& error) const
 }
 bool ConfigService::Save(const Settings& s, CString& error) const
 {
+    if(!ValidImageDirectory(s.lastImageDirectory)){error=L"Invalid image save directory";return false;}
     if(!ValidateToolStyleData(s.toolStyles,error))return false;
     EditorShortcuts bindings;if(!EffectiveEditorShortcuts(s.editorShortcuts,bindings,error))return false;
     PaletteData palette;if(!DecodePalette(s.palette,palette,error))return false;
@@ -85,13 +91,14 @@ bool ConfigService::Save(const Settings& s, CString& error) const
     if(!ValidateCapturePattern(s.filePattern,error))return false;
     std::wostringstream text;
     text << L"[Capture]\nDirectory=" << s.directory.GetString() << L"\nFormat=" << s.format.GetString()
-         << L"\nCursor=" << s.cursor << L"\nEditAfter=1\nCloseToTray=" << s.closeToTray
+         << L"\nCursor=" << s.cursor << L"\nEditableCursor=" << s.editableCursor << L"\nEditAfter=1\nCloseToTray=" << s.closeToTray
          << L"\nDelay=" << s.delay << L"\nFixedWidth=" << s.fixedWidth << L"\nFixedHeight=" << s.fixedHeight
-         << L"\n[Recording]\nContainer=" << s.container.GetString() << L"\nAudio=" << s.audio << L"\nFps=" << s.fps << L"\n";
+         << L"\n";
     text<<L"[ScreenshotOptions]\nImageSavePolicy=1\nSaveAfter=0\nCopyAfter="<<s.copyAfter<<L"\nClientOnly="<<s.clientOnly<<L"\nChildWindow="<<s.childWindow<<L"\nJpegQuality="<<s.jpegQuality
         <<L"\nCaptureMagnifier="<<s.captureMagnifier<<L"\nCaptureGrid="<<s.captureGrid<<L"\nDimOutside="<<s.dimOutside<<L"\nHideEditors="<<s.hideEditors<<L"\nScrollDelay="<<s.scrollDelay<<L"\nFilePattern="<<s.filePattern.GetString()
+        <<L"\nLastImageDirectory="<<s.lastImageDirectory.GetString()
         <<L"\nLastRegion="<<s.lastRegion.left<<L","<<s.lastRegion.top<<L","<<s.lastRegion.right<<L","<<s.lastRegion.bottom<<L"\n";
-    for(size_t i=0;i<s.hotkeys.size();++i)text<<L"Hotkey"<<i<<L"="<<s.hotkeys[i].modifiers<<L","<<s.hotkeys[i].key<<L"\n";
+    for(size_t i=0;i<s.hotkeys.size();++i)if(i!=3&&i!=4)text<<L"Hotkey"<<i<<L"="<<s.hotkeys[i].modifiers<<L","<<s.hotkeys[i].key<<L"\n";
     if(!SafeLanguageFile(s.languageFile)){error=L"Invalid language filename";return false;}
     text<<L"[Interface]\nLanguageFile="<<s.languageFile.GetString()<<L"\n";
     if(s.homeFeaturesConfigured)text<<L"HomeFeatures="<<s.homeFeatures.GetString()<<L"\n";

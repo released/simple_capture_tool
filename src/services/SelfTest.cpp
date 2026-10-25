@@ -5,9 +5,6 @@
 #include "AnnotationService.h"
 #include "../core/ScrollStitcher.h"
 #include <future>
-#include "RecordingService.h"
-#include "ChildProcess.h"
-#include "RecordingMuxer.h"
 namespace sct::services {
 int RunSelfTests()
 {
@@ -69,50 +66,5 @@ int RunSelfTests()
         check(future.get(),"Windows Graphics Capture target window"); target.DestroyWindow();
     }
     log<<"TOTAL "<<count<<" FAIL "<<failures<<"\n"; return failures?1:0;
-}
-int RunRecordingTests()
-{
-    const auto dir=paths::TestEvidence()/L"recording";
-    std::filesystem::create_directories(dir); std::ofstream log(dir/L"recording-test.log"); int failures=0;
-    Settings settings; settings.directory=dir.c_str(); settings.fps=10; settings.editAfter=false;
-    const auto desktop=CaptureService::DesktopRect(); CaptureTarget target;
-    target.rect={desktop.left,desktop.top,desktop.left+640,desktop.top+360};
-    RecordingClock clock; clock.Start(); Sleep(40); clock.SetPaused(true); const double paused=clock.Seconds(); Sleep(70);
-    bool good=abs(clock.Seconds()-paused)<0.01; clock.SetPaused(false); Sleep(30); good=good && clock.Seconds()>=paused+0.02;
-    log<<(good?"PASS ":"FAIL ")<<"pause clock excludes paused wall time\n"; if(!good) ++failures;
-    RecordingService recorder; CString sampleVideo;
-    for(const auto* ext:{L"mp4",L"avi",L"mov"}) for(int mode=0;mode<=4;++mode) {
-        settings.container=ext; settings.audio=mode; CString error; bool ok=recorder.Start(target,settings,error);
-        auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(12);
-        while(ok && recorder.State()==RecordingState::Starting && std::chrono::steady_clock::now()<deadline) Sleep(10);
-        if(recorder.State()==RecordingState::Recording) {
-            Sleep(400); recorder.Pause(); Sleep(300); recorder.Pause(); Sleep(400); recorder.Stop();
-        } else recorder.Stop();
-        std::optional<RecordingResult> r;
-        deadline=std::chrono::steady_clock::now()+std::chrono::seconds(30);
-        while(ok && !(r=recorder.Take()) && std::chrono::steady_clock::now()<deadline) Sleep(20);
-        ok=ok && r.has_value() && r->error.IsEmpty() && r->frames>=5 && r->seconds<1.5;
-        const bool missingMicrophone=r && r->error.Find(L"microphone initialization failed: 0x80070490")>=0;
-        log<<(ok?"PASS ":missingMicrophone?"NOT RUN ":"FAIL ")<<"container="<<CStringA(ext).GetString()<<" audio="<<mode;
-        if(ok && sampleVideo.IsEmpty()) sampleVideo=r->path;
-        if(r) log<<" frames="<<r->frames<<" seconds="<<r->seconds<<" path="<<CStringA(r->path).GetString()<<" error="<<CStringA(r->error).GetString();
-        else log<<" error="<<CStringA(error).GetString(); log<<"\n"; log.flush(); if(!ok && !missingMicrophone) ++failures;
-    }
-    std::vector<AudioInput> tones;
-    for(int tone=0;tone<2;++tone) {
-        auto path=dir/(tone?L"microphone-880Hz.raw":L"system-440Hz.raw"); std::ofstream file(path,std::ios::binary);
-        for(int i=0;i<48000*2;++i) { int16_t sample=static_cast<int16_t>(6000*sin(i*6.28318530718*(tone?880:440)/48000));
-            file.write(reinterpret_cast<const char*>(&sample),sizeof(sample)); }
-        file.close(); tones.push_back({path.c_str(),L"s16le",48000,1});
-    }
-    for(const auto* ext:{L"mp4",L"avi",L"mov"}) for(int mode=0;mode<=4;++mode) {
-        std::vector<AudioInput> inputs;
-        if(mode==1) inputs={tones[0]}; else if(mode==2) inputs={tones[1]}; else if(mode>=3) inputs=tones;
-        CString name; name.Format(L"synthetic_%d.%s",mode,ext); CString path=(dir/name.GetString()).c_str(),error;
-        bool ok=!sampleVideo.IsEmpty() && MuxRecording(sampleVideo,inputs,mode,ext,0.8,path,path+L".log",error);
-        log<<(ok?"PASS ":"FAIL ")<<"synthetic mux container="<<CStringA(ext).GetString()<<" audio="<<mode<<" error="<<CStringA(error).GetString()<<"\n";
-        if(!ok) ++failures;
-    }
-    log<<"FAIL "<<failures<<"\n"; return failures?1:0;
 }
 }

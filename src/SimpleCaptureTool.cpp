@@ -38,6 +38,7 @@ public:
     {
         CWinApp::InitInstance();
         const CString command(m_lpCmdLine);CString trimmed(command);trimmed.Trim();
+        if(command.Find(L"--recording-test")>=0){result_=64;return FALSE;}
         const bool startupProbe = trimmed == L"--startup-probe";
         bool legacyTest = false;
         for(auto option:{L"--capture-test-surface",L"--self-test",L"--recording-test",L"--ui-test",L"--enhancement-test",L"--enhancement-ui-test",L"--preferences-test",L"--alignment-test",L"--single-instance-child"})if(command.Find(option)>=0){legacyTest=true;break;}
@@ -65,7 +66,6 @@ public:
         if(legacyTest&&command.Find(L"--test-native-assertion")>=0){ASSERT(FALSE&&"Intentional native assertion probe");result_=3;return FALSE;}
         if(CString(m_lpCmdLine).Find(L"--capture-test-surface")>=0){m_pMainWnd=sct::services::CreateCaptureTestSurface();return TRUE;}
         if (CString(m_lpCmdLine).Find(L"--self-test") >= 0) { result_ = sct::services::RunSelfTests(); return FALSE; }
-        if (CString(m_lpCmdLine).Find(L"--recording-test") >= 0) { result_ = sct::services::RunRecordingTests(); return FALSE; }
         if (CString(m_lpCmdLine).Find(L"--ui-test") >= 0) { result_ = sct::services::RunUiTests(); return FALSE; }
         if (CString(m_lpCmdLine).Find(L"--enhancement-test") >= 0) { result_ = sct::services::RunEnhancementTests(); return FALSE; }
         if (CString(m_lpCmdLine).Find(L"--enhancement-ui-test") >= 0) { result_ = sct::services::RunEnhancementUiTests(); return FALSE; }

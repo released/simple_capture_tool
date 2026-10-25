@@ -1,0 +1,25 @@
+#include "pch.h"
+#include "AnnotationExtensions.h"
+namespace sct::core {
+CRect PictureSource(const Annotation& a){if(a.tool!=Tool::Picture||!a.asset||a.asset->Empty())throw std::runtime_error("Select a picture");ValidateExtensions(a);return IsRectEmpty(&a.sourceCrop)?CRect(0,0,a.asset->width,a.asset->height):CRect(a.sourceCrop);}
+void ValidateExtensions(const Annotation& a){
+    if(a.sourceCrop.left||a.sourceCrop.top||a.sourceCrop.right||a.sourceCrop.bottom){if(a.tool!=Tool::Picture||!a.asset||a.sourceCrop.left<0||a.sourceCrop.top<0||a.sourceCrop.right>a.asset->width||a.sourceCrop.bottom>a.asset->height||a.sourceCrop.right<=a.sourceCrop.left||a.sourceCrop.bottom<=a.sourceCrop.top)throw std::runtime_error("Invalid picture crop");}
+    if(a.tool==Tool::Polygon&&(a.points.size()<3||a.points.size()>64))throw std::runtime_error("Invalid polygon vertices");
+    if(!a.textRuns.empty()&&a.tool!=Tool::Text&&a.tool!=Tool::Callout)throw std::runtime_error("Text runs require a text object");
+    if(a.textRuns.size()>512)throw std::runtime_error("Text run limit (512)");int previous=0;
+    for(const auto& run:a.textRuns){if(run.start<previous||run.length<1||run.start>a.text.GetLength()||run.length>a.text.GetLength()-run.start||run.size<6||run.size>512||run.font.IsEmpty()||run.font.GetLength()>128||run.color>0xFFFFFF)throw std::runtime_error("Invalid text run");for(wchar_t c:std::wstring(run.font))if(c<32||c==127)throw std::runtime_error("Invalid run font");previous=run.start+run.length;}
+}
+Annotation CropPicture(const Annotation& a,CRect source){
+    if(a.locked||a.group||a.hidden)throw std::runtime_error("Select one unlocked ungrouped picture");const auto old=PictureSource(a);if(source.left<0||source.top<0||source.right>a.asset->width||source.bottom>a.asset->height||source.Width()<1||source.Height()<1||a.rect.right<=a.rect.left||a.rect.bottom<=a.rect.top)throw std::runtime_error("Invalid picture source region");
+    auto result=a;const double sx=double(a.rect.right-a.rect.left)/old.Width(),sy=double(a.rect.bottom-a.rect.top)/old.Height();auto position=[](double n){if(!std::isfinite(n)||n < -1000000||n>1000000)throw std::runtime_error("Crop coordinate limit");return static_cast<LONG>(std::lround(n));};
+    result.rect={position(a.rect.left+(source.left-old.left)*sx),position(a.rect.top+(source.top-old.top)*sy),position(a.rect.left+(source.right-old.left)*sx),position(a.rect.top+(source.bottom-old.top)*sy)};
+    if(result.rect.right<=result.rect.left||result.rect.bottom<=result.rect.top)throw std::runtime_error("Crop below one displayed pixel");result.sourceCrop=source==CRect(0,0,a.asset->width,a.asset->height)?CRect{}:source;ValidateExtensions(result);return result;
+}
+Annotation ResetPictureCrop(const Annotation& a){auto result=CropPicture(a,{0,0,a.asset?a.asset->width:0,a.asset?a.asset->height:0});result.sourceCrop={};return result;}
+void MakePolygon(Annotation& a,POINT first,POINT last,int sides){if(sides<3||sides>6)throw std::runtime_error("Invalid polygon sides");CRect box(first,last);box.NormalizeRect();a.rect=box;a.points.clear();const double cx=(box.left+box.right)/2.,cy=(box.top+box.bottom)/2.;for(int i=0;i<sides;++i){const double angle=-1.5707963267948966+i*6.283185307179586/sides;a.points.push_back({static_cast<LONG>(std::lround(cx+box.Width()/2.*cos(angle))),static_cast<LONG>(std::lround(cy+box.Height()/2.*sin(angle)))});}a.number=sides;}
+Annotation ReplaceStyledText(const Annotation& original,const CString& find,const CString& replacement,bool matchCase,bool& changed){
+    if(find.IsEmpty()||find.GetLength()>4096||replacement.GetLength()>4096)throw std::runtime_error("Invalid replacement text");auto result=original;CString text;std::vector<TextRun> runs;
+    auto append=[&](int start,int count,bool replacing){const int destination=text.GetLength();text+=replacing?replacement:original.text.Mid(start,count);if(text.GetLength()>65536)throw std::runtime_error("Replacement text limit");if(replacing){for(auto run:original.textRuns)if(start>=run.start&&start<run.start+run.length&&!replacement.IsEmpty()){run.start=destination;run.length=replacement.GetLength();runs.push_back(std::move(run));break;}}else for(auto run:original.textRuns){const int left=std::max(start,run.start),right=std::min(start+count,run.start+run.length);if(left<right){run.start=destination+left-start;run.length=right-left;runs.push_back(std::move(run));}}if(runs.size()>512)throw std::runtime_error("Replacement text run limit");};
+    int from=0;for(int i=0;i+find.GetLength()<=original.text.GetLength();){if(CompareStringOrdinal(original.text.GetString()+i,find.GetLength(),find,find.GetLength(),!matchCase)==CSTR_EQUAL){append(from,i-from,false);append(i,find.GetLength(),true);i+=find.GetLength();from=i;}else ++i;}append(from,original.text.GetLength()-from,false);changed=text!=original.text;if(!changed)return original;if(original.locked)throw std::runtime_error("Matching text is locked");result.text=std::move(text);result.textRuns=std::move(runs);ValidateExtensions(result);return result;
+}
+}

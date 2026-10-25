@@ -9,6 +9,9 @@
 #include "../ui/EditorFrame.h"
 #include "../ui/EditorViewportVisuals.h"
 #include <future>
+namespace {
+class CanvasActivationBlock {HHOOK hook_;public:CanvasActivationBlock(){hook_=SetWindowsHookEx(WH_CBT,[](int n,WPARAM w,LPARAM l)->LRESULT{return n==HCBT_ACTIVATE?1:CallNextHookEx(nullptr,n,w,l);},nullptr,GetCurrentThreadId());if(!hook_)throw std::runtime_error("Cannot isolate canvas fixture");}~CanvasActivationBlock(){UnhookWindowsHookEx(hook_);}};
+}
 namespace sct::ui {
 class CanvasResizeAccess {
     using Check=std::function<void(bool,const char*)>;
@@ -38,7 +41,7 @@ class CanvasResizeAccess {
             CRect horizontal,vertical;page->horizontal_.GetWindowRect(horizontal);page->vertical_.GetWindowRect(vertical);page->ScreenToClient(horizontal);page->ScreenToClient(vertical);check(horizontal.left==frame.left&&horizontal.top==frame.bottom&&horizontal.Width()==frame.Width()&&vertical.left==frame.right&&vertical.top==frame.top&&vertical.Height()==frame.Height(),"native scrollbars align outside all four visible border strips");
             auto painted=Paint(page);check(FramePixels(painted,page->canvas_,border),"all four border strips have exact slate pixels at100/125/150-percent test DPI");check(ColorAt(painted,page->canvas_.TopLeft(),RGB(255,255,255))&&ColorAt(painted,{frame.left,frame.top-1},RGB(249,250,251)),"white source begins inside the border without losing its first pixel or merging into the properties background");
             const auto imageRect=page->ScreenRect({0,0,320,220});check(ColorAt(painted,{page->canvas_.right-1,page->canvas_.bottom-1},RGB(223,223,223))&&ColorAt(painted,{imageRect.left,imageRect.bottom+Px(page->m_hWnd,16)},viewport::SurroundColor),"outside-image editor surround is exact DFDFDF without changing white source pixels");
-            page->SendMessage(WM_COMMAND,EditorToolFirst+static_cast<UINT>(core::Tool::Pen));const CPoint edge(frame.CenterPoint().x,frame.top);Mouse(page,WM_LBUTTONDOWN,edge);Mouse(page,WM_LBUTTONUP,edge);check(!page->dragging_&&page->canvasHandle_<0&&page->revision_==revision&&page->document_.State().objects.empty(),"clicking the decorative border cannot draw an object or start canvas resizing");page->SendMessage(WM_COMMAND,EditorToolFirst+static_cast<UINT>(core::Tool::Select));
+            page->SendMessage(WM_COMMAND,EditorToolFirst+static_cast<UINT>(core::Tool::Pen));const CPoint edge(frame.CenterPoint().x,frame.top);Mouse(page,WM_LBUTTONDOWN,edge);Mouse(page,WM_LBUTTONUP,edge);check(page->style_.tool==core::Tool::Pen&&!page->dragging_&&page->canvasHandle_<0&&page->revision_==revision&&page->document_.State().objects.empty(),"clicking the decorative border cannot draw an object or start canvas resizing");page->SendMessage(WM_COMMAND,EditorToolFirst+static_cast<UINT>(core::Tool::Select));
             page->ZoomTo(8);page->offsetX_=page->offsetY_=0;page->ClampViewport();const auto start=page->canvas_.CenterPoint(),end=start-CSize(40,24);page->SendMessage(WM_MBUTTONDOWN,MK_MBUTTON,MAKELPARAM(start.x,start.y));page->SendMessage(WM_MOUSEMOVE,MK_MBUTTON,MAKELPARAM(end.x,end.y));page->SendMessage(WM_MBUTTONUP,0,MAKELPARAM(end.x,end.y));painted=Paint(page);check(page->offsetX_==40&&page->offsetY_==24&&FramePixels(painted,page->canvas_,border),"native zoom/pan moves the image while preserving the complete fixed viewport frame");const auto point=page->ImagePoint(page->ScreenRect({40,30,40,30}).TopLeft());check(point==CPoint(40,30),"border inset and panning preserve shared image hit-test coordinates");
             if(width==1500){page->ZoomTo(1,true);CString file;file.Format(L"viewport-%s-%d.png",language,dpi);SaveEvidence(page,dir/file.GetString(),check);}
             check(page->document_.State().base==base&&page->revision_==revision&&base->pixels==white.pixels&&page->document_.Width()==320&&page->document_.Height()==220,"viewport framing never changes image dimensions, pixels, objects or undo revision");
@@ -85,9 +88,10 @@ class CanvasResizeAccess {
         core::DocumentState expanded;core::ExpandCanvas(state,400,300,expanded);check(services::SaveProject(expanded,(dir/L"canvas-expanded.sctproj").c_str(),error)&&services::LoadProject((dir/L"canvas-expanded.sctproj").c_str(),output,error)&&output.base->height==300,"expanded editable canvas persists in a real test-only project file");
     }
 public:static void Run(Check check,std::ofstream& log,const std::filesystem::path& dir){
-    const bool frameOnly=CString(GetCommandLine()).Find(L"--test-canvas-frame-only")>=0;const bool positionOnly=frameOnly||CString(GetCommandLine()).Find(L"--test-canvas-position-only")>=0;if(!positionOnly)Core(check,dir);const HWND foreground=GetForegroundWindow();const DWORD clipboard=GetClipboardSequenceNumber();const auto source=Source();auto* owner=new CFrameWnd;owner->Create(nullptr,L"SCT hidden canvas fixture",WS_OVERLAPPEDWINDOW,CRect(0,0,1600,1100));owner->ModifyStyleEx(0,WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW);owner->EnableWindow(FALSE);auto* page=new EditorFrame(core::Document(source).State(),L"",owner);
-    // Synchronous native messages still exercise handlers; disabled focus targets cannot activate hidden windows.
-    page->EnableWindow(FALSE);page->text_.EnableWindow(FALSE);page->SetWindowPos(nullptr,0,0,1500,1000,SWP_NOZORDER|SWP_NOACTIVATE);Wait(page);if(!positionOnly)page->ZoomTo(1);
+    CanvasActivationBlock activation;
+    const bool frameOnly=CString(GetCommandLine()).Find(L"--test-canvas-frame-only")>=0;const bool positionOnly=frameOnly||CString(GetCommandLine()).Find(L"--test-canvas-position-only")>=0;if(!positionOnly)Core(check,dir);const HWND foreground=GetForegroundWindow();const DWORD clipboard=GetClipboardSequenceNumber();const auto source=Source();auto* owner=new CFrameWnd;owner->Create(nullptr,L"SCT hidden canvas fixture",WS_OVERLAPPEDWINDOW,CRect(0,0,1600,1100));owner->ModifyStyleEx(0,WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW);auto* page=new EditorFrame(core::Document(source).State(),L"",owner);
+    // Keep functional targets enabled; the thread-local hook blocks activation.
+    page->SetWindowPos(nullptr,0,0,1500,1000,SWP_NOZORDER|SWP_NOACTIVATE);Wait(page);if(!positionOnly)page->ZoomTo(1);
     auto reset=[&]{Wait(page);page->CancelCanvasResize();page->selected_=-1;page->pixelSelection_.SetRectEmpty();page->document_.Reset(core::Document(source).State());page->Changed();Wait(page);page->dirty_=false;page->ZoomTo(1);};
     try{
         check(!owner->IsWindowVisible()&&!page->IsWindowVisible(),"native fixture remains hidden instead of maximizing or interrupting the user's desktop");

@@ -13,7 +13,7 @@ void Document::Bound(std::vector<DocumentState>& states)
         std::set<const Image*> unique; size_t bytes=0;
         for(const auto& state:states) {
             if(state.base && unique.insert(state.base.get()).second) bytes+=state.base->pixels.size();
-            for(const auto& a:state.objects) { bytes+=a.points.size()*sizeof(POINT)+(a.text.GetLength()+a.label.GetLength())*sizeof(wchar_t);
+            for(const auto& a:state.objects) { bytes+=a.textRuns.size()*sizeof(TextRun);for(const auto& run:a.textRuns)bytes+=(run.font.GetLength()+1)*sizeof(wchar_t);bytes+=a.points.size()*sizeof(POINT)+(a.text.GetLength()+a.label.GetLength())*sizeof(wchar_t);
                 if(a.asset && unique.insert(a.asset.get()).second) bytes+=a.asset->pixels.size(); }
         }
         if(bytes<=256ULL*1024*1024 || states.size()<=1) break;

@@ -87,7 +87,7 @@ class ColorPickerAccess {
     }
 public:static void Run(Check check,std::ofstream& log,const std::filesystem::path& root){
         const auto dir=root/L"color-picker-027";std::filesystem::create_directories(dir);ActivationBlock activation;const HWND foreground=GetForegroundWindow();const DWORD clipboard=GetClipboardSequenceNumber();auto* previous=AfxGetApp()->m_pMainWnd;
-        auto* owner=new CFrameWnd;owner->Create(nullptr,L"SCT private color fixture",WS_OVERLAPPEDWINDOW,CRect(0,0,1500,1000));owner->ModifyStyleEx(0,WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW);owner->EnableWindow(FALSE);AfxGetApp()->m_pMainWnd=owner;const HWND window=owner->m_hWnd;
+        auto* owner=new CFrameWnd;owner->Create(nullptr,L"SCT private color fixture",WS_OVERLAPPEDWINDOW,CRect(0,0,1500,1000));owner->ModifyStyleEx(0,WS_EX_NOACTIVATE|WS_EX_TOOLWINDOW);AfxGetApp()->m_pMainWnd=owner;const HWND window=owner->m_hWnd;
         auto cleanup=[&]{layoutTestDpi=0;if(::IsWindow(window))owner->DestroyWindow();AfxGetApp()->m_pMainWnd=previous;services::PumpNativeTestMessages();};
         try{Dialogs(owner,check,dir);auto* page=new EditorFrame(core::Document(Pixels(320,220)).State(),L"",owner);Wait(page);page->KillTimer(1);Menus(page,check);Editor(page,check);DWORD process=0;GetWindowThreadProcessId(GetForegroundWindow(),&process);check(GetForegroundWindow()==foreground||process!=GetCurrentProcessId(),"native color fixtures never activate over user work");check(GetClipboardSequenceNumber()==clipboard,"color fixtures never read or publish clipboard content");log<<"COLOR_PICKER only: private snapshot BGRA/native modal input/worker/menus and synthetic PNGs; no desktop capture, global keys, visible UI, media or full regression.\n";cleanup();}catch(...){cleanup();throw;}
     }

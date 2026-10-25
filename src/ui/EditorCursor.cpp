@@ -23,7 +23,7 @@ LPCTSTR EditorFrame::CanvasCursor(CPoint point)const{
         for(int y=0;y<3;++y)for(int x=0;x<3;++x)if(x!=1||y!=1){const CPoint node(box.left+box.Width()*x/2,box.top+box.Height()*y/2);if(abs(point.x-node.x)<=tolerance&&abs(point.y-node.y)<=tolerance)return ResizeCursor(y*3+x);}
         return box.PtInRect(point)?IDC_SIZEALL:IDC_CROSS;
     }
-    if(style_.tool==core::Tool::PixelSelect)return !pixelSelection_.IsRectEmpty()&&ScreenRect(pixelSelection_).PtInRect(point)?IDC_SIZEALL:IDC_CROSS;
+    if(style_.tool==core::Tool::PixelSelect){if(maskGesture_||maskCombine_!=core::MaskCombine::Replace)return IDC_CROSS;const auto mask=ActiveMask();return mask?(mask->Contains({ImagePoint(point).x-(pixelSelection_.left-mask->bounds.left),ImagePoint(point).y-(pixelSelection_.top-mask->bounds.top)})?IDC_SIZEALL:IDC_CROSS):!pixelSelection_.IsRectEmpty()&&ScreenRect(pixelSelection_).PtInRect(point)?IDC_SIZEALL:IDC_CROSS;}
     if(style_.tool==core::Tool::Fill||style_.tool==core::Tool::Eyedropper||GetKeyState(VK_MENU)<0)return IDC_CROSS;
     const auto ids=Selection();if(ids.empty()||!VisibleSelection())return IDC_CROSS;
     const int hit=document_.HitTest(ImagePoint(point),std::max(2,static_cast<int>(5/zoom_)),style_.tool!=core::Tool::Select);

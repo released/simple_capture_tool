@@ -2,10 +2,10 @@
 #include "ToolStyleService.h"
 #include <iomanip>
 namespace sct::services {
-bool SupportsToolStyle(core::Tool tool){using core::Tool;return tool>=Tool::Pen&&tool<=Tool::CurvedArrow&&tool!=Tool::Crop&&tool!=Tool::Select&&tool!=Tool::Picture&&tool!=Tool::Eyedropper&&tool!=Tool::PixelSelect;}
+bool SupportsToolStyle(core::Tool tool){using core::Tool;return tool>=Tool::Pen&&tool<=Tool::Polygon&&tool!=Tool::Crop&&tool!=Tool::Select&&tool!=Tool::Picture&&tool!=Tool::Eyedropper&&tool!=Tool::PixelSelect;}
 void CopyToolStyle(const core::Annotation& s,core::Annotation& a){
     a.font=s.font;a.color=s.color;a.background=s.background;a.outline=s.outline;a.width=s.width;a.fontSize=s.fontSize;a.opacity=s.opacity;a.alpha=s.alpha;a.lineStyle=s.lineStyle;a.alignment=s.alignment;a.mosaicStrength=s.mosaicStrength;a.eraseMode=s.eraseMode;a.magnification=s.magnification;
-    a.bold=s.bold;a.italic=s.italic;a.underline=s.underline;a.filled=s.filled;a.shadow=s.shadow;a.textBackground=s.textBackground;a.textOutline=s.textOutline;
+    a.textRuns.clear();a.bold=s.bold;a.italic=s.italic;a.underline=s.underline;a.filled=s.filled;a.shadow=s.shadow;a.textBackground=s.textBackground;a.textOutline=s.textOutline;
 }
 core::Annotation StyleTemplate(const core::Annotation& source){core::Annotation result;result.tool=source.tool;CopyToolStyle(source,result);return result;}
 namespace {

@@ -14,6 +14,8 @@ public:
     void Action(UINT);const std::vector<EditorFrame*>& Pages()const{return pages_;}
     void ToggleFullScreenView();
     void RestoreEditorWindow();
+    bool AppendPreparedImages(EditorFrame*,std::vector<core::Image>);
+    bool AppendPreparedStates(EditorFrame*,std::vector<core::DocumentState>);
     size_t ResourceBytes()const{return resourceBytes_;}
 protected:
     afx_msg int OnCreate(LPCREATESTRUCT);afx_msg void OnSize(UINT,int,int);afx_msg void OnClose();afx_msg void OnDestroy();afx_msg void OnTab(NMHDR*,LRESULT*);afx_msg void OnAction(UINT);
@@ -36,6 +38,9 @@ private:
     friend class ObjectAlignmentAccess;
     friend class WorkspaceToolsAccess;
     friend class ImagePrecisionAccess;
+    friend class ImageReuseAccess;
+    friend class EditorEnhancementsAccess;friend class DiscoveryAccess;
+    std::function<void(size_t)> batchCreateAudit_;
     friend class EditorFrame;
     class TabStrip final:public CTabCtrl {
     public:EditorWorkspace* owner=nullptr;

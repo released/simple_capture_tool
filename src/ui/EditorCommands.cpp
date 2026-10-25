@@ -17,13 +17,15 @@ void EditorFrame::ShowMore()
 }
 void EditorFrame::OnAction(UINT id)
 {
-    if(screenColorModal_||objectGesture_||cropGesture_){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(id>=BringToFront&&id<=RunClear&&(maskGesture_||maskPending_||dragging_||panning_||sidebar_.Dragging()||!IsWindowEnabled()||!::IsWindowEnabled(::GetAncestor(m_hWnd,GA_ROOT)))){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(screenColorModal_||objectGesture_||cropGesture_||maskGesture_){status_.SetWindowText(Tr(Text::Busy));return;}
     EditorPolling(true);
     if(id==CloseDocument||id==CloseAllDocuments){DocumentCommand(id);return;}
     if(canvasHandle_>=0||canvasPending_){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(!FinishPropertyDraft()){SyncStyle();return;}
     if(id>=TextBold&&id<=AlignRight||id>=AlignLeftMiddle&&id<=EraseColor||id==ToggleFill||id==ToggleShadow||id==FillColor){StyleCommand(id);return;}
-    if((id==Save||id==SaveAs||id==SaveProject||id==SaveAll||id==SaveAllPdf||id==Copy)&&!sidebar_.FinishProperties())return;
     if(id>=ColorHex&&id<=CopyColorHex){try{PaletteCommand(id);}catch(const std::exception& e){CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());status_.SetWindowText(error);}return;}
+    if(id>=RunFont&&id<=RunClear){FormatTextRun(id);return;}
     renderSuspended_=false;
     if(!FinishText(true))return;
     if(id==CancelCropSelection){CropCommand(id);return;}
@@ -34,6 +36,12 @@ void EditorFrame::OnAction(UINT id)
     if(!PrepareClipboardAction(id))return;
     if(job_.Busy()){if(activeAction_==0){if(pendingAction_!=SelectPixels)QueueAction(id);}else status_.SetWindowText(Tr(Text::Busy));return;}
     try {
+        if(id>=CropPictureObject&&id<=DragImage){EnhancementCommand(id);return;}
+        if(id>=DuplicatePage&&id<=Perspective){DiscoveryCommand(id);return;}
+        if(id>=PixelRect&&id<=PixelSubtract){MaskCommand(id);return;}
+        if(id>=ColorGamma&&id<=ColorLevels){ColorFilterCommand(id);return;}
+        if(id>=BringToFront&&id<=SelectionNewImage){ImageReuseCommand(id);return;}
+        if(id==AutoCrop){AutoCropCommand();return;}
         if(id>=Command::CompareImages&&id<=UndoList){ImagePrecisionCommand(id);return;}
         if(id>=CommandSearch&&id<=RenumberSteps){CommandTools(id);return;}
         if(id==Command::InsertImages||id==CollageDocuments){LayoutCommand(id);return;}
@@ -67,8 +75,8 @@ void EditorFrame::Export(bool project)
     if(project&&std::any_of(document_.State().objects.begin(),document_.State().objects.end(),[](const auto& a){return a.tool==core::Tool::Redact||a.tool==core::Tool::Blur||a.tool==core::Tool::Mosaic;})&&MessageBox(Tr(Text::ProjectPrivacy),Tr(Text::SaveProject),MB_OKCANCEL|MB_ICONWARNING)!=IDOK)return;
     // Every save needs a fresh explicit filename, including previously saved documents.
     services::Settings settings;CString error;if(!services::ConfigService().Load(settings,error))AfxMessageBox(error);
-    DWORD index=settings.format==L"png"?2:settings.format==L"bmp"?3:1;const wchar_t* extensions[]={L".jpg",L".png",L".bmp",L".webp",L".gif",L".pdf"};
-    ImageSaveDialog dlg(this,project,index);if(dlg.Run()!=IDOK)return;CString path=dlg.GetPathName();index=std::clamp<DWORD>(dlg.GetOFN().nFilterIndex,1,6);
+    DWORD index=settings.format==L"png"?2:settings.format==L"bmp"?3:1;const wchar_t* extensions[]={L".jpg",L".png",L".bmp",L".gif",L".pdf"};
+    ImageSaveDialog dlg(this,project,index);if(dlg.Run()!=IDOK)return;CString path=dlg.GetPathName();index=std::clamp<DWORD>(dlg.GetOFN().nFilterIndex,1,5);
     CString canonical=std::filesystem::path(path.GetString()).replace_extension(project?L".sctproj":extensions[index-1]).c_str();
     if(canonical.CompareNoCase(path)!=0&&PathFileExists(canonical)&&MessageBox(canonical,Tr(Text::Save),MB_OKCANCEL|MB_ICONQUESTION)!=IDOK)return;path=canonical;
     int quality=jpegQuality_?jpegQuality_:settings.jpegQuality;

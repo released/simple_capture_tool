@@ -28,6 +28,7 @@ bool HitAnnotation(const Annotation& a,POINT p,int tolerance,bool direct){
         if(nodes.size()==4){auto point=[](POINT q){return Point{static_cast<double>(q.x),static_cast<double>(q.y)};};return CurveHit(point(p),point(nodes[0]),point(nodes[1]),point(nodes[2]),point(nodes[3]),hit);}
         return SegmentDistance(p,nodes.front(),end)<=hit;
     }
+    if(a.tool==Tool::Polygon&&a.points.size()>=3){bool inside=false;for(size_t i=0,j=a.points.size()-1;i<a.points.size();j=i++){const auto x=a.points[i],y=a.points[j];if(SegmentDistance(p,x,y)<=hit)return true;if((x.y>p.y)!=(y.y>p.y)&&p.x<double(y.x-x.x)*(p.y-x.y)/(y.y-x.y)+x.x)inside=!inside;}return a.filled&&inside;}
     if(!direct)return true;
     if(a.tool==Tool::Eraser||a.tool==Tool::SmartEraser||a.tool==Tool::Fill)return false;
     if(a.tool==Tool::Line||a.tool==Tool::Pen){for(size_t i=1;i<a.points.size();++i)if(SegmentDistance(p,a.points[i-1],a.points[i])<=hit)return true;return false;}

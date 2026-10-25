@@ -68,7 +68,7 @@ bool CaptureService::Save(const core::Image& image, const CString& path, CString
 bool CaptureService::Load(const CString& path, core::Image& image, CString& error)
 {
     std::vector<BYTE> bytes;
-    return ReadBytes(path,bytes,error) && DecodeImage(bytes.data(),bytes.size(),image,error);
+    return ReadBytes(path,bytes,error) && DecodeImportedImage(bytes.data(),bytes.size(),image,error);
 }
 CString CaptureService::NewPath(const CString& directory, const CString& extension, const wchar_t* prefix)
 {

@@ -12,7 +12,7 @@ bool AppDialogActive()
 bool MainFrame::RegisterKeys(const services::Settings& settings,CString& error)
 {
     for(UINT id=1;id<=HotkeyCatalog().size();++id)UnregisterHotKey(m_hWnd,id);bool ok=true;
-    for(UINT i=0;i<settings.hotkeys.size();++i){const auto k=settings.hotkeys[i];if(k.key&&!RegisterHotKey(m_hWnd,i+1,k.modifiers|MOD_NOREPEAT,k.key)){CString line;line.Format(L"%s #%u (VK=%u, Win32=%lu)\r\n",Tr(Text::HotkeyConflict),i+1,k.key,GetLastError());error+=line;if(k.key==VK_SNAPSHOT)error+=CString(Tr(Text::PrintScreenHint))+L"\r\n";ok=false;}}
+    for(UINT i=0;i<settings.hotkeys.size();++i){const auto k=settings.hotkeys[i];if(HotkeyCatalog()[i].command&&k.key&&!RegisterHotKey(m_hWnd,i+1,k.modifiers|MOD_NOREPEAT,k.key)){CString line;line.Format(L"%s #%u (VK=%u, Win32=%lu)\r\n",Tr(Text::HotkeyConflict),i+1,k.key,GetLastError());error+=line;if(k.key==VK_SNAPSHOT)error+=CString(Tr(Text::PrintScreenHint))+L"\r\n";ok=false;}}
     return ok;
 }
 bool MainFrame::MenuLoopActive()const
@@ -21,7 +21,7 @@ bool MainFrame::MenuLoopActive()const
 }
 LRESULT MainFrame::OnHotkey(WPARAM id,LPARAM)
 {
-    if(id<1||id>HotkeyCatalog().size()||!IsWindowEnabled()||AppDialogActive()||!DialogOwner()->IsWindowEnabled())return 0;
+    if(id<1||id>HotkeyCatalog().size()||!HotkeyCatalog()[id-1].command||!IsWindowEnabled()||AppDialogActive()||!DialogOwner()->IsWindowEnabled())return 0;
     deferredHotkey_=static_cast<UINT>(id);
     if(MenuLoopActive())::EndMenu();
     PostMessage(DispatchHotkey);return 0;
@@ -39,8 +39,8 @@ void MainFrame::DispatchPendingHotkey()
 void MainFrame::ExecuteHotkey(UINT id)
 {
     if(id<1||id>HotkeyCatalog().size())return;const UINT mode=HotkeyCatalog()[id-1].command;
+    if(!mode)return;
     if(commandAudit_){commandAudit_(mode);return;}
-    if(mode==Record){if(recorder_.State()==services::RecordingState::Idle&&!job_.Busy()&&!selecting_&&!countdownMode_){pendingRecord_=true;BeginCapture(Full);}else recorder_.Stop();}
-    else if(mode==Pause)recorder_.Pause();else if(mode==ChooseMonitor)MonitorMenu();else BeginCapture(mode);
+    if(mode==ChooseMonitor)MonitorMenu();else BeginCapture(mode);
 }
 }

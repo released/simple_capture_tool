@@ -3,6 +3,7 @@
 #include "FormDialog.h"
 #include "MainFrame.h"
 #include "../services/PaletteService.h"
+#include "../services/RichTextService.h"
 namespace sct::ui {
 namespace {
 bool CopyHex(HWND owner,const CString& text,CString& error){
@@ -14,7 +15,8 @@ bool CopyHex(HWND owner,const CString& text,CString& error){
 }
 bool EditorFrame::SetCurrentColor(COLORREF color,bool remember){
     if(screenColorModal_||objectGesture_||cropGesture_||canvasHandle_>=0||job_.Busy()&&activeAction_!=0){status_.SetWindowText(Tr(Text::Busy));return false;}
-    if(!GuardSelection())return false;if(textEditing_){textDraft_.color=color;TextPosition();Preview();}else{const auto ids=Selection();if(std::any_of(ids.begin(),ids.end(),[&](int i){return document_.State().objects[i].color!=color;}))ApplySelectionColor(color);}
+    if(!FinishPropertyDraft()){SyncStyle();return false;}
+    if(!GuardSelection())return false;if(textEditing_){CHARFORMAT2W format{};format.cbSize=sizeof(format);format.dwMask=CFM_COLOR;format.crTextColor=color;text_.SendMessage(EM_SETCHARFORMAT,SCF_SELECTION,reinterpret_cast<LPARAM>(&format));textDraft_.color=color;ReadRichText(textDraft_);TextPosition();Preview();}else{const auto ids=Selection();if(std::any_of(ids.begin(),ids.end(),[&](int i){return document_.State().objects[i].color!=color||std::any_of(document_.State().objects[i].textRuns.begin(),document_.State().objects[i].textRuns.end(),[&](const auto& run){return run.color!=color;});}))ApplySelectionColor(color);}
     style_.color=color;SyncStyle();if(!remember)return true;
     services::Settings settings;CString error;if(!services::ConfigService().Load(settings,error)){status_.SetWindowText(error);return false;}
     services::PaletteData data;if(!services::DecodePalette(settings.palette,data,error)){status_.SetWindowText(error);return false;}services::RememberColor(data,color);

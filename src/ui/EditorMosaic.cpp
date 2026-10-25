@@ -8,6 +8,7 @@ void EditorFrame::MosaicScroll(UINT code)
     const int strength=mosaicSlider_.GetPos();CString label;label.Format(L"%s %d%%",Tr(Text::MosaicStrength),strength);mosaicLabel_.SetWindowText(label);
     // Apply a dragged slider once on release, preserving one useful undo step.
     if(code==TB_THUMBTRACK)return;
+    if(!FinishPropertyDraft()){SyncStyle();return;}
     auto a=selected_>=0?document_.State().objects[selected_]:style_;
     if(a.tool!=core::Tool::Mosaic||a.mosaicStrength==strength)return;
     a.mosaicStrength=strength;style_.mosaicStrength=strength;

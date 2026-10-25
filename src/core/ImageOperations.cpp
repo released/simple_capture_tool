@@ -81,7 +81,7 @@ bool ResizeDocument(Document& doc,int w,int h)
     auto s=doc.State(); auto base=Resize(*s.base,w,h); if(base.Empty()) return false;
     const double sx=static_cast<double>(w)/doc.Width(),sy=static_cast<double>(h)/doc.Height();
     for(auto& a:s.objects) { RECT r{static_cast<LONG>(std::lround(a.rect.left*sx)),static_cast<LONG>(std::lround(a.rect.top*sy)),static_cast<LONG>(std::lround(a.rect.right*sx)),static_cast<LONG>(std::lround(a.rect.bottom*sy))};
-        Document::Fit(a,r);if(a.anchored){a.focus.x=static_cast<LONG>(std::lround(a.focus.x*sx));a.focus.y=static_cast<LONG>(std::lround(a.focus.y*sy));}a.width=std::clamp(static_cast<int>(a.width*std::min(sx,sy)),1,128);a.fontSize=std::clamp(static_cast<int>(a.fontSize*std::min(sx,sy)),6,512); }
+        Document::Fit(a,r);if(a.anchored){a.focus.x=static_cast<LONG>(std::lround(a.focus.x*sx));a.focus.y=static_cast<LONG>(std::lround(a.focus.y*sy));}a.width=std::clamp(static_cast<int>(a.width*std::min(sx,sy)),1,128);a.fontSize=std::clamp(static_cast<int>(a.fontSize*std::min(sx,sy)),6,512);for(auto& run:a.textRuns)run.size=std::clamp(static_cast<int>(run.size*std::min(sx,sy)),6,512); }
     s.base=std::make_shared<Image>(std::move(base)); doc.Commit(std::move(s));return true;
 }
 bool CropDocument(Document& doc,RECT crop)

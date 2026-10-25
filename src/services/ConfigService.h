@@ -14,7 +14,7 @@ inline constexpr wchar_t DefaultEditorHomeKeys[] =
     L"SelectAll,Deselect,FillColor,FilledShape,ShapeShadow,Bold,Italic,Underline,AlignLeft,AlignCenter,AlignRight,"
     L"AlignLeftMiddle,AlignCenterMiddle,AlignRightMiddle,TextTransparent,TextOpaque,EraseTransparent,RepairAutomatic,EraseColor,More";
 struct Settings {
-    CString directory = paths::DefaultCaptures(), format = L"jpg", container = L"mp4";
+    CString directory = paths::DefaultCaptures(), format = L"jpg";
     CString languageFile=L"lang_tw.ini",homeFeatures;
     bool homeFeaturesConfigured=false;
     CString editorHome=DefaultEditorHomeKeys;bool editorHomeConfigured=true;
@@ -22,9 +22,11 @@ struct Settings {
     CString toolStyles;
     CString palette;
     CString editorShortcuts;
-    int audio = 0, fps = 20, delay = 0, fixedWidth = 800, fixedHeight = 600;
+    CString lastImageDirectory;
+    int delay = 0, fixedWidth = 800, fixedHeight = 600;
     bool cursor = false, editAfter = true, closeToTray = true;
     bool saveAfter = false, copyAfter = false, clientOnly = false, childWindow = false;
+    bool editableCursor=false;
     int jpegQuality = 90;
     bool captureMagnifier=true,captureGrid=true,dimOutside=true,hideEditors=true;
     int scrollDelay=350;CString filePattern=L"capture_{date}_{time}_{ms}_{counter}";

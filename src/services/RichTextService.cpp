@@ -1,0 +1,40 @@
+#include "pch.h"
+#include "RichTextService.h"
+#include "../core/AnnotationExtensions.h"
+#include <richole.h>
+#include <tom.h>
+using Microsoft::WRL::ComPtr;
+namespace sct::services {
+namespace {
+core::TextRun Default(const core::Annotation& a){core::TextRun r;r.font=a.font;r.size=a.fontSize;r.color=a.color;r.bold=a.bold;r.italic=a.italic;r.underline=a.underline;return r;}
+bool Same(const core::TextRun& a,const core::TextRun& b){return a.font==b.font&&a.size==b.size&&a.color==b.color&&a.bold==b.bold&&a.italic==b.italic&&a.underline==b.underline;}
+int NativeIndex(const CString& text,int end){int n=0;for(int i=0;i<end;++i){if(text[i]==L'\r'&&i+1<end&&text[i+1]==L'\n')++i;++n;}return n;}
+struct Window {HWND hwnd=nullptr;~Window(){if(hwnd){SendMessage(hwnd,EM_FORMATRANGE,0,0);DestroyWindow(hwnd);}}};
+struct Surface {HDC dc=nullptr;HBITMAP bitmap=nullptr;HGDIOBJ old=nullptr;void* pixels=nullptr;~Surface(){if(old)SelectObject(dc,old);if(bitmap)DeleteObject(bitmap);if(dc)DeleteDC(dc);}void Create(int w,int h){dc=CreateCompatibleDC(nullptr);BITMAPINFO b{};b.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);b.bmiHeader.biWidth=w;b.bmiHeader.biHeight=-h;b.bmiHeader.biPlanes=1;b.bmiHeader.biBitCount=32;bitmap=CreateDIBSection(dc,&b,DIB_RGB_COLORS,&pixels,nullptr,0);if(!dc||!bitmap)throw std::runtime_error("Cannot allocate rich text surface");old=SelectObject(dc,bitmap);}};
+}
+bool EnsureRichText(){static const HMODULE module=LoadLibraryExW(L"Msftedit.dll",nullptr,LOAD_LIBRARY_SEARCH_SYSTEM32);return module!=nullptr;}
+CHARFORMAT2W RichTextFormat(const core::TextRun& run,double scale,int dpi){CHARFORMAT2W format{};format.cbSize=sizeof(format);format.dwMask=CFM_FACE|CFM_SIZE|CFM_COLOR|CFM_BOLD|CFM_ITALIC|CFM_UNDERLINE|CFM_CHARSET;format.yHeight=std::max<LONG>(1,static_cast<LONG>(std::lround(run.size*scale*1440/std::max(1,dpi))));format.crTextColor=run.color;format.dwEffects=(run.bold?CFE_BOLD:0)|(run.italic?CFE_ITALIC:0)|(run.underline?CFE_UNDERLINE:0);format.bCharSet=DEFAULT_CHARSET;wcsncpy_s(format.szFaceName,run.font,_TRUNCATE);return format;}
+void SetRichText(HWND window,const core::Annotation& a,double scale,bool setText,int dpi){
+    if(!IsWindow(window)||!std::isfinite(scale)||scale<=0)throw std::runtime_error("Invalid rich text control");if(!dpi)dpi=static_cast<int>(GetDpiForWindow(window));CHARRANGE saved{};SendMessage(window,EM_EXGETSEL,0,reinterpret_cast<LPARAM>(&saved));SendMessage(window,WM_SETREDRAW,FALSE,0);
+    if(setText)SetWindowText(window,a.text);SendMessage(window,EM_AUTOURLDETECT,FALSE,0);SendMessage(window,EM_EXLIMITTEXT,0,65536);auto format=RichTextFormat(Default(a),scale,dpi);SendMessage(window,EM_SETCHARFORMAT,SCF_ALL,reinterpret_cast<LPARAM>(&format));
+    PARAFORMAT2 paragraph{};paragraph.cbSize=sizeof(paragraph);paragraph.dwMask=PFM_ALIGNMENT;paragraph.wAlignment=a.alignment%3==1?PFA_CENTER:a.alignment%3==2?PFA_RIGHT:PFA_LEFT;CHARRANGE all{0,-1};SendMessage(window,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&all));SendMessage(window,EM_SETPARAFORMAT,0,reinterpret_cast<LPARAM>(&paragraph));
+    for(const auto& run:a.textRuns){CHARRANGE range{NativeIndex(a.text,run.start),NativeIndex(a.text,run.start+run.length)};SendMessage(window,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&range));format=RichTextFormat(run,scale,dpi);SendMessage(window,EM_SETCHARFORMAT,SCF_SELECTION,reinterpret_cast<LPARAM>(&format));}
+    SendMessage(window,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&saved));SendMessage(window,WM_SETREDRAW,TRUE,0);
+}
+bool GetRichText(HWND window,core::Annotation& annotation,double scale,int dpi){
+    if(!IsWindow(window)||!std::isfinite(scale)||scale<=0)return false;ComPtr<IRichEditOle> ole;ComPtr<ITextDocument> document;if(!SendMessage(window,EM_GETOLEINTERFACE,0,reinterpret_cast<LPARAM>(ole.GetAddressOf()))||FAILED(ole.As(&document)))return false;
+    ComPtr<ITextRange> range;if(FAILED(document->Range(0,0,&range)))return false;long count=0;if(FAILED(range->GetStoryLength(&count))||count<1||count>65537||FAILED(range->SetRange(0,count-1)))return false;BSTR value=nullptr;if(FAILED(range->GetText(&value)))return false;CString text(value?value:L"",value?static_cast<int>(SysStringLen(value)):0);SysFreeString(value);if(text.Find(wchar_t(0xFFFC))>=0)return false;
+    std::vector<core::TextRun> runs;const double pixels=double(dpi?dpi:GetDpiForWindow(window))/(72*scale);const auto base=Default(annotation);for(long at=0;at<text.GetLength();){if(FAILED(range->SetRange(at,at+1)))return false;long delta=0;if(FAILED(range->Expand(tomCharFormat,&delta)))return false;long end=0;if(FAILED(range->GetEnd(&end))||end<=at)return false;end=std::min<long>(end,text.GetLength());ComPtr<ITextFont> font;if(FAILED(range->GetFont(&font)))return false;core::TextRun run=base;run.start=at;run.length=end-at;BSTR name=nullptr;float size=0;long color=0,bold=0,italic=0,underline=0;
+        if(FAILED(font->GetName(&name))||FAILED(font->GetSize(&size))||FAILED(font->GetForeColor(&color))||FAILED(font->GetBold(&bold))||FAILED(font->GetItalic(&italic))||FAILED(font->GetUnderline(&underline))){SysFreeString(name);return false;}run.font=name?CString(name):base.font;SysFreeString(name);run.size=std::clamp(static_cast<int>(std::lround(size*pixels)),6,512);run.color=color>=0&&color<=0xFFFFFF?color:base.color;run.bold=bold==tomTrue;run.italic=italic==tomTrue;run.underline=underline!=tomNone&&underline!=tomUndefined;
+        if(!runs.empty()&&Same(runs.back(),run))runs.back().length+=run.length;else runs.push_back(std::move(run));if(runs.size()>512)return false;at=end;}
+    if(runs.size()==1&&Same(runs.front(),base))runs.clear();auto result=annotation;result.text=std::move(text);result.textRuns=std::move(runs);try{core::ValidateExtensions(result);}catch(...){return false;}annotation=std::move(result);return true;
+}
+core::Image RenderRichText(const core::Annotation& a){
+    core::ValidateExtensions(a);const int width=a.rect.right-a.rect.left,height=a.rect.bottom-a.rect.top;if(width<1||height<1||width>32768||height>32768||uint64_t(width)*height*12>256ULL*1024*1024||!EnsureRichText())throw std::runtime_error("Rich text render size limit");
+    Window control;control.hwnd=CreateWindowExW(0,MSFTEDIT_CLASS,L"",WS_POPUP|ES_MULTILINE,0,0,width,height,nullptr,nullptr,GetModuleHandle(nullptr),nullptr);if(!control.hwnd)throw std::runtime_error("Cannot create rich text renderer");Surface surface;surface.Create(width,height);const int dpiX=GetDeviceCaps(surface.dc,LOGPIXELSX),dpiY=GetDeviceCaps(surface.dc,LOGPIXELSY);SetRichText(control.hwnd,a,1,true,dpiY);SendMessage(control.hwnd,EM_SETTARGETDEVICE,reinterpret_cast<WPARAM>(surface.dc),MulDiv(width,1440,dpiX));
+    FORMATRANGE format{};format.hdc=format.hdcTarget=surface.dc;format.rc=format.rcPage={0,0,MulDiv(width,1440,dpiX),MulDiv(height,1440,dpiY)};format.chrg={0,-1};int offset=0;
+    if(a.alignment>=3){const int total=GetWindowTextLength(control.hwnd);int low=1,high=height;while(low<high){const int middle=(low+high)/2;auto measure=format;measure.rc.bottom=MulDiv(middle,1440,dpiY);const auto fits=SendMessage(control.hwnd,EM_FORMATRANGE,FALSE,reinterpret_cast<LPARAM>(&measure));SendMessage(control.hwnd,EM_FORMATRANGE,0,0);if(fits>=total)high=middle;else low=middle+1;}offset=(height-low)/2;}
+    core::Image black,white;black.Create(width,height);white.Create(width,height);for(int pass=0;pass<2;++pass){auto& image=pass?white:black;memset(surface.pixels,pass?255:0,image.pixels.size());SendMessage(control.hwnd,EM_SETBKGNDCOLOR,0,pass?RGB(255,255,255):RGB(0,0,0));auto region=format;region.rc.top=MulDiv(offset,1440,dpiY);SendMessage(control.hwnd,EM_FORMATRANGE,TRUE,reinterpret_cast<LPARAM>(&region));SendMessage(control.hwnd,EM_FORMATRANGE,0,0);GdiFlush();memcpy(image.pixels.data(),surface.pixels,image.pixels.size());}
+    for(size_t i=0;i<black.pixels.size();i+=4){int difference=0;for(int c=0;c<3;++c)difference=std::max(difference,int(white.pixels[i+c])-black.pixels[i+c]);const int alpha=std::clamp(255-difference,0,255);for(int c=0;c<3;++c)black.pixels[i+c]=alpha?BYTE(std::clamp(int(black.pixels[i+c])*255/alpha,0,255)):0;black.pixels[i+3]=BYTE(alpha*a.alpha/255);}return black;
+}
+}

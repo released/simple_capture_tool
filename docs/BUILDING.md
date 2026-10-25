@@ -5,10 +5,9 @@
 ## 建置環境
 
 - Windows x64 與 Visual Studio 2022。
-- 「使用 C++ 的桌面開發」、v143、Windows SDK、MFC 及 C++ CMake 元件。
-- Git，用於取得固定版本的 libwebp 原始碼。
+- 「使用 C++ 的桌面開發」、v143、Windows SDK及 MFC 元件。
 
-專案使用 C++17，靜態連結 MFC、MSVC runtime 與 libwebp。第一次建置需連線取得 libwebp；`scripts/setup_webp.ps1` 核對固定版本及 commit，之後可重用本機來源與建置快取。
+專案使用 C++17，靜態連結 MFC 與 MSVC runtime。取得原始碼及上述 Visual Studio 元件後，建置不需下載外部圖片或影音編碼程式庫。
 
 ## 編譯
 
@@ -41,28 +40,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_local.ps1 -Sc
 
 驗證預設不跑全套。部分既有測試會使用桌面或系統剪貼簿，執行前應檢查所選範圍，避免干擾使用中的環境。
 
-## 錄影相依套件與封裝
+驗證後只需保留命令、版本、結果、必要失敗片段與少量代表畫面；已確認由測試產生的一次性資料應在成功、失敗或取消後清除。最後完成建置與驗證後，使用安全清理入口移除編譯中間檔，保留 EXE、INI、使用者資料及必要證據。
 
-錄影需 FFmpeg，準備方式見[使用手冊](USER_GUIDE.md#螢幕錄影)。截圖及編輯器不需 FFmpeg。
+## 使用與散布
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup_ffmpeg.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package_release.ps1
-```
-
-封裝指令先確認原始碼與正式 EXE 版本一致，再於 `dist\` 產生免安裝目錄及 ZIP。需要錄影時，封裝前先準備 FFmpeg；分發時保留 FFmpeg 授權、組態來源紀錄及[第三方說明](../THIRD_PARTY_NOTICES.md)。ffprobe 僅供媒體驗證，不隨使用者套件封裝。
+正式執行檔直接使用 `build\SimpleCaptureTool.exe`，不需額外封裝。也可將 EXE 複製到可寫入的資料夾使用；首次啟動會在 EXE 旁產生設定與語系 INI。分享程式時，請勿包含自己的 INI、截圖或其他私人資料。
 
 ## 目錄與清理
 
 | 位置 | 用途 |
 | --- | --- |
 | `src\` | 應用程式、資源及測試原始碼 |
-| `scripts\` | 建置、驗證、相依套件及封裝指令 |
+| `scripts\` | 建置、清理及驗證指令 |
 | `build\` | 正式 EXE 與使用者產生的 INI |
-| `artifacts\` | Debug／測試 EXE、編譯中間檔、相依快取及本機驗證輸出 |
-| `runtime\` | FFmpeg、錄影輸出及執行期資料 |
-| `dist\` | 免安裝封裝 |
+| `artifacts\` | Debug／測試 EXE、編譯中間檔及小型本機驗證紀錄 |
+| `runtime\` | 擷取計數器、自訂輸出及既有使用者資料 |
 
-`scripts\clean_mfc.bat` 與相容的 `scripts\clean_build.bat` 只清除 `artifacts\obj\` 內明確允許的編譯中間檔；不清除 EXE、INI、未知檔案、錄影、測試紀錄或發行包。不要以刪除整個 `build`／`runtime` 資料夾代替清理。
+`scripts\clean_mfc.bat` 與相容的 `scripts\clean_build.bat` 只清除 `artifacts\obj\` 內明確允許的編譯中間檔；不清除 EXE、INI、未知檔案、使用者檔案、測試紀錄或發行包。不要以刪除整個 `build`／`runtime` 資料夾代替清理。
 
-本機設定、截圖、錄影、相依下載內容及原始驗證輸出不屬於公開原始碼；發布前應檢查實際 Git 暫存清單，而非僅依賴 `.gitignore`。
+本機設定、截圖、舊媒體與下載快取及原始驗證輸出不屬於公開原始碼；發布前應檢查實際 Git 暫存清單，而非僅依賴 `.gitignore`。

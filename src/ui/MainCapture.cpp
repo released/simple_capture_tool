@@ -5,6 +5,7 @@
 #include "EditorWorkspace.h"
 #include "ManualScrollFrame.h"
 #include "../services/ScrollCapture.h"
+#include "../services/DocumentRenderer.h"
 namespace sct::ui {
 namespace {
 template<class Result>void SaveOutput(Result& r,const services::Settings& settings)
@@ -19,7 +20,8 @@ bool MainFrame::QueueCaptureWork(std::function<WorkResult()> work)
 }
 void MainFrame::BeginCapture(UINT mode)
 {
-    if(job_.Busy()||selecting_||countdownMode_||recorder_.State()!=services::RecordingState::Idle){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(job_.Busy()||selecting_||countdownMode_){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(!captureIntoRequested_){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;}captureIntoRequested_=false;
     captureRect_=requestedRect_;requestedRect_={};
     if(mode==ActiveWindow){activeTarget_=ExternalWindow();if(!activeTarget_){AfxMessageBox(Tr(Text::NoActiveWindow));return;}}
     if(mode==LastRegion){if(IsRectEmpty(&captureRect_))captureRect_=settings_.lastRegion;if(!core::ValidRegion(captureRect_,services::CaptureService::DesktopRect())){AfxMessageBox(Tr(Text::NoLastRegion));return;}}
@@ -30,14 +32,14 @@ void MainFrame::BeginCapture(UINT mode)
 void MainFrame::LaunchFrozen(UINT mode)
 {
     if(mode==ActiveWindow){StartCapture({{},activeTarget_,settings_.cursor});return;}
-    const bool cursor=settings_.cursor;const RECT rect=captureRect_;
-    QueueCaptureWork([this,mode,cursor,rect]{WorkResult r;r.action=static_cast<int>(mode);r.target.rect=rect;for(int i=0;i<15&&!job_.cancel;++i)Sleep(10);if(job_.cancel){r.action=0;return r;}services::CaptureService::Grab({services::CaptureService::DesktopRect(),nullptr,cursor},r.image,r.error);return r;});
+    const bool cursor=settings_.cursor,editable=cursor&&settings_.editableCursor;const RECT rect=captureRect_;
+    QueueCaptureWork([this,mode,cursor,editable,rect]{WorkResult r;r.action=static_cast<int>(mode);r.target.rect=rect;for(int i=0;i<15&&!job_.cancel;++i)Sleep(10);if(job_.cancel){r.action=0;return r;}if(editable){services::CaptureTarget target;target.rect=services::CaptureService::DesktopRect();services::GrabEditableCursor(target,r.image,r.cursor,r.error);}else services::CaptureService::Grab({services::CaptureService::DesktopRect(),nullptr,cursor},r.image,r.error);return r;});
 }
 void MainFrame::DeliverFrozen(SelectionResult selection)
 {
     const RECT desktop=services::CaptureService::DesktopRect();
     QueueCaptureWork([selection=std::move(selection),desktop]{WorkResult r;r.action=2;RECT bounds{};r.image=core::ExtractSelection(*selection.frozen,selection.regions,bounds);OffsetRect(&bounds,desktop.left,desktop.top);r.target.rect=bounds;
-        if(r.image.Empty())r.error=L"Empty selection";return r;});
+        if(r.image.Empty())r.error=L"Empty selection";else if(selection.cursor){r.document.base=std::make_shared<core::Image>(std::move(r.image));services::AttachCapturedCursor(r.document,*selection.cursor,bounds);}return r;});
 }
 void MainFrame::DeliverImage(core::Image image,RECT region)
 {
@@ -45,23 +47,21 @@ void MainFrame::DeliverImage(core::Image image,RECT region)
 }
 void MainFrame::StartCapture(services::CaptureTarget target,bool scroll)
 {
-    if(pendingRecord_){pendingRecord_=false;target.cursor=settings_.cursor;CString error;if(recorder_.Start(target,settings_,error)){recordingBar_.Open(this,&recorder_);status_.SetWindowText(Tr(Text::Recording));}else{RestoreEditors();status_.SetWindowText(error);if(restore_)ShowWindow(SW_SHOW);}return;}
-    const int delay=settings_.scrollDelay;target.cursor=settings_.cursor;QueueCaptureWork([this,target,scroll,delay]{WorkResult r;r.action=2;r.target=target;Sleep(150);
-        if(scroll)services::CaptureScroll(target.window,target.rect,job_.cancel,r.image,r.error,delay);else services::CaptureService::Grab(target,r.image,r.error);return r;});
+    const int delay=settings_.scrollDelay;target.cursor=settings_.cursor;const bool editable=target.cursor&&settings_.editableCursor&&!scroll;QueueCaptureWork([this,target,scroll,delay,editable]{WorkResult r;r.action=2;r.target=target;Sleep(150);
+        if(scroll)services::CaptureScroll(target.window,target.rect,job_.cancel,r.image,r.error,delay);else if(editable){if(services::GrabEditableCursor(r.target,r.image,r.cursor,r.error)){r.document.base=std::make_shared<core::Image>(std::move(r.image));if(r.cursor)services::AttachCapturedCursor(r.document,*r.cursor,r.target.rect);}}else services::CaptureService::Grab(target,r.image,r.error);return r;});
 }
 void MainFrame::HandleCapture(WorkResult& result)
 {
     const UINT mode=static_cast<UINT>(result.action);const RECT desktop=services::CaptureService::DesktopRect();
     if(mode==Full||mode==CurrentMonitor||mode==LastRegion){RECT region=mode==Full?desktop:result.target.rect;
-        if(pendingRecord_){StartCapture({region,nullptr,settings_.cursor});return;}
-        if(mode==Full&&result.image.width==desktop.right-desktop.left&&result.image.height==desktop.bottom-desktop.top){result.action=2;result.target.rect=desktop;CompleteOutput(result);return;}
-        OffsetRect(&region,-desktop.left,-desktop.top);SelectionResult selection;selection.frozen=std::make_shared<core::Image>(std::move(result.image));selection.regions.push_back({region});DeliverFrozen(std::move(selection));return;}
+        if(mode==Full&&!result.cursor&&result.image.width==desktop.right-desktop.left&&result.image.height==desktop.bottom-desktop.top){result.action=2;result.target.rect=desktop;CompleteOutput(result);return;}
+        OffsetRect(&region,-desktop.left,-desktop.top);SelectionResult selection;selection.frozen=std::make_shared<core::Image>(std::move(result.image));selection.regions.push_back({region});selection.cursor=result.cursor;DeliverFrozen(std::move(selection));return;}
     selecting_=true;const auto selectionMode=mode==Window||mode==Scroll||mode==ManualScroll?SelectionMode::Window:mode==Fixed?SelectionMode::Fixed:SelectionMode::Region;
-    SelectionWindow::Begin(this,std::move(result.image),selectionMode,CSize(settings_.fixedWidth,settings_.fixedHeight),[this,mode](bool ok,SelectionResult selection){selecting_=false;
-        if(!ok){RestoreEditors();pendingRecord_=false;if(restore_)ShowWindow(SW_SHOW);return;}
+    const auto cursor=result.cursor;SelectionWindow::Begin(this,std::move(result.image),selectionMode,CSize(settings_.fixedWidth,settings_.fixedHeight),[this,mode,cursor](bool ok,SelectionResult selection){selecting_=false;selection.cursor=cursor;
+        if(!ok){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}
         if(mode==Scroll||mode==ManualScroll){HWND window=selection.target.window;QueueCaptureWork([window,mode]{WorkResult r;r.action=3;r.target.window=window;r.target.cursor=mode==ManualScroll;Sleep(150);services::CaptureService::Grab({services::CaptureService::DesktopRect()},r.image,r.error);return r;});}
-        else if(pendingRecord_||mode==Window)StartCapture(selection.target);else DeliverFrozen(std::move(selection));
-    },settings_.clientOnly&&!pendingRecord_,settings_.childWindow&&!pendingRecord_,{settings_.captureMagnifier,settings_.captureGrid,settings_.dimOutside,!pendingRecord_});
+        else if(mode==Window)StartCapture(selection.target);else DeliverFrozen(std::move(selection));
+    },settings_.clientOnly,settings_.childWindow,{settings_.captureMagnifier,settings_.captureGrid,settings_.dimOutside,true});
 }
 void MainFrame::CompleteOutput(WorkResult& result)
 {
@@ -74,13 +74,14 @@ void MainFrame::CompleteOutput(WorkResult& result)
     }
     RestoreEditors();if(restore_)ShowWindow(SW_SHOWNOACTIVATE);
     if(!result.document.base&&!result.image.Empty())result.document.base=std::make_shared<const core::Image>(std::move(result.image));
-    if(!result.document.base){status_.SetWindowText(CString(Tr(Text::Failed))+result.error);ShowWindow(SW_SHOW);return;}
-    const auto source=result.document.base;const bool captureSucceeded=result.error.IsEmpty();auto* editor=EditorWorkspace::Open(std::move(result.document),result.path,result.action==2||result.path.IsEmpty());editors_.push_back(editor->GetSafeHwnd());
+    if(!result.document.base){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;status_.SetWindowText(CString(Tr(Text::Failed))+result.error);ShowWindow(SW_SHOW);return;}
+    if(captureIntoEditor_){const HWND target=captureIntoEditor_;auto* page=captureIntoOwner_;captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;const bool valid=result.error.IsEmpty()&&::IsWindow(target)&&CWnd::FromHandlePermanent(target)==page&&page->cropGeneration_==captureIntoCrop_&&page->ReceiveCaptured(std::move(result.document),captureIntoRevision_,captureIntoEpoch_,captureIntoSelection_);status_.SetWindowText(Tr(valid?Text::Ready:Text::CaptureTargetChanged));if(!valid&&!isolated_)ShowWindow(SW_SHOWNOACTIVATE);return;}
+    const auto outputState=result.document;const auto source=result.document.base;const bool captureSucceeded=result.error.IsEmpty();auto* editor=EditorWorkspace::Open(std::move(result.document),result.path,result.action==2||result.path.IsEmpty());editors_.push_back(editor->GetSafeHwnd());
     const HWND editorWindow=editor->GetSafeHwnd();if(result.action==2)editor->Captured();editor->SetForegroundWindow();editor->SetFocus();
     if(result.action==2&&!IsRectEmpty(&result.target.rect)){auto draft=settings_;draft.lastRegion=result.target.rect;CString error;if(config_.Save(draft,error))settings_=draft;else result.error+=L"\r\n"+error;}
     if(!result.error.IsEmpty()){editor->AutomaticOutput(source,L"",result.error);status_.SetWindowText(CString(Tr(Text::Failed))+result.error);if(!captureSucceeded)return;}
     if(result.action==2&&settings_.copyAfter){
-        const auto settings=settings_;const CString priorError=result.error;status_.SetWindowText(Tr(Text::AutomaticOutput));job_.Start([source,editorWindow,settings,priorError]{WorkResult r;r.action=4;r.source=source;r.editor=editorWindow;SaveOutput(r,settings);if(!priorError.IsEmpty())r.error+=L"\r\n"+priorError;return r;});
+        const auto settings=settings_;const CString priorError=result.error;status_.SetWindowText(Tr(Text::AutomaticOutput));job_.Start([source,outputState,editorWindow,settings,priorError]{WorkResult r;r.action=4;r.source=source;r.editor=editorWindow;if(!outputState.objects.empty()){core::Image composed;if(!services::RenderDocument(outputState,composed,r.error))return r;r.source=std::make_shared<core::Image>(std::move(composed));}SaveOutput(r,settings);if(!priorError.IsEmpty())r.error+=L"\r\n"+priorError;return r;});
     }else status_.SetWindowText(Tr(Text::Ready));
 }
 void MainFrame::OnTimer(UINT_PTR timer)
@@ -89,14 +90,13 @@ void MainFrame::OnTimer(UINT_PTR timer)
     if(timer!=CapturePollTimer){
     DispatchPendingHotkey();
     if(HWND external=ExternalWindow())lastExternal_=external;
-    if(countdownMode_){if(GetAsyncKeyState(VK_ESCAPE)<0){RestoreEditors();countdownMode_=0;countdown_.Close();pendingRecord_=false;if(restore_)ShowWindow(SW_SHOW);}
+    if(countdownMode_){if(GetAsyncKeyState(VK_ESCAPE)<0){RestoreEditors();countdownMode_=0;countdown_.Close();if(restore_)ShowWindow(SW_SHOW);}
         else{const auto left=std::chrono::duration_cast<std::chrono::milliseconds>(deadline_-std::chrono::steady_clock::now()).count();if(left<=0){UINT mode=countdownMode_;countdownMode_=0;countdown_.Close();LaunchFrozen(mode);}else countdown_.UpdateSeconds(static_cast<int>((left+999)/1000));}}
-    auto recorded=recorder_.Take();if(recorded){RestoreEditors();recordingBar_.ShowWindow(SW_HIDE);if(restore_)ShowWindow(SW_SHOW);status_.SetWindowText(recorded->error.IsEmpty()?CString(Tr(Text::Saved))+recorded->path:CString(Tr(Text::Failed))+recorded->error);if(!recorded->error.IsEmpty())ShowWindow(SW_SHOW);}
     }
     if(job_.Busy()&&GetAsyncKeyState(VK_ESCAPE)<0)job_.cancel=true;auto r=job_.Take();if(!r){if(capturePolling_&&!job_.Busy()){KillTimer(CapturePollTimer);capturePolling_=false;}return;}
     if(capturePolling_){KillTimer(CapturePollTimer);capturePolling_=false;}
-    if(!r->error.IsEmpty()&&r->action!=2&&r->action!=4){RestoreEditors();pendingRecord_=false;status_.SetWindowText(CString(Tr(Text::Failed))+r->error);ShowWindow(SW_SHOW);return;}
-    if(r->action==0){RestoreEditors();pendingRecord_=false;if(restore_)ShowWindow(SW_SHOW);return;}
+    if(!r->error.IsEmpty()&&r->action!=2&&r->action!=4){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();status_.SetWindowText(CString(Tr(Text::Failed))+r->error);ShowWindow(SW_SHOW);return;}
+    if(r->action==0){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}
     if((r->action>=Full&&r->action<=Scroll)||r->action==CurrentMonitor||r->action==LastRegion||r->action==MenuCapture||r->action==ManualScroll){HandleCapture(*r);return;}
     if(r->action==3){const HWND window=r->target.window;const bool manual=r->target.cursor;selecting_=true;
         SelectionWindow::Begin(this,std::move(r->image),SelectionMode::Region,{},[this,window,manual](bool ok,SelectionResult selection){selecting_=false;if(!ok){RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}selection.target.window=window;selection.target.cropWindow=true;

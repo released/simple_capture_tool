@@ -5,6 +5,7 @@
 #include "EditorWorkspace.h"
 
 namespace sct::ui {
+bool MainFrame::CaptureIntoPage(EditorFrame* page){auto* main=dynamic_cast<MainFrame*>(AfxGetApp()->m_pMainWnd);if(!main||!page||!::IsWindow(page->m_hWnd)||CWnd::FromHandlePermanent(page->m_hWnd)!=page||main->job_.Busy()||main->selecting_||main->countdownMode_||page->WorkingForBuild()||page->textEditing_||page->sidebar_.Dirty())return false;main->captureIntoEditor_=page->m_hWnd;main->captureIntoOwner_=page;main->captureIntoRevision_=page->revision_;main->captureIntoEpoch_=page->maskEpoch_;main->captureIntoCrop_=page->cropGeneration_;main->captureIntoSelection_=page->Selection();if(main->captureIntoAudit_)main->captureIntoAudit_();else{main->captureIntoRequested_=true;main->BeginCapture(Region);}return true;}
 bool MainFrame::DispatchAppCommand(UINT id,HWND owner)
 {
     auto* main=dynamic_cast<MainFrame*>(AfxGetApp()->m_pMainWnd);if(!main)return false;
