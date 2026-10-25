@@ -9,6 +9,12 @@ Retain the documented advanced output profile. Canonical build/clean aliases pre
 
 Project-local rules for `simple_capture_tool`. `SPEC.md` is the product authority.
 
+## Public documentation
+
+- README.md is the public user entry point: purpose, supported features, requirements, quick start, normal usage, data-safety warnings and links. Do not add development conversations, approvals, milestones, completed/pending work, test counts/logs, internal paths or speculative parity claims.
+- Keep detailed current user operations in docs/USER_GUIDE.md and build/dependency/package instructions in docs/BUILDING.md. Keep development status and actual verification in HANDOFF.md/SELF_CHECK.md, not duplicated into README. Correct stale instructions against current code rather than concatenating older version notes.
+- Review the exact staged files and live remote identity before public publication. Exclude private INIs/images/audio/logs/runtime/artifacts; preserve local data. Documentation-only changes do not require an application rebuild, version bump or full regression.
+
 ## Technical baseline
 
 - ImagePrecision040 completes approved6-8: read-only worker snapshots of two RAM pages, exact RGBA/dimension comparison <=512MiB aggregate buffers, side/difference/swipe modal with owner/revision/page fences and WS_CLIPCHILDREN, no source commit/files/clipboard. Precision crop stages numeric bounds plus optional page-local ratio and preserves interior release-to-relocate; Apply crop alone trims. Arbitrary fractional whole-image rotation uses worker, bounded expansion/transparent or color fill and explicit default-No flatten warning, one Undo restores editable original; no new project schema. RAM timeline exposes prior/future snapshots, prepares copy/reserve before moving history entries atomically, retains20/256 policy and no disk history. Resource estimates include retained draft/modal/selection storage; actual own-process working/private/peak/GDI/USER samples are separate overlapping metrics, never added to estimates. Use ImagePrecision and affected history/menu/crop/workspace/command/sidebar/renderer scopes only. Hidden combo caption value/selection checks do not prove its WM_PRINT text pixels or physical acceptance; retain visual gaps explicitly.
