@@ -1,5 +1,24 @@
 # HANDOFF.md
 
+## User removal of reviewed test executables verified (2026-10-26)
+
+- Both previously reviewed artifacts/tests/{Debug,Release}/SimpleCaptureTool.Tests.exe
+  are absent:2files/19,878,400B retired. This was independently observed after the
+  user's cleanup confirmation, not performed by the Renesas-only batch or by an
+  agent retry of the previously denied deletion.
+- Formal build/SimpleCaptureTool.exe remains2,085,888B with SHA256
+  8BB547AE3C269CB84AD9F1A9D31AF61503B03A1C8D374B03CEBA4961705BF7DA.
+  The EXE and all three root INIs match the retained pre-clean protected manifest.
+  No app code/version/build/settings changes or new verification copies.
+- Measured before this note:125,807,582B including107,148,221B Git and14,158,074B
+  artifacts. Remaining Debug/evidence/unknown data stays for separate retention
+  review; this note does not approve an overall20MB exception or claim all
+  remaining project artifacts are disposable.
+- Live origin main e7cae128 and README identity verified. Follow-up publication
+  scope is HANDOFF.md/SELF_CHECK.md only; no INI/runtime/images/artifacts/binaries.
+  App rebuild/full GUI/hardware/performance tests NOT RUN for this file-state and
+  documentation-only change; prior050 functional acceptance is reused, not rerun.
+
 ## Current handoff -050 test artifact retention (2026-10-26)
 
 - User asks to remove remaining redundant artifacts under the new workspace Test Artifact Ownership And Retention/TST-01 policy. No application source/version/build settings changed. AGENTS references the workspace policy once; BUILDING describes post-verification retention and safe obj cleanup without claiming that the legacy runner automatically implements every lifecycle rule.

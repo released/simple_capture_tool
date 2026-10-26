@@ -1,5 +1,20 @@
 # SELF_CHECK.md
 
+## Post-user test-executable cleanup verification (2026-10-26)
+
+- PASS both reviewed Debug/Release test EXEs absent,2files/19,878,400B retired.
+  No agent deletion/cleanup wrapper was invoked; user confirmation and actual
+  file-state checks establish this result.
+- PASS formal EXE and build/lang_en.ini,lang_tw.ini,SimpleCaptureTool.ini hashes
+  match retained protected.json. EXE2,085,888B; exact hash in newest HANDOFF.
+- Scope: file absence, four protected delivery/config hashes, current origin/
+  actual README identity and reviewed document diff. No application code change,
+  rebuild/full GUI/hardware/performance suite or new test data was required.
+- Snapshot before this note:125,807,582B including107,148,221B Git; no skipped links.
+  Other retained artifacts/overall20MB disposition remain a separate review.
+- Follow-up public file list is HANDOFF.md/SELF_CHECK.md only; private/runtime/
+  artifact contents are excluded. Previous050 functional evidence is reused.
+
 ## Current050 TST-01 retention verification (2026-10-26)
 
 - PASS1157 historical files20,932,048 bytes removed using producer/manifest plus SHA256 evidence and exact-file deletion. Raw passing-run data is represented by compact totals/necessary failure excerpts; no recursive purge or extension-only deletion. Evidence: artifacts/audits/retention-050-20261026-1c05829549fb4fa595ea4379747efec6/retention-report.json and history-summary.json.
