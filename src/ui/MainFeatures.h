@@ -7,7 +7,7 @@ inline const std::vector<HomeFeature>& MainFeatures(){static const std::vector<H
     {L"Full",Full,Text::Full,1,true},{L"Region",Region,Text::Region,1,true},{L"Window",Window,Text::Window,1,true},
     {L"Fixed",Fixed,Text::FixedRegion,1,true},{L"CurrentMonitor",CurrentMonitor,Text::CurrentMonitor,1,true},{L"ChooseMonitor",ChooseMonitor,Text::ChooseMonitor,1,true},
     {L"LastRegion",LastRegion,Text::LastRegion,1,true},{L"Presets",Presets,Text::RegionPresets,1,true},{L"Scroll",Scroll,Text::Scroll,1,true},
-    {L"ManualScroll",ManualScroll,Text::ManualScroll,1,true},{L"MenuCapture",MenuCapture,Text::MenuCapture,1,true},{L"Edit",Edit,Text::Editor,0,true},
+    {L"ManualScroll",ManualScroll,Text::ManualScroll,1,true},{L"ManualHorizontal",ManualHorizontal,Text::ManualHorizontal,1,false},{L"MenuCapture",MenuCapture,Text::MenuCapture,1,true},{L"Edit",Edit,Text::Editor,0,true},
     {L"Settings",Settings,Text::GeneralSettings,3,true},{L"CaptureOptions",CaptureOptions,Text::CaptureOptions,3,true},
     {L"Hotkeys",Hotkeys,Text::Hotkeys,3,true},{L"Folder",Folder,Text::Folder,0,true},{L"Hide",Hide,Text::Hide,0,true},
     {L"HomeSettings",HomeSettings,Text::HomeFeatures,3,false},

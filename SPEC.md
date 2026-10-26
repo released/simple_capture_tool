@@ -1,5 +1,113 @@
 # Simple Capture Tool Specification
 
+## Current055 approved editor productivity additions
+
+All eight recommendations are approved. Preserve054 and earlier dirty work, screenshot-only scope, no new dependency/copied source/assets, Traditional Chinese defaults, compact two-tab editor, Home order, explicit saves, original-size Ctrl+A/C, RAM pages/locks/hidden/group identity and one-Undo semantics. No publish requested. Existing rejected historical cleanup and complete-folder20MB issue remain unresolved; do not bypass review restrictions or prune Git recovery.
+
+Before-edit evidence: EditableLayout only arranges inserted/collaged sources; no selected-unit reflow. Picture paste is original-size but ZoomActual only changes view and ResetPictureCrop only restores crop. Named styles use text menus, repeat recipes are absent, object marquee is rectangular, Mosaic/Blur use rects, presentation flattens a whole page and SVG is absent. No blocking functional preference is missing.
+
+Plan before multi-module edits: (1) own bounded core helpers for grid/row/column reflow, intrinsic Picture dimensions and path-sweep selection; own worker services for Picture cards, brush masking, style thumbnails and limited self-contained SVG; (2) localized related commands, lazy style gallery, session-only scalar effect recipes and fenced native gestures/modal/worker results; (3) append one effectBrush flag in project/private v13 and styles v6, retain genuine older readers/default false and existing tool numbers; (4) private EditorRefinements and affected schema/menu/style/render/selection/layout/paste/effects/workspace checks, immutable source during canonical Release/Debug builds, hidden retail lifecycle, bilingual guides, protected hashes, proven own artifact retirement and final safe clean-obj. Select actual impact, no full/media/live clipboard/desktop replay. Temporary necessary compile/test storage is permitted; clean after final batch and report blocked retention.
+
+| Item | Finite acceptance | Status |
+| --- | --- | --- |
+| T01 | Reflow selected visible flat units in row/column/grid with gap and deterministic order, no resampling, group/linked-arrow/locks/no-op validation; right/down expansion and placement one Undo | Implemented; scoped Debug/Release PASS |
+| T02 | One unlocked ungrouped Picture restores current source-crop intrinsic pixel dimensions at its top-left, retains pixels/crop/mask/style, one Undo and bounded expansion | Implemented; scoped Debug/Release PASS |
+| T03 | Named tool-style thumbnail gallery/filter, worker-generated demo content only, lazy bounded32 previews; existing save/delete/apply/default semantics and stale owner/preferences checks | Implemented; scoped Debug/Release PASS |
+| T04 | Session shared last successful supported General/Color/Picture recipe, repeat or re-show parameters against fresh current target/selection, no retained source/path/mask; default-No flatten/bake and no-op/Undo preserved | Implemented; scoped Debug/Release PASS |
+| T05 | Explicit page-local path-sweep object selection using visible bounding boxes, group expansion, lock-readable, bounded4096 points, existing modifiers/Alt drawing untouched, cancel/capture loss no model/Undo change | Implemented; scoped Debug/Release PASS |
+| T06 | Editable Blur/Mosaic path brush with diameter/strength, ordinary rectangular modes unchanged; worker bounded stroke mask, no automatic brush frames, serialization/style compatibility and consecutive gestures | Implemented; scoped Debug/Release PASS |
+| T07 | Single unlocked ungrouped Picture card creates self-generated background Picture plus original in flat group, adjustable padding/border/background/shadow; no whole-page flatten, bounded worker and one Undo | Implemented; scoped Debug/Release PASS |
+| T08 | Explicit selected independent annotations to self-contained SVG: vectors for supported paths/shapes/uniform glyph paths; embedded visible-only PNG fallback disclosed for unsupported independent appearance; no external refs/scripts/fonts, source/clipboard/path/dirty/Undo unchanged | Implemented; scoped Debug/Release PASS |
+
+Limits/risks: T01 is one-shot placement, not persistent Flex constraints. T02 means current asset/crop intrinsic dimensions, not recovering a pre-raster-transform source. T03 uses existing scalar styles without document text or user image thumbnails. T04 is one effect, not a workflow/macro; never reuse old selection bounds/masks. T05 uses boxes rather than promising alpha-perfect object silhouettes. T06 is visual editing, not secure redaction/inpainting; don't change rectangular Highlight. T07 is an ordinary editable group, not a parametric filter stack. T08 preserves raster sources as raster and is not a screenshot-to-vector conversion; unsupported pixel-dependent annotations reject rather than leak base pixels. UI-only previews/drafts count as retained resources separately from process samples; heavy pixels on workers. Native synthetic/DPI checks do not establish physical dialog/pointer/clipboard/hardware acceptance.
+
+Acceptance: canonical retail1.0.0.055 Release/Debug builds have zero warnings/errors;19 affected scopes plus exact hidden retail Startup pass in each configuration (2156 checks each,4312 combined). Final rectangle/path style compatibility correction reran EditorRefinements/ToolStyles/Productivity only; unchanged evidence reused. See SELF_CHECK and artifacts/audits/editor-055/verification-summary.json. Physical visible UI/mixed-DPI/SVG recipient/OOM/hardware acceptance remains NOT RUN. Cleanup is PARTIAL: isolated payload removed and776 compiler files cleaned, but automatic approval review rejected both current test EXEs and consolidated raw-log retirement (blocked by policy);20MB complete-folder target remains unmet. No publication.
+
+## Current054 approved object and selection additions
+
+User approves all eight recommendations from the latest read-only review, not only the top three. No new third-party dependency/copied external source/assets, recording/WebP/OCR/QR/pin/upload/history/workflow expansion or publication. Preserve053 and earlier dirty work, bilingual guide alignment, Traditional Chinese defaults, Home order, explicit saves and original-size Ctrl+A/C.
+
+Before-edit comparison: selected objects already copy on transparent pixels but Save exports the composed page; stamps are a fixed symbol list while templates are content files; masks have outline-only UI and Replace/Add/Subtract, no alpha-derived selection; attached arrows use centers; shape stroke/fill share alpha; only brightness/contrast is independently editable per Picture, other filters flatten the composed scene.
+
+Plan before multi-module edits: (1) bounded own core/service helpers for selected-object raster output, binary alpha masks/intersection, edge anchors and single-Picture filter rasterization; one v12 project/private-packet extension with genuine older readers, styles v5 retaining v1-v4; (2) localized related Home/top Edit commands, page-only optional mask tint and fenced worker/form/save paths; (3) bounded32-entry user PNG library with portable scalar path/label metadata, MainFrame-owned stale-safe transaction, background lazy thumbnails and original-size insert; (4) private AssetSelection/affected payload/menu/style/composition/mask/output/INI tests and canonical Debug/Release/hidden retail lifecycle, aligned product guides, protected hashes, exact owned test-binary retirement and final safe clean-obj. No edits to compiler inputs while a build is active. Temporary necessary build data is permitted; keep growth bounded and clean after each batch. Existing complete-folder20MB issue is not silently waived or solved by dropping Git recovery.
+
+| Item | Finite acceptance | Status |
+| --- | --- | --- |
+| S01 | Selected visible independent objects/groups to explicit transparent PNG; no base/siblings/clipboard/path/dirty/Undo change; bounded crop includes tails/ink | Implemented; scoped acceptance passed |
+| S02 | User PNG library: add/rename/remove indexed entries, lazy thumbnails, explicit insert at original size/one Undo; no copied/downloaded built-in assets; cap32 | Implemented; scoped acceptance passed |
+| S03 | Page-local default-off selection tint with adjustable RGB/opacity, visible clipped spans only, no source/export/Undo/schema changes | Implemented; scoped acceptance passed |
+| S04 | Linked straight-arrow center/auto-box-edge/left/top/right/bottom anchors; move/resize/locks/copy/detach/Undo and legacy centers preserved; no obstacle routing | Implemented; scoped acceptance passed |
+| S05 | Separate relative stroke/fill opacity on shapes with existing global alpha as master; old defaults255 preserve appearance; styles/project/clipboard bounded | Implemented; scoped acceptance passed |
+| S06 | Single unlocked ungrouped Picture gets existing Gamma/sepia/replace/levels/grayscale/invert via worker raster replacement; default-No bake notice, other editable objects/base retained, exact Undo | Implemented; scoped acceptance passed |
+| S07 | Explicit Intersect pixel selection mode for rectangle/ellipse/lasso, immutable span masks, no modifier/hit changes or new persisted selection history | Implemented; scoped acceptance passed |
+| S08 | One visible Picture's rendered crop/shape/scale/opacity yields binary canvas selection using threshold1..255; no image/clipboard/Undo mutation; not grayscale soft mask | Implemented; scoped acceptance passed |
+
+Library defaults are empty. Entries reference user files (relative to the portable application root when portable); missing/invalid PNG remains visible with failure status and never redirects insertion. Decode bounds64MiB per image, one worker at a time; UI keeps only bounded thumbnails. Metadata Save and Insert are explicit; Cancel preserves stored library. Save failures retain current draft with error. Selected PNG and alpha selection may read locked objects, while mutations retain locks. Temporary previews/results fence owner HWND/permanent identity, revision/selection/mask generation before applying. S06 intentionally bakes the selected Picture's current visible effects into its replacement; it is not an editable filter stack, and repeated raster transforms may reduce quality. Do not flatten unrelated objects or publish test clipboard/desktop output.
+
+## Current053 approved documentation workflow additions
+
+User approves all eight recommendations from the latest read-only review. No new third-party library or incorporated external source/assets, recording/WebP/OCR/QR/pin/upload/workflow expansion, or publication. Preserve unrelated dirty051/052 work. Primary users retain multiple RAM screenshots and compose explanations; default Ctrl+A/C remains original-size whole-canvas copy and every save/export needs explicit reviewed names. No blocking preference is missing.
+
+Before editing, current code confirms fixed Callout tails; normal Alpha highlights only; Save renders at document dimensions; Duplicate is a separate command; SaveAll loops native Save dialogs; Picture rotations are90/flip while arbitrary rotation flattens the entire image; mask outlines are UI-only; capture constrains squares/fixed pixels but not an arbitrary ratio.
+
+Plan for multi-module work: (1) bounded core tail/multiply/selection-stroke/ratio operations and a backward-readable v11 project/private-packet extension for new scalar mode; (2) localized related commands and worker-owned scaled export/copy, single-Picture raster rotation and bounded native batch-name review; (3) page-local opt-in drag stamping with one release commit/cancel and capture-toolbar ratio choices; (4) private core/native/payload/affected tests, canonical retail Debug/Release builds and hidden lifecycle, docs, protected hashes and final owned test-binary/intermediate cleanup. Preserve worker ownership, owner/revision/selection/generation fences, locks/groups/hidden/source data and old defaults.
+
+| Item | Finite acceptance | Status |
+| --- | --- | --- |
+| B01 | One independently draggable Callout tail; text body remains editable; move/resize/hit/Undo and old default tail | Implemented; scoped acceptance passed |
+| B02 | Rectangular Highlight Normal/Multiply choice; underlying Alpha respected; old mode/default/style/payload compatibility | Implemented; scoped acceptance passed |
+| B03 | Explicit scaled image export and scaled copy, bounded worker size; no source/Undo/default Ctrl+C/path/dirty mutation | Implemented; scoped acceptance passed |
+| B04 | Opt-in selected-object/group drag stamping with bounded independent clones; original moves; release one Undo, Esc/capture loss cancels | Implemented; scoped acceptance passed |
+| B05 | Manual export of1..64 RAM pages after editable-name/folder/format review; reject collisions, no silent overwrite, report per-file outcomes | Implemented; scoped acceptance passed |
+| B06 | Arbitrary-angle raster transform of one unlocked ungrouped Picture; other objects/base retained, center preserved, one Undo | Implemented; scoped acceptance passed |
+| B07 | Current pixel/crop selection inner/outer colored stroke as editable transparent Picture; bounded worker, mask/source unchanged until fenced commit | Implemented; scoped acceptance passed |
+| B08 | Region capture Free/1:1/16:9/4:3/custom ratio; adjustable size, bounded handles, square modifier and frozen-frame release behavior preserved | Implemented; scoped acceptance passed |
+
+Assumptions and risks: B06 resamples only the selected Picture including its current crop/mask/adjustments into a replacement asset, with the exact old editable asset retained by Undo; it is not a general vector/group rotation framework and repeated resampling can reduce quality. B05 requires explicit reviewed filenames, rejects existing destinations and reports partial IO failure without altering documents. B04 uses an explicit mode to avoid replacing normal selection/pan modifiers. B08 ratio choice is session-local, not another persistent capture-history store. Native physical DPI/desktop/clipboard recipient acceptance remains separate from isolated verification. Existing20MB cleanup goal is unfinished and not silently relaxed; never bypass previous cleanup rejections or prune Git recovery to meet it.
+
+## Current052 approved editor additions
+
+User approves all nine recommendations, with no new third-party libraries or incorporated third-party source/assets. Preserve pending051 work and screenshot-only/dependency/license/explicit-save policy. Before-edit gaps are confirmed in the model, command catalog, renderer and interaction: no similar-object selection, text spacing/autoheight, Picture shape mask, feathered extraction, stroke smoothing, configurable arrow heads, arbitrary multipoint creation/node editing, centered gestures or attached connectors. No functional clarification blocks work.
+
+Plan before multi-module edits: one bounded v10 project/private-packet extension retaining older readers; core selection/geometry/mask/stroke/link operations; worker/native text layout and render agreement; related localized menu/Home commands and fenced native gestures; private affected tests, canonical Debug/Release and hidden retail lifecycle, protected hashes and owned cleanup. No full/desktop/clipboard/hardware suite or publication. Keep source images separate, one Undo, lock/group rules, original-size paste, revision/owner/generation checks and no-op/cancel behavior. New views must not recolor source pixels or rewrite user Home/catalogs.
+
+| Item | Finite acceptance | Status |
+| --- | --- | --- |
+| A01 | Same type/stroke/fill selection on visible active-page objects, group expansion, selection only | Implemented; scoped acceptance passed |
+| A02 | Text/Callout padding, line spacing, fixed width/auto height, rich runs and matching export | Implemented; scoped acceptance passed |
+| A03 | Single unlocked ungrouped Picture rectangle/round/ellipse clipping, reset and original asset retention | Implemented; scoped acceptance passed |
+| A04 | Worker feathered current selection to new RAM page; source/clipboard unchanged | Implemented; scoped acceptance passed |
+| A05 | Explicit smoothing of selected Pen points, bounded worker, endpoints/Undo/no-op preservation | Implemented; scoped acceptance passed |
+| A06 | Independent none/open/filled/circle/bar arrow ends and bounded size | Implemented; scoped acceptance passed |
+| A07 | Click-to-build polygon/polyline, double-click/Enter finish, Backspace/Esc, movable vertices | Implemented; scoped acceptance passed |
+| A08 | Off-by-default centered shape creation/symmetric resize; existing modifiers retained | Implemented; scoped acceptance passed |
+| A09 | Straight arrow endpoints follow two visible non-arrow objects, stable page-local IDs, detach/deletion/copy remap; no auto routing | Implemented; scoped acceptance passed |
+
+Risks: rich-text measurement must agree across DPI and raster output; soft selections need bounded local Alpha buffers and are not safe redaction; clips retain hidden original pixels. Links must survive reorder/Undo while subset copies detach external references and duplicate/import remaps IDs. A locked connected arrow rejects changes that would move it; deleting/hiding an endpoint detaches that end at its last position. Existing retained-capacity decision remains authoritative; previously rejected cleanup actions are not retried through another mechanism.
+
+## Current051 approved screenshot/editor productivity work
+
+The user approves the ten recommendations from the read-only feature review. Preserve current050 screenshot-only delivery, portable preferences/translations, source rights policy and all unrelated pending work. No third-party library, recording/WebP, upload, OCR, QR or persistent history is added. No publication is implied.
+
+Before-edit comparison: styles require named presets, Picture replacement is absent, arrows are straight/cubic, resize is bicubic only, editor grid/clone brush are absent, comparison is exact without offset, mosaic samples protected pixels, manual stitch is vertical, and brightness/contrast flattens the composition. No missing feature preference blocks implementation. The user approves a150MB retained project budget and temporary2GB build/verification budget, followed by final owned-run/intermediate cleanup.
+
+Implementation plan: (1) bounded version9 annotation extensions with genuine older project/private clipboard readers, core operations and render validation; (2) N01-N03 editor commands and gestures; (3) N04-N10 worker operations and owned modal controls, semantic Home/top Edit entries and localization; (4) private affected-scope tests, canonical Debug/Release builds and hidden startup, protected-file hashes, product documentation and owned-run cleanup. Do not run full/hardware/live clipboard suites. Preserve locks/groups/hidden state, content/position during style changes, original-size insertion, one-Undo transactions, owner/revision/generation fences and source pixels. New guides never enter export. Physical mixed-DPI/desktop capture and third-party recipient acceptance remain separate from hidden fixtures.
+
+| Item | Acceptance | Status |
+| --- | --- | --- |
+| N01 | Session copy/paste style across pages; compatible tools; local text runs retained | Implemented |
+| N02 | Replace one unlocked ungrouped Picture; fit/stretch/crop explicit; original layer/position/style; Undo | Implemented |
+| N03 | One/two-bend orthogonal arrows with movable endpoints/bends | Implemented |
+| N04 | Nearest/linear/bicubic resize; bicubic default; editable objects retained | Implemented |
+| N05 | Optional page-local grid and fixed-step movement snap; off by default; no export guides | Implemented |
+| N06 | User-selected clone source and fixed-offset pre-stroke sampling; editable raster patch; one Undo | Implemented |
+| N07 | Comparison channel tolerance and manual X/Y registration; exact defaults | Implemented |
+| N08 | Privacy mosaic independent of covered source pixels; project-source warning retained | Implemented |
+| N09 | Horizontal manual stitch with overlap/Undo; vertical behavior retained | Implemented |
+| N10 | Editable per-Picture brightness/contrast and bypass; sibling/source preservation | Implemented |
+
+Accepted:12 affected scopes1310 checks/configuration plus two hidden retail lifecycle probes; canonical Debug/Release builds pass without warnings/errors. Product features are complete; physical mixed-DPI/desktop horizontal-scroll/OOM acceptance remains separate. See SELF_CHECK/HANDOFF for verified hashes, exact scope totals and automatic-approval cleanup exceptions.
+
 ## Current050 redundant-output cleanup (2026-10-26)
 
 The user explicitly rejects retaining historical ZIPs/extracted packages and requests a normal-sized source project for GitHub. This supersedes the immediately preceding dist-archive plan and earlier retention instructions for historical packages/removed codec caches. Delete only verified untracked generated outputs: old packages/extractions, retired FFmpeg/libwebp sources/libraries/cache, old isolated EXEs and reproducible test fixture media/configuration. Preserve current build/INI/catalogs, Debug/test variants, user runtime files, source, Git history and small verification records. Do not reinterpret this as broad source or user-data deletion, history rewriting or an automatic destructive clean policy.

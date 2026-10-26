@@ -12,12 +12,12 @@ BEGIN_MESSAGE_MAP(ManualScrollFrame,CFrameWnd)
  ON_COMMAND_RANGE(ManualNext,ManualApply,&ManualScrollFrame::OnAction)
  ON_MESSAGE(WM_DPICHANGED,&ManualScrollFrame::OnDpiChanged)
 END_MESSAGE_MAP()
-HWND ManualScrollFrame::Open(CWnd* owner,services::CaptureTarget target,Done done){auto* frame=new ManualScrollFrame;frame->target_=target;frame->target_.cropWindow=true;auto failed=done;frame->done_=std::move(done);if(!frame->Create(nullptr,Tr(Text::ManualScroll),WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_CLIPCHILDREN,CRect(50,100,850,670),owner,nullptr,WS_EX_TOPMOST|WS_EX_TOOLWINDOW)){failed({});return nullptr;}frame->ShowWindow(SW_SHOW);return frame->GetSafeHwnd();}
+HWND ManualScrollFrame::Open(CWnd* owner,services::CaptureTarget target,Done done,bool horizontal){auto* frame=new ManualScrollFrame;frame->horizontal_=horizontal;frame->stitch_=core::ManualStitcher(horizontal);frame->target_=target;frame->target_.cropWindow=true;auto failed=done;frame->done_=std::move(done);if(!frame->Create(nullptr,Tr(horizontal?Text::ManualHorizontal:Text::ManualScroll),WS_OVERLAPPED|WS_CAPTION|WS_SYSMENU|WS_CLIPCHILDREN,CRect(50,100,850,670),owner,nullptr,WS_EX_TOPMOST|WS_EX_TOOLWINDOW)){failed({});return nullptr;}frame->ShowWindow(SW_SHOW);return frame->GetSafeHwnd();}
 int ManualScrollFrame::OnCreate(LPCREATESTRUCT cs)
 {
     if(CFrameWnd::OnCreate(cs)==-1)return -1;dpi_=LayoutDpi(m_hWnd);int x=10,y=10,h=30;auto rect=[&](int xx,int yy,int w,int hh){return CRect(Px(m_hWnd,xx),Px(m_hWnd,yy),Px(m_hWnd,xx+w),Px(m_hWnd,yy+hh));};
     for(auto item:{std::pair<UINT,Text>{ManualNext,Text::CaptureNext},{ManualApply,Text::ApplyGeneric},{ManualUndo,Text::Undo},{ManualFinish,Text::Finish}}){auto b=std::make_unique<CButton>();b->Create(Tr(item.second),WS_CHILD|WS_VISIBLE|WS_TABSTOP,CRect(),this,item.first);buttons_.push_back(std::move(b));}
-    overlap_.Create(WS_CHILD|WS_VISIBLE|WS_TABSTOP|WS_BORDER|ES_NUMBER,rect(10,50,90,28),this,ManualOverlap);overlap_.SetWindowText(L"0");status_.Create(Tr(Text::ManualScrollHelp),WS_CHILD|WS_VISIBLE,rect(110,50,650,65),this);
+    overlap_.Create(WS_CHILD|WS_VISIBLE|WS_TABSTOP|WS_BORDER|ES_NUMBER,rect(10,50,90,28),this,ManualOverlap);overlap_.SetWindowText(L"0");status_.Create(Tr(horizontal_?Text::ManualHorizontalHelp:Text::ManualScrollHelp),WS_CHILD|WS_VISIBLE,rect(110,50,650,65),this);
     ApplyFont(*this,font_);for(auto& b:buttons_){CString text;b->GetWindowText(text);int w=TextWidth(*b,text);b->MoveWindow(Px(m_hWnd,x),Px(m_hWnd,y),w,Px(m_hWnd,h));x+=MulDiv(w,96,LayoutDpi(m_hWnd))+8;}
     CRect r=rect(0,0,780,510);AdjustWindowRectEx(&r,GetStyle(),FALSE,GetExStyle());SetWindowPos(nullptr,0,0,r.Width(),r.Height(),SWP_NOMOVE|SWP_NOZORDER);
     if(!RegisterHotKey(m_hWnd,1,MOD_NOREPEAT,VK_F8))status_.SetWindowText(CString(Tr(Text::HotkeyConflict))+L"F8");SetTimer(1,60,nullptr);Start(ManualNext);return 0;

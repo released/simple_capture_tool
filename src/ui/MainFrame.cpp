@@ -32,6 +32,7 @@ BEGIN_MESSAGE_MAP(MainFrame,CFrameWnd)
  ON_COMMAND_RANGE(HomeSettings,LanguageSettings,&MainFrame::OnAction)
  ON_COMMAND_RANGE(ActiveWindow,RestoreEditor,&MainFrame::OnAction)
  ON_COMMAND_RANGE(NewDocument,NewDocument,&MainFrame::OnAction)
+ ON_COMMAND_RANGE(ManualHorizontal,ManualHorizontal,&MainFrame::OnAction)
 END_MESSAGE_MAP()
 MainFrame::MainFrame():MainFrame(false){}
 MainFrame::MainFrame(bool isolated):isolated_(isolated)
@@ -70,7 +71,7 @@ LRESULT MainFrame::OnTaskbarCreated(WPARAM,LPARAM){AddTray();return 0;}
 void MainFrame::BuildTrayMenu(CMenu& menu)
 {
     menu.CreatePopupMenu();if(HasTrayEditor())menu.AppendMenu(MF_STRING,RestoreEditor,Tr(Text::RestoreEditor));for(auto item:{std::pair<UINT,Text>{Open,Text::Open},{Full,Text::Full},{Region,Text::Region},{Window,Text::Window},{CurrentMonitor,Text::CurrentMonitor},{ChooseMonitor,Text::ChooseMonitor},{LastRegion,Text::LastRegion},{Presets,Text::RegionPresets},
-        {Fixed,Text::FixedRegion},{Scroll,Text::Scroll},{ManualScroll,Text::ManualScroll},{MenuCapture,Text::MenuCapture},{Settings,Text::Settings},{CaptureOptions,Text::CaptureOptions},{Hotkeys,Text::Hotkeys},{Exit,Text::Exit}})
+        {Fixed,Text::FixedRegion},{Scroll,Text::Scroll},{ManualScroll,Text::ManualScroll},{ManualHorizontal,Text::ManualHorizontal},{MenuCapture,Text::MenuCapture},{Settings,Text::Settings},{CaptureOptions,Text::CaptureOptions},{Hotkeys,Text::Hotkeys},{Exit,Text::Exit}})
         menu.AppendMenu(MF_STRING,item.first,Tr(item.second));
 }
 void MainFrame::TrayMenu(){CMenu menu;BuildTrayMenu(menu);CPoint p;GetCursorPos(&p);SetForegroundWindow();UINT id=menu.TrackPopupMenu(TPM_RETURNCMD|TPM_RIGHTBUTTON,p.x,p.y,this);if(id)OnAction(id);PostMessage(WM_NULL);}

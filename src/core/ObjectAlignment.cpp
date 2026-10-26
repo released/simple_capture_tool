@@ -8,7 +8,7 @@ void Check(RECT r){for(auto value:{r.left,r.top,r.right,r.bottom})Coordinate(val
 std::array<LONG,3> Anchors(LONG low,LONG high){return {low,low+(high-low)/2,high};}
 void Shift(Annotation& a,int64_t dx,int64_t dy){
     a.rect={Coordinate(a.rect.left+dx),Coordinate(a.rect.top+dy),Coordinate(a.rect.right+dx),Coordinate(a.rect.bottom+dy)};
-    for(auto& p:a.points)p={Coordinate(p.x+dx),Coordinate(p.y+dy)};
+    for(auto& p:a.points)p={Coordinate(p.x+dx),Coordinate(p.y+dy)};if(a.tool==Tool::Callout&&a.anchored)a.focus={Coordinate(a.focus.x+dx),Coordinate(a.focus.y+dy)};
 }
 RECT Box(const DocumentState& state,const composition::Indices& ids){RECT box{};bool first=true;for(int i:ids){if(i<0||i>=static_cast<int>(state.objects.size()))throw std::runtime_error("Stale alignment selection");const auto r=state.objects[i].rect;Check(r);if(first){box=r;first=false;}else{box.left=std::min(box.left,r.left);box.top=std::min(box.top,r.top);box.right=std::max(box.right,r.right);box.bottom=std::max(box.bottom,r.bottom);}}return box;}
 }

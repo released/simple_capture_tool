@@ -1,8 +1,14 @@
 #include "pch.h"
 #include "EditorFrame.h"
 #include "EditorSelectionVisuals.h"
+#include "../core/ProductiveImage.h"
 namespace sct::ui {
 UINT EditorFrame::AlignmentMenuFlags(UINT id)const{
+    if(id==SweepObjects)return sweepMode_?MF_CHECKED:0;
+    if(id==RepeatLastEffect||id==ReshowLastEffect)return LastRecipe()?0:MF_GRAYED;
+    if(id==MaskOverlay)return maskTint_?MF_CHECKED:0;
+    if(id==StampCopies)return stampMode_?MF_CHECKED:0;
+    if(id==CenterDrawing)return centered_?MF_CHECKED:0;
     if(id==SnapObjects)return snapEnabled_?MF_CHECKED:0;
     if(id==AlignToCanvas)return alignToCanvas_?MF_CHECKED:0;
     if(id<ObjectAlignLeft||id>ObjectSpaceVertical)return 0;
@@ -19,12 +25,12 @@ bool EditorFrame::AlignmentCommand(UINT id){
     catch(const std::exception&){status_.SetWindowText(Tr(id>=ObjectSpaceHorizontal?Text::SpacingFailed:Text::InvalidValue));}return true;
 }
 void EditorFrame::BeginSnapping(const core::composition::Indices& ids){
-    ClearSnapping();if(!snapEnabled_)return;
+    ClearSnapping();if(gridSnap_)snapRevision_=revision_;if(!snapEnabled_)return;
     try{snapTargets_=core::alignment::BuildTargets(document_.State(),ids);snapRevision_=revision_;}catch(const std::exception&){status_.SetWindowText(Tr(Text::InvalidValue));}
 }
 CRect EditorFrame::SnapMove(CRect rect){
-    snapX_.reset();snapY_.reset();if(!snapEnabled_||snapRevision_!=revision_||GetKeyState(VK_MENU)<0)return rect;
-    const auto snapped=core::alignment::SnapMove(rect,snapTargets_,Px(m_hWnd,6)/zoom_);snapX_=snapped.x;snapY_=snapped.y;return snapped.rect;
+    snapX_.reset();snapY_.reset();if(snapRevision_!=revision_||GetKeyState(VK_MENU)<0)return rect;
+    const auto original=rect;const double tolerance=Px(m_hWnd,6)/zoom_;if(snapEnabled_){const auto snapped=core::alignment::SnapMove(rect,snapTargets_,tolerance);snapX_=snapped.x;snapY_=snapped.y;rect=snapped.rect;}if(gridSnap_){const auto grid=core::SnapGrid(original,gridStep_,gridStep_/2.+.01);const int dx=grid.left-original.left,dy=grid.top-original.top;if(dx&&(!snapX_||std::abs(dx)<std::abs(rect.left-original.left))){rect.OffsetRect(grid.left-rect.left,0);snapX_=grid.left;}if(dy&&(!snapY_||std::abs(dy)<std::abs(rect.top-original.top))){rect.OffsetRect(0,grid.top-rect.top);snapY_=grid.top;}}return rect;
 }
 void EditorFrame::ClearSnapping(){snapTargets_={};snapRevision_=0;snapX_.reset();snapY_.reset();}
 void EditorFrame::PaintSnapGuides(CDC& dc){

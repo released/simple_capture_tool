@@ -1,0 +1,18 @@
+#include "pch.h"
+#include "EditorRefinementService.h"
+#include "DocumentRenderer.h"
+#include "../core/AnnotationGeometry.h"
+#include "../core/ProductiveImage.h"
+#include <gdiplus.h>
+namespace sct::services {
+namespace {
+void BlurPixels(core::Image& image,int radius){auto input=image,temporary=image;for(size_t n=0;n<input.pixels.size();n+=4)for(int c=0;c<3;++c)input.pixels[n+c]=BYTE((input.pixels[n+c]*input.pixels[n+3]+127)/255);const int w=image.width,h=image.height;for(int y=0;y<h;++y)for(int c=0;c<4;++c){int sum=0;for(int k=-radius;k<=radius;++k)sum+=input.Row(y)[std::clamp(k,0,w-1)*4+c];for(int x=0;x<w;++x){temporary.Row(y)[x*4+c]=BYTE(sum/(radius*2+1));sum-=input.Row(y)[std::clamp(x-radius,0,w-1)*4+c];sum+=input.Row(y)[std::clamp(x+radius+1,0,w-1)*4+c];}}for(int x=0;x<w;++x)for(int c=0;c<4;++c){int sum=0;for(int k=-radius;k<=radius;++k)sum+=temporary.Row(std::clamp(k,0,h-1))[x*4+c];for(int y=0;y<h;++y){image.Row(y)[x*4+c]=BYTE(sum/(radius*2+1));sum-=temporary.Row(std::clamp(y-radius,0,h-1))[x*4+c];sum+=temporary.Row(std::clamp(y+radius+1,0,h-1))[x*4+c];}}for(size_t n=0;n<image.pixels.size();n+=4)for(int c=0;c<3;++c)image.pixels[n+c]=image.pixels[n+3]?BYTE(std::min(255,(image.pixels[n+c]*255+image.pixels[n+3]/2)/image.pixels[n+3])):0;}
+}
+bool RenderEffectBrush(core::Image& image,const core::Annotation& a){
+    if(!a.effectBrush||(a.tool!=core::Tool::Blur&&a.tool!=core::Tool::Mosaic)||a.points.empty()||a.points.size()>65536||a.width<1||a.width>128||a.alpha<0||a.alpha>255||a.mosaicStrength<0||a.mosaicStrength>100)return false;
+    auto shape=a;core::BoundPoints(shape);CRect region=shape.rect;const int radius=std::max(2,MulDiv(std::max(1,a.mosaicStrength),60,100));region.InflateRect(a.width/2+radius+3,a.width/2+radius+3);region.IntersectRect(region,CRect(0,0,image.width,image.height));if(region.IsRectEmpty()||!a.alpha)return true;if(uint64_t(region.Width())*region.Height()*24>512ULL*1024*1024)return false;
+    auto pixels=image.Crop(region);if(pixels.Empty())return false;auto filtered=pixels;if(a.tool==core::Tool::Blur)BlurPixels(filtered,radius);else{auto effect=a;effect.effectBrush=false;effect.rect={0,0,region.Width(),region.Height()};effect.points.clear();if(effect.mosaicMode)core::PrivacyMosaic(filtered,effect);else filtered.Pixelate(effect.rect,core::MosaicBlockSize(effect));}
+    core::Image mask;if(!mask.Create(region.Width(),region.Height()))return false;std::fill(mask.pixels.begin(),mask.pixels.end(),BYTE{});{using namespace Gdiplus;Bitmap bitmap(mask.width,mask.height,mask.width*4,PixelFormat32bppARGB,mask.pixels.data());Graphics g(&bitmap);g.SetSmoothingMode(SmoothingModeAntiAlias);Pen pen(Color(255,255,255,255),REAL(a.width));pen.SetStartCap(LineCapRound);pen.SetEndCap(LineCapRound);pen.SetLineJoin(LineJoinRound);std::vector<PointF> points;for(auto p:a.points)points.emplace_back(REAL(p.x-region.left),REAL(p.y-region.top));if(points.size()>1)g.DrawLines(&pen,points.data(),INT(points.size()));SolidBrush brush(Color(255,255,255,255));g.FillEllipse(&brush,points.front().X-a.width/2.f,points.front().Y-a.width/2.f,REAL(a.width),REAL(a.width));if(g.GetLastStatus()!=Ok)return false;}
+    for(int y=0;y<region.Height();++y)for(int x=0;x<region.Width();++x){const int amount=MulDiv(mask.Row(y)[x*4+3],a.alpha,255);if(!amount)continue;const auto* old=pixels.Row(y)+x*4;const auto* next=filtered.Row(y)+x*4;auto* out=image.Row(y+region.top)+(x+region.left)*4;const int alpha=old[3]*(255-amount)+next[3]*amount;for(int c=0;c<3;++c)out[c]=alpha?BYTE((old[c]*old[3]*(255-amount)+next[c]*next[3]*amount+alpha/2)/alpha):0;out[3]=BYTE((alpha+127)/255);}return true;
+}
+}

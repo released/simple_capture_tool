@@ -2,6 +2,7 @@
 #include "UiSupport.h"
 #include "PaintSurface.h"
 #include "../core/Document.h"
+#include "../core/EditorRefinements.h"
 namespace sct::ui {
 class EditorFrame;
 constexpr UINT WorkspaceRefresh=WM_APP+31;
@@ -27,6 +28,11 @@ protected:
     void PostNcDestroy()override{if(owned_)delete this;}
     BOOL PreTranslateMessage(MSG*)override;DECLARE_MESSAGE_MAP()
 private:
+    std::optional<core::EffectRecipe> repeat_;
+    friend class EditorRefinementsAccess;
+    friend class WorkflowEditingAccess;friend class AssetSelectionAccess;
+    friend class AdvancedEditingAccess;
+    friend class ProductivityAccess;
     friend class EditorHomeAccess;
     friend class RibbonMenuAccess;
     friend class ShellAccess;

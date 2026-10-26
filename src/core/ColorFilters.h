@@ -2,7 +2,7 @@
 #include "Image.h"
 #include "SelectionMask.h"
 namespace sct::core {
-enum class ColorFilter { Gamma, Sepia, Replace, Levels, InputRange };
+enum class ColorFilter { Gamma, Sepia, Replace, Levels, InputRange, Grayscale, Invert };
 struct ColorFilterOptions {
     ColorFilter filter=ColorFilter::Gamma;
     double gamma=1.;

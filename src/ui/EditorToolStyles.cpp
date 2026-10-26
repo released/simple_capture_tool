@@ -10,6 +10,7 @@ void EditorFrame::LoadToolStyle(){
     for(auto it=presets.rbegin();it!=presets.rend();++it)if(it->style.tool==style_.tool){services::CopyToolStyle(it->style,style_);return;}
 }
 void EditorFrame::ToolStyleCommand(UINT id){
+    if(id==ToolStyles&&!toolStyleMenuAudit_){OpenStyleGallery();return;}
     const HWND host=m_hWnd;const auto revision=revision_;const int selection=selected_;const bool visible=IsWindowVisible()!=FALSE;auto alive=[&]{return ::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this;};auto current=[&]{return alive()&&revision_==revision&&selected_==selection&&(!visible||IsWindowVisible());};
     try{services::Settings settings;services::ConfigService config;std::vector<services::ToolStyle> presets;CString error;
         if(!config.Load(settings,error)||!services::DecodeToolStyles(settings.toolStyles,presets,error)){status_.SetWindowText(error);return;}
@@ -17,7 +18,7 @@ void EditorFrame::ToolStyleCommand(UINT id){
             for(size_t i=0;i<presets.size();++i){CString name=presets[i].name;name.Replace(L"&",L"&&");menu.AppendMenu(MF_STRING,ToolStyleFirst+i,name);}const auto audit=toolStyleMenuAudit_;CPoint p;GetCursorPos(&p);const UINT choice=audit?audit(menu):menu.TrackPopupMenu(TPM_RETURNCMD|TPM_RIGHTBUTTON,p.x,p.y,this);
             if(!current())return;if(choice==SaveToolStyle||choice==DeleteToolStyle){OnAction(choice);return;}if(choice<ToolStyleFirst||choice-ToolStyleFirst>=presets.size())return;
             const auto index=static_cast<size_t>(choice-ToolStyleFirst);const auto preset=presets[index];presets.erase(presets.begin()+index);presets.push_back(preset);CString data;if(!services::EncodeToolStyles(presets,data,error)||!MainFrame::SaveToolStyles(data,error)){status_.SetWindowText(error);return;}
-            const int selected=selected_;if(selected>=0&&selected<static_cast<int>(document_.State().objects.size())&&document_.State().objects[selected].tool==preset.style.tool){auto object=document_.State().objects[selected];services::CopyToolStyle(preset.style,object);document_.Replace(selected,object);Changed();services::CopyToolStyle(preset.style,style_);}
+            const int selected=selected_;if(selected>=0&&selected<static_cast<int>(document_.State().objects.size())&&document_.State().objects[selected].tool==preset.style.tool&&document_.State().objects[selected].effectBrush==preset.style.effectBrush){auto object=document_.State().objects[selected];services::CopyToolStyle(preset.style,object);document_.Replace(selected,object);Changed();services::CopyToolStyle(preset.style,style_);}
             else{CancelCrop();style_=services::StyleTemplate(preset.style);selected_=-1;pixelSelection_.SetRectEmpty();tools_.SetCurSel(static_cast<int>(style_.tool));ribbon_.CheckTool(static_cast<int>(style_.tool));}SyncStyle();Layout();InvalidateRect(canvas_,FALSE);return;
         }
         if(id==SaveToolStyle){const auto source=selected_>=0&&selected_<static_cast<int>(document_.State().objects.size())?document_.State().objects[selected_]:style_;if(!services::SupportsToolStyle(source.tool)){status_.SetWindowText(Tr(Text::ChooseDrawingStyle));return;}

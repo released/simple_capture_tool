@@ -20,6 +20,7 @@ struct Settings {
     CString editorHome=DefaultEditorHomeKeys;bool editorHomeConfigured=true;
     CString editorHomeChildren;bool editorHomeChildrenConfigured=false;
     CString toolStyles;
+    CString stickerLibrary;
     CString palette;
     CString editorShortcuts;
     CString lastImageDirectory;

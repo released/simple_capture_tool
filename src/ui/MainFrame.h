@@ -12,7 +12,7 @@ namespace sct::ui {
 class FormDialog;
 class EditorFrame;
 class MainFrame final:public CFrameWnd {
-public:MainFrame();static bool SaveEditorHome(const CString& keys,CString& error,const CString* children=nullptr);static bool SaveToolStyles(const CString&,CString&);static bool SavePalette(const CString&,CString&);static CString ImageSaveDirectory();static bool RememberImageSave(const CString&,CString&);static bool SaveEditorShortcuts(const CString&,CString&,const CString* expected=nullptr);static bool DispatchAppCommand(UINT,HWND owner);
+public:MainFrame();static bool SaveStickerLibrary(const CString&,const CString&,CString&);static bool SaveEditorHome(const CString& keys,CString& error,const CString* children=nullptr);static bool SaveToolStyles(const CString&,CString&);static bool SavePalette(const CString&,CString&);static CString ImageSaveDirectory();static bool RememberImageSave(const CString&,CString&);static bool SaveEditorShortcuts(const CString&,CString&,const CString* expected=nullptr);static bool DispatchAppCommand(UINT,HWND owner);
     static bool CaptureIntoPage(EditorFrame*);
 protected:
     BOOL PreTranslateMessage(MSG*)override;
@@ -25,6 +25,8 @@ protected:
     afx_msg void OnEnterMenuLoop(BOOL);afx_msg void OnExitMenuLoop(BOOL);
 private:
     friend class ::SimpleCaptureToolApp;
+    friend class EditorRefinementsAccess;
+    friend class AssetSelectionAccess;
     friend class ShellAccess;
     friend class CaptureLatencyAccess;
     friend class ImageHomeAccess;
@@ -39,7 +41,7 @@ private:
     friend class PreferenceAccess;
     friend class CaptureAlignmentAccess;
     friend class SavePaintAccess;friend class SaveDirectoryAccess;friend class ScreenshotOnlyAccess;
-    struct WorkResult {core::Image image;core::DocumentState document;CString path,error;int action=0;services::CaptureTarget target;std::shared_ptr<const services::CapturedCursor> cursor;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<const core::Image> source;HWND editor=nullptr;CSize dimensions{1280,720};CWnd* imageOwner=nullptr;};
+    struct WorkResult {core::Image image;core::DocumentState document;CString path,error;int action=0;bool horizontal=false;services::CaptureTarget target;std::shared_ptr<const services::CapturedCursor> cursor;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<const core::Image> source;HWND editor=nullptr;CSize dimensions{1280,720};CWnd* imageOwner=nullptr;};
     HWND captureIntoEditor_=nullptr;EditorFrame* captureIntoOwner_=nullptr;uint64_t captureIntoRevision_=0,captureIntoEpoch_=0,captureIntoCrop_=0;bool captureIntoRequested_=false;std::vector<int> captureIntoSelection_;std::function<void()> captureIntoAudit_;
     bool QueueCaptureWork(std::function<WorkResult()>);
     void BeginCapture(UINT);void LaunchFrozen(UINT);void HandleCapture(WorkResult&);

@@ -4,7 +4,7 @@ namespace sct::ui {
 void EditorFrame::OnContextMenu(CWnd* source,CPoint point){
     if(source&&source!=this){CFrameWnd::OnContextMenu(source,point);return;}
     const HWND root=::GetAncestor(m_hWnd,GA_ROOT);
-    if(screenColorModal_||dragging_||objectGesture_||cropGesture_||panning_||canvasHandle_>=0||canvasPending_||sidebar_.Dragging()||(job_.Busy()&&activeAction_!=0)||!IsWindowEnabled()||(root&&!::IsWindowEnabled(root)))return;
+    if(pathMode_||screenColorModal_||dragging_||objectGesture_||cropGesture_||panning_||canvasHandle_>=0||canvasPending_||sidebar_.Dragging()||(job_.Busy()&&activeAction_!=0)||!IsWindowEnabled()||(root&&!::IsWindowEnabled(root)))return;
     if(point==CPoint(-1,-1)){point=canvas_.CenterPoint();ClientToScreen(&point);}else{auto client=point;ScreenToClient(&client);if(!canvas_.PtInRect(client))return;const int hit=document_.HitTest(ImagePoint(client),std::max(2,static_cast<int>(5/zoom_)),true);const auto ids=Selection();if(hit>=0&&std::find(ids.begin(),ids.end(),hit)==ids.end()){if(!FinishPropertyDraft()||!FinishText(true))return;SetSelection({hit});}}
     CMenu menu;if(!menu.CreatePopupMenu())return;std::vector<UINT> allowed;const auto selected=Selection();const bool objects=!selected.empty(),editable=objects&&!SelectionLocked(),crop=cropRevision_==revision_&&!cropRegion_.IsRectEmpty();
     auto add=[&](UINT command,Text label,bool enabled=true){menu.AppendMenu(MF_STRING|(enabled?0:MF_GRAYED),command,Tr(label));if(enabled)allowed.push_back(command);};

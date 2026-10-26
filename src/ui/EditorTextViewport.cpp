@@ -5,6 +5,7 @@ void EditorFrame::TextPosition()
 {
     if(!textEditing_||!text_.GetSafeHwnd())return;
     if(!richSync_&&!ReadRichText(textDraft_)){status_.SetWindowText(Tr(Text::InvalidValue));return;}
+    const bool custom=textDraft_.textPadding||textDraft_.textLineSpacing!=100||textDraft_.textAutoHeight;const DWORD border=custom?0:WS_BORDER|WS_VSCROLL;if((text_.GetStyle()&(WS_BORDER|WS_VSCROLL))!=border){text_.ModifyStyle(WS_BORDER|WS_VSCROLL,border,SWP_FRAMECHANGED);inlineClipValid_=false;}
     CRect bounds=ScreenRect(textDraft_.rect);
     bounds.right=std::max(bounds.right,bounds.left+40);
     bounds.bottom=std::max(bounds.bottom,bounds.top+32);
@@ -44,7 +45,7 @@ void EditorFrame::TextPosition()
     }
     const DWORD align=textDraft_.alignment%3==1?ES_CENTER:textDraft_.alignment%3==2?ES_RIGHT:ES_LEFT;
     if((text_.GetStyle()&(ES_CENTER|ES_RIGHT))!=align)text_.ModifyStyle(ES_CENTER|ES_RIGHT,align);
-    CRect content;text_.GetClientRect(content);content.DeflateRect(Px(m_hWnd,3),Px(m_hWnd,2));
+    CRect content;text_.GetClientRect(content);if(custom){const int x=textDraft_.textPadding+(textDraft_.tool==core::Tool::Callout?textDraft_.width+8:0),y=textDraft_.textPadding+(textDraft_.tool==core::Tool::Callout?textDraft_.width+4:0);content.DeflateRect(static_cast<int>(std::lround(x*zoom_)),static_cast<int>(std::lround(y*zoom_)));}else content.DeflateRect(Px(m_hWnd,3),Px(m_hWnd,2));
     if(textDraft_.alignment>=3){
         CString value;text_.GetWindowText(value);CClientDC dc(&text_);auto* previous=dc.SelectObject(&inlineFont_);
         CRect measured(0,0,std::max(1,content.Width()),0);
@@ -54,6 +55,6 @@ void EditorFrame::TextPosition()
     }
     SyncRichText();text_.SetRectNP(&content);
     if(!(text_.GetStyle()&WS_VISIBLE))text_.ShowWindow(SW_SHOWNOACTIVATE);
-    text_.Invalidate(FALSE);
+    text_.Invalidate(FALSE);if(textDraft_.textAutoHeight&&!textResizing_)text_.SendMessage(EM_REQUESTRESIZE);
 }
 }

@@ -3,6 +3,7 @@
 #include "MainFeatures.h"
 #include "../services/LanguageService.h"
 namespace sct::ui {
+bool MainFrame::SaveStickerLibrary(const CString& data,const CString& expected,CString& error){auto* main=dynamic_cast<MainFrame*>(AfxGetApp()->m_pMainWnd);services::Settings draft;services::ConfigService config;if(main)draft=main->settings_;else if(!config.Load(draft,error))return false;if(draft.stickerLibrary!=expected){error=Tr(Text::Busy);return false;}if(data==expected)return true;draft.stickerLibrary=data;if(!(main?main->config_:config).Save(draft,error))return false;if(main)main->settings_=std::move(draft);return true;}
 bool MainFrame::SaveEditorShortcuts(const CString& data,CString& error,const CString* expected){auto* main=dynamic_cast<MainFrame*>(AfxGetApp()->m_pMainWnd);services::Settings draft;services::ConfigService config;if(main)draft=main->settings_;else if(!config.Load(draft,error))return false;if(expected&&draft.editorShortcuts!=*expected){error=Tr(Text::Busy);return false;}draft.editorShortcuts=data;if(!(main?main->config_:config).Save(draft,error))return false;if(main)main->settings_=std::move(draft);RefreshLanguageWindows();return true;}
 CString MainFrame::ImageSaveDirectory(){
     auto* main=dynamic_cast<MainFrame*>(AfxGetApp()->m_pMainWnd);
@@ -53,6 +54,7 @@ bool MainFrame::ApplySettings(const services::Settings& draft,CString& error)
     // Editor Home has its own transaction; an older open settings dialog must not overwrite it.
     auto merged=draft;merged.editorHome=settings_.editorHome;merged.editorHomeConfigured=settings_.editorHomeConfigured;
     merged.toolStyles=settings_.toolStyles;
+    merged.stickerLibrary=settings_.stickerLibrary;
     merged.palette=settings_.palette;
     merged.lastImageDirectory=settings_.lastImageDirectory;
     merged.editorShortcuts=settings_.editorShortcuts;

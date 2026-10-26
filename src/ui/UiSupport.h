@@ -67,6 +67,11 @@ enum Command : UINT {
     DuplicatePage,CaptureInto,ExportGuide,ObjectsHere,PictureRotate,PictureFlipH,PictureFlipV,FindText,InputLevels,Perspective,
     PixelRect,PixelEllipse,PixelLasso,PixelReplace,PixelAdd,PixelSubtract,
     CropPictureObject,PictureCropBounds,ResetPictureCrop,PixelMagic,PixelByColor,PixelInvert,PixelGrow,PixelShrink,ShapeTriangle,ShapeDiamond,ShapePentagon,ShapeHexagon,DragImage,RunFont,RunSize,RunColor,RunBold,RunItalic,RunUnderline,RunClear,
+    CopyStyle,PasteStyle,ReplacePicture,ArrowOneBend,ArrowTwoBends,ArrowHorizontal,ArrowVertical,GridSettings,PrivacyMosaic,ClassicMosaic,CloneSource,PictureAdjust,PictureAdjustBypass,
+    SelectSameType,SelectSameLine,SelectSameFill,TextLayout,PictureMask,FeatherSelection,SmoothPen,ArrowEnds,FreePolygon,Polyline,CenterDrawing,ConnectObjects,DetachConnector,
+    CalloutTailPosition,HighlightBlend,ExportScaled,CopyScaled,StampCopies,BatchExport,PictureAngle,StrokePixels,
+    ExportSelectedPng,StickerLibrary,MaskOverlay,MaskOverlaySettings,ConnectorAnchors,SeparateOpacity,PictureFilters,PixelIntersect,PictureAlphaSelection,
+    ReflowObjects,PictureOriginalSize,StyleGallery,RepeatLastEffect,ReshowLastEffect,SweepObjects,BlurBrush,MosaicBrush,BrushSettings,PictureCard,ExportSelectedSvg,
     CustomizeEditorHome=42400,EditorHomeList,EditorHomeUp,EditorHomeDown,EditorHomeDefaults,EditorHomeAll,EditorHomeNone,
     RibbonTabs=42900,WorkspaceTabs,WorkspaceClose,ThumbnailPane,ZoomChoice,ZoomSlider,HorizontalScroll,VerticalScroll,FontSizeChoice,LineStyleChoice,OpacityChoice,RibbonOverflow,MosaicSlider,WorkspaceChoose,
     EditorToolFirst=43000,EditorToolLast=43255,
@@ -76,7 +81,8 @@ enum Command : UINT {
     SidebarTabs=44400,SidebarList,SidebarClose,SidebarApply,SidebarValueFirst=44420,SidebarValueLast=44427,
     SearchQuery=44500,SearchList,CompareMode,CompareDivider,
     GuideList=44600,GuideUp,GuideDown,GuideTitleEdit,GuideCaptionEdit,HistogramBlack,HistogramWhite,HistogramSelection,
-    PreviewOriginal=44700,PreviewSplit,PreviewDivider
+    PreviewOriginal=44700,PreviewSplit,PreviewDivider,ManualHorizontal=44800,
+    BatchList=44900,BatchNameEdit,BatchFolderEdit,BatchBrowse,BatchFormatChoice,BatchQualityEdit,SelectRatio=44920,StickerList=44950,StickerAdd,StickerRename,StickerRemove,StickerSave
 };
 constexpr UINT TrayMessage = WM_APP + 21;
 }

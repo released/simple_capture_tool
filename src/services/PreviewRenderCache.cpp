@@ -3,6 +3,7 @@
 namespace sct::services {
 void PreviewRenderCache::Clear(){base_.reset();pixels_={};revision_=0;prefix_=0;bytes_=0;}
 bool PreviewRenderCache::Render(const core::DocumentState& state,core::Image& output,CString& error,uint64_t revision,size_t prefix){
+    if(std::any_of(state.objects.begin(),state.objects.end(),[](const auto& a){return a.sourceId||a.targetId;})){Clear();return RenderDocument(state,output,error);}
     if(!state.base||state.base->Empty()||!prefix||prefix>state.objects.size()||state.base->pixels.size()>Limit){Clear();return RenderDocument(state,output,error);}
     try{
     if(base_!=state.base||revision_!=revision||prefix_!=prefix||pixels_.Empty()){

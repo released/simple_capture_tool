@@ -16,7 +16,7 @@ void RibbonButton::OnLButtonUp(UINT flags,CPoint point){if(arrowPressed_){const 
 void RibbonButton::OnCaptureChanged(CWnd* window){arrowPressed_=false;SetState(FALSE);CButton::OnCaptureChanged(window);}
 void RibbonButton::OnKeyDown(UINT key,UINT repeat,UINT flags){if(Dropdown()&&(key==VK_F4||key==VK_DOWN)){NotifyDropdown();return;}CButton::OnKeyDown(key,repeat,flags);}
 void RibbonButton::OnSysKeyDown(UINT key,UINT repeat,UINT flags){if(Dropdown()&&key==VK_DOWN){NotifyDropdown();return;}CButton::OnSysKeyDown(key,repeat,flags);}
-void EditorRibbon::ChoiceMenu(CMenu& menu,const RibbonButton& button)const{menu.CreatePopupMenu();const auto* page=dynamic_cast<EditorFrame*>(GetParent());for(const auto& c:button.choices){const UINT flags=page&&c.id>=ObjectAlignLeft&&c.id<=SnapObjects?page->AlignmentMenuFlags(c.id):c.id==button.command?MF_CHECKED:0;menu.AppendMenu(MF_STRING|flags,c.id,Tr(c.label));}}
+void EditorRibbon::ChoiceMenu(CMenu& menu,const RibbonButton& button)const{menu.CreatePopupMenu();const auto* page=dynamic_cast<EditorFrame*>(GetParent());for(const auto& c:button.choices){const UINT flags=page&&(c.id>=ObjectAlignLeft&&c.id<=SnapObjects||c.id==CenterDrawing||c.id==StampCopies||c.id==MaskOverlay||c.id==SweepObjects||c.id==RepeatLastEffect||c.id==ReshowLastEffect)?page->AlignmentMenuFlags(c.id):c.id==button.command?MF_CHECKED:0;menu.AppendMenu(MF_STRING|flags,c.id,Tr(c.label));}}
 void EditorRibbon::OverflowMenu(CMenu& menu)const{
     menu.CreatePopupMenu();for(const auto& e:entries_)if(e.tab==tab_){if(e.button->choices.empty())menu.AppendMenu(MF_STRING,e.button->command,Tr(e.button->label));else{CMenu sub;ChoiceMenu(sub,*e.button);menu.AppendMenu(MF_POPUP,reinterpret_cast<UINT_PTR>(sub.Detach()),Tr(e.button->label));}}
 }

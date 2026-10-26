@@ -78,6 +78,11 @@ public:static void Run(Check check,std::ofstream& log,const std::filesystem::pat
 namespace sct::services {
 int RunAlignmentTests(){const auto dir=paths::TestEvidence()/L"alignment";std::filesystem::create_directories(dir);std::ofstream log(dir/L"alignment-test.log");int total=0,fail=0;Check check=[&](bool ok,const char* name){++total;if(!ok)++fail;log<<(ok?"PASS ":"FAIL ")<<name<<"\n";log.flush();};
     try{NativeTestInput input;CString error;InitializeLanguages(ConfigService::ExecutableDirectory(),error);
+        if(CString(GetCommandLine()).Find(L"--test-editor-refinements-only")>=0){EditorRefinementsChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-asset-selection-only")>=0){AssetSelectionChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-documentation-tools-only")>=0){DocumentationToolsChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-advanced-editing-only")>=0){AdvancedEditingChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-productivity-only")>=0){ProductivityChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-screenshot-only")>=0){ScreenshotOnlyChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-save-directory-only")>=0){SaveDirectoryChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-picture-crop-only")>=0){EditorEnhancementChecks(check,log,dir,1);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}

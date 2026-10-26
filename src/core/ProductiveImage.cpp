@@ -1,0 +1,26 @@
+#include "pch.h"
+#include "ProductiveImage.h"
+#include "AnnotationExtensions.h"
+#include <gdiplus.h>
+namespace sct::core {
+namespace {bool ValidImage(const Image& i){return i.width>0&&i.height>0&&i.width<=32768&&i.height<=32768&&static_cast<uint64_t>(i.width)*i.height*4==i.pixels.size()&&i.pixels.size()<=512ULL*1024*1024;}}
+Annotation ReplacePicture(const Annotation& old,Image image,int mode){
+    PictureSource(old);if(old.locked||old.group||old.hidden||!ValidImage(image)||mode<0||mode>2)throw std::runtime_error("Select one unlocked ungrouped picture");
+    auto a=old;const int w=old.rect.right-old.rect.left,h=old.rect.bottom-old.rect.top;if(w<1||h<1)throw std::runtime_error("Invalid picture bounds");
+    a.sourceCrop={};if(mode==0){const double scale=std::min(double(w)/image.width,double(h)/image.height);a.rect.right=a.rect.left+std::max(1,static_cast<int>(std::lround(image.width*scale)));a.rect.bottom=a.rect.top+std::max(1,static_cast<int>(std::lround(image.height*scale)));}
+    if(mode==2){int cw=image.width,ch=image.height;if(double(cw)/ch>double(w)/h)cw=std::max(1,static_cast<int>(std::lround(double(ch)*w/h)));else ch=std::max(1,static_cast<int>(std::lround(double(cw)*h/w)));a.sourceCrop={(image.width-cw)/2,(image.height-ch)/2,(image.width-cw)/2+cw,(image.height-ch)/2+ch};}
+    a.asset=std::make_shared<Image>(std::move(image));ValidateExtensions(a);return a;
+}
+CRect SnapGrid(CRect r,int step,double tolerance){if(step<1||step>1024||!std::isfinite(tolerance)||tolerance<0)throw std::runtime_error("Invalid grid");for(auto v:{r.left,r.top,r.right,r.bottom})if(std::abs(int64_t(v))>1000000)throw std::runtime_error("Grid coordinate limit");const auto x=static_cast<LONG>(std::lround(double(r.left)/step))*step,y=static_cast<LONG>(std::lround(double(r.top)/step))*step;if(std::abs(int64_t(x))>1000000||std::abs(int64_t(y))>1000000)throw std::runtime_error("Grid coordinate limit");r.OffsetRect(std::abs(x-r.left)<=tolerance?x-r.left:0,std::abs(y-r.top)<=tolerance?y-r.top:0);return r;}
+void PrivacyMosaic(Image& image,const Annotation& a){RECT r{},bounds{0,0,image.width,image.height};if(!IntersectRect(&r,&bounds,&a.rect))return;const int size=MosaicBlockSize(a);
+    for(int y=r.top;y<r.bottom;++y)for(int x=r.left;x<r.right;++x){const uint32_t hash=(static_cast<uint32_t>((x-a.rect.left)/size)*73856093u)^(static_cast<uint32_t>((y-a.rect.top)/size)*19349663u);const int shade=static_cast<int>(hash%81)-40;auto* p=image.Row(y)+x*4;const BYTE colors[]={GetBValue(a.color),GetGValue(a.color),GetRValue(a.color)};for(int c=0;c<3;++c)p[c]=static_cast<BYTE>(std::clamp(int(colors[c])+shade,0,255));p[3]=255;}
+}
+Annotation ClonePatch(const Image& source,const Annotation& stroke){
+    if(!ValidImage(source)||stroke.points.empty()||stroke.points.size()>1000000||stroke.width<1||stroke.width>128||stroke.alpha<0||stroke.alpha>255||stroke.focus.x<0||stroke.focus.y<0||stroke.focus.x>=source.width||stroke.focus.y>=source.height)throw std::runtime_error("Choose a clone source inside the image");
+    CRect box(stroke.points.front(),stroke.points.front());for(auto p:stroke.points){if(p.x<0||p.y<0||p.x>=source.width||p.y>=source.height)throw std::runtime_error("Clone point outside image");box.left=std::min(box.left,p.x);box.top=std::min(box.top,p.y);box.right=std::max(box.right,p.x);box.bottom=std::max(box.bottom,p.y);}const int radius=stroke.width*2;box.InflateRect(radius+1,radius+1);box.IntersectRect(box,CRect(0,0,source.width,source.height));
+    if(source.pixels.size()+static_cast<uint64_t>(box.Width())*box.Height()*8>512ULL*1024*1024)throw std::runtime_error("Clone working buffer limit (512 MiB)");Image mask,patch;if(!mask.Create(box.Width(),box.Height())||!patch.Create(box.Width(),box.Height()))throw std::runtime_error("Clone allocation failed");std::fill(mask.pixels.begin(),mask.pixels.end(),BYTE{0});std::fill(patch.pixels.begin(),patch.pixels.end(),BYTE{0});
+    {using namespace Gdiplus;Bitmap bitmap(mask.width,mask.height,mask.width*4,PixelFormat32bppARGB,mask.pixels.data());Graphics g(&bitmap);g.SetSmoothingMode(SmoothingModeAntiAlias);g.SetCompositingMode(CompositingModeSourceCopy);Pen pen(Color(255,255,255,255),static_cast<REAL>(radius*2));pen.SetStartCap(LineCapRound);pen.SetEndCap(LineCapRound);pen.SetLineJoin(LineJoinRound);std::vector<Point> points;for(auto p:stroke.points)points.emplace_back(p.x-box.left,p.y-box.top);if(points.size()>1)g.DrawLines(&pen,points.data(),static_cast<INT>(points.size()));SolidBrush brush(Color(255,255,255,255));g.FillEllipse(&brush,points.front().X-radius,points.front().Y-radius,radius*2,radius*2);if(g.GetLastStatus()!=Ok)throw std::runtime_error("Clone mask failed");}
+    const int dx=stroke.focus.x-stroke.points.front().x,dy=stroke.focus.y-stroke.points.front().y;for(int y=0;y<patch.height;++y)for(int x=0;x<patch.width;++x){const int sx=x+box.left+dx,sy=y+box.top+dy;if(sx<0||sy<0||sx>=source.width||sy>=source.height)continue;auto* p=patch.Row(y)+x*4;memcpy(p,source.Row(sy)+sx*4,4);p[3]=static_cast<BYTE>((int(p[3])*mask.Row(y)[x*4+3]+127)/255);}
+    Annotation result;result.tool=Tool::Picture;result.rect=box;result.asset=std::make_shared<Image>(std::move(patch));result.sampling=0;result.alpha=stroke.alpha;return result;
+}
+}

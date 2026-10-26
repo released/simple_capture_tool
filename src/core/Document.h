@@ -3,7 +3,7 @@
 #include "DocumentResources.h"
 namespace sct::core {
 enum class Tool { Pen, Rectangle, Ellipse, Arrow, Mosaic, Crop, Text, Select, Step, Highlight, Redact, Blur, Picture, Magnifier, Spotlight,
-    Line,RoundRectangle,Callout,Stamp,CursorStamp,Eraser,SmartEraser,Fill,Eyedropper,PixelSelect,CurvedArrow,Polygon };
+    Line,RoundRectangle,Callout,Stamp,CursorStamp,Eraser,SmartEraser,Fill,Eyedropper,PixelSelect,CurvedArrow,Polygon,ElbowArrow,CloneBrush };
 struct TextRun {int start=0,length=0;CString font=L"Microsoft JhengHei UI";int size=28;COLORREF color=RGB(240,40,40);bool bold=false,italic=false,underline=false;};
 struct Annotation {
     Tool tool = Tool::Pen;
@@ -22,6 +22,13 @@ struct Annotation {
     std::shared_ptr<const Image> asset;
     RECT sourceCrop{};
     std::vector<TextRun> textRuns;
+    int mosaicMode=0,sampling=2,brightness=0,contrast=0,elbowBends=2;
+    bool pictureAdjust=true,elbowVertical=false;
+    int textPadding=0,textLineSpacing=100,pictureMask=0,pictureRadius=16,startHead=0,endHead=1,headSize=0;
+    bool textAutoHeight=false;
+    int highlightBlend=0;bool effectBrush=false;
+    int strokeOpacity=255,fillOpacity=255,sourceAnchor=0,targetAnchor=0;
+    uint32_t id=0,sourceId=0,targetId=0;
 };
 int MosaicBlockSize(const Annotation&);
 int MosaicStrengthPercent(const Annotation&);
@@ -48,7 +55,7 @@ public:
     int HitTest(POINT point, int tolerance = 5, bool direct = false) const;
     static void Translate(Annotation& object, int dx, int dy);
     static void Fit(Annotation& object, RECT rect);
-    void Reset(DocumentState state) { state_=std::move(state); undo_.clear(); redo_.clear(); }
+    void Reset(DocumentState state);
     void Account(DocumentResources&)const;
     size_t UndoCount()const{return undo_.size();}size_t RedoCount()const{return redo_.size();}
     void ClearHistory(){std::vector<DocumentState>().swap(undo_);std::vector<DocumentState>().swap(redo_);}

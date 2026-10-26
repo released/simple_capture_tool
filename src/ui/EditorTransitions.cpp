@@ -5,7 +5,7 @@ namespace sct::ui {
 bool EditorFrame::FinishPropertyDraft()
 {
     if(!sidebar_.Dirty())return true;
-    if(screenColorModal_||maskGesture_||maskPending_||dragging_||objectGesture_||cropGesture_||panning_||sidebar_.Dragging()||canvasHandle_>=0||canvasPending_||(job_.Busy()&&activeAction_!=0)){
+    if(sweepGesture_||clonePending_||screenColorModal_||maskGesture_||maskPending_||dragging_||objectGesture_||cropGesture_||panning_||sidebar_.Dragging()||canvasHandle_>=0||canvasPending_||(job_.Busy()&&activeAction_!=0)){
         status_.SetWindowText(Tr(Text::Busy));return false;
     }
     return sidebar_.FinishProperties();
@@ -15,18 +15,18 @@ void EditorFrame::ChangeTool(int requested)
     const int previous=static_cast<int>(style_.tool);const HWND root=::GetAncestor(m_hWnd,GA_ROOT);
     auto restore=[&]{tools_.SetCurSel(previous);ribbon_.CheckTool(previous);};
     if(requested<0||requested>=static_cast<int>(ToolLabels().size())){restore();status_.SetWindowText(Tr(Text::InvalidValue));return;}
-    if(screenColorModal_||maskGesture_||maskPending_||dragging_||objectGesture_||cropGesture_||panning_||sidebar_.Dragging()||canvasHandle_>=0||canvasPending_||(job_.Busy()&&activeAction_!=0)||!IsWindowEnabled()||(root&&!::IsWindowEnabled(root))){
+    if(sweepGesture_||clonePending_||screenColorModal_||maskGesture_||maskPending_||dragging_||objectGesture_||cropGesture_||panning_||sidebar_.Dragging()||canvasHandle_>=0||canvasPending_||(job_.Busy()&&activeAction_!=0)||!IsWindowEnabled()||(root&&!::IsWindowEnabled(root))){
         restore();status_.SetWindowText(Tr(Text::Busy));return;
     }
     // Finishing properties can synchronize the combo; keep the requested tool separately.
     if(!FinishPropertyDraft()||!FinishText(true)){restore();return;}
-    CancelCrop();CancelComposition();pictureCropMode_=false;colorSelectionMode_=0;
-    if(style_.tool==core::Tool::Highlight){highlightColor_=style_.color;highlightOpacity_=style_.opacity;}
-    style_.tool=static_cast<core::Tool>(requested);style_.group=0;style_.locked=false;style_.sourceCrop={};style_.textRuns.clear();selected_=-1;
-    if(style_.tool==core::Tool::Highlight){style_.color=highlightColor_;style_.opacity=highlightOpacity_;}
-    tools_.SetCurSel(requested);LoadToolStyle();if(style_.tool==core::Tool::Polygon)style_.number=3;
+    if(requested!=static_cast<int>(core::Tool::Select))stampMode_=false;CancelSweep();clonePicking_=false;CancelPath();CancelCrop();CancelComposition();pictureCropMode_=false;colorSelectionMode_=0;
+    if(style_.tool==core::Tool::Highlight){highlightColor_=style_.color;highlightOpacity_=style_.opacity;highlightBlend_=style_.highlightBlend;}
+    style_.id=style_.sourceId=style_.targetId=0;style_.tool=static_cast<core::Tool>(requested);style_.group=0;style_.locked=false;style_.sourceCrop={};style_.textRuns.clear();selected_=-1;
+    if(style_.tool==core::Tool::Highlight){style_.color=highlightColor_;style_.opacity=highlightOpacity_;style_.highlightBlend=highlightBlend_;}
+    tools_.SetCurSel(requested);LoadToolStyle();style_.effectBrush=false;if(style_.tool==core::Tool::Polygon)style_.number=3;
     if(style_.tool!=core::Tool::PixelSelect)pixelSelection_.SetRectEmpty();
-    SyncStyle();Layout();ribbon_.CheckTool(requested);InvalidateRect(canvas_,FALSE);
+    SyncStyle();Layout();ribbon_.CheckTool(requested);InvalidateRect(canvas_,FALSE);if(style_.tool==core::Tool::CloneBrush)status_.SetWindowText(Tr(Text::CloneHelp));
     // The file dialog may destroy its owner; no member access may follow dispatch.
     if(style_.tool==core::Tool::Picture)OnAction(InsertImage);
 }

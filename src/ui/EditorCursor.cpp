@@ -14,6 +14,7 @@ LPCTSTR EditorFrame::CanvasCursor(CPoint point)const{
     const int grip=canvasHandle_>=0?canvasHandle_:CanvasGrip(point);
     if(grip>=0)return grip==1?IDC_SIZEWE:grip==2?IDC_SIZENS:IDC_SIZENWSE;
     if(panning_)return IDC_HAND;
+    if(sweepMode_)return IDC_CROSS;
     if(objectGesture_)return objectMarquee_?IDC_CROSS:ResizeCursor(objectHandle_);
     if(dragging_)return pixelMoving_?IDC_SIZEALL:style_.tool==core::Tool::Select?ResizeCursor(handle_):IDC_CROSS;
     if(cropGesture_)return cropHandle_==-2?IDC_CROSS:ResizeCursor(cropHandle_);
@@ -24,7 +25,7 @@ LPCTSTR EditorFrame::CanvasCursor(CPoint point)const{
         return box.PtInRect(point)?IDC_SIZEALL:IDC_CROSS;
     }
     if(style_.tool==core::Tool::PixelSelect){if(maskGesture_||maskCombine_!=core::MaskCombine::Replace)return IDC_CROSS;const auto mask=ActiveMask();return mask?(mask->Contains({ImagePoint(point).x-(pixelSelection_.left-mask->bounds.left),ImagePoint(point).y-(pixelSelection_.top-mask->bounds.top)})?IDC_SIZEALL:IDC_CROSS):!pixelSelection_.IsRectEmpty()&&ScreenRect(pixelSelection_).PtInRect(point)?IDC_SIZEALL:IDC_CROSS;}
-    if(style_.tool==core::Tool::Fill||style_.tool==core::Tool::Eyedropper||GetKeyState(VK_MENU)<0)return IDC_CROSS;
+    if(pathMode_||style_.tool==core::Tool::CloneBrush||style_.tool==core::Tool::Fill||style_.tool==core::Tool::Eyedropper||GetKeyState(VK_MENU)<0)return IDC_CROSS;
     const auto ids=Selection();if(ids.empty()||!VisibleSelection())return IDC_CROSS;
     const int hit=document_.HitTest(ImagePoint(point),std::max(2,static_cast<int>(5/zoom_)),style_.tool!=core::Tool::Select);
     const bool body=ids.size()>1&&ScreenRect(core::composition::Bounds(document_.State(),ids)).PtInRect(point)||std::find(ids.begin(),ids.end(),hit)!=ids.end();

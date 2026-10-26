@@ -17,8 +17,10 @@ void EditorFrame::ShowMore()
 }
 void EditorFrame::OnAction(UINT id)
 {
-    if(id>=BringToFront&&id<=RunClear&&(maskGesture_||maskPending_||dragging_||panning_||sidebar_.Dragging()||!IsWindowEnabled()||!::IsWindowEnabled(::GetAncestor(m_hWnd,GA_ROOT)))){status_.SetWindowText(Tr(Text::Busy));return;}
-    if(screenColorModal_||objectGesture_||cropGesture_||maskGesture_){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(id>=BringToFront&&id<=ExportSelectedSvg&&(maskGesture_||maskPending_||dragging_||panning_||sidebar_.Dragging()||!IsWindowEnabled()||!::IsWindowEnabled(::GetAncestor(m_hWnd,GA_ROOT)))){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(sweepGesture_){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(pathDrawing_&&id!=CloseDocument&&id!=CloseAllDocuments){status_.SetWindowText(Tr(Text::PathHelp));return;}
+    if(clonePending_||screenColorModal_||objectGesture_||cropGesture_||maskGesture_){status_.SetWindowText(Tr(Text::Busy));return;}
     EditorPolling(true);
     if(id==CloseDocument||id==CloseAllDocuments){DocumentCommand(id);return;}
     if(canvasHandle_>=0||canvasPending_){status_.SetWindowText(Tr(Text::Busy));return;}
@@ -36,6 +38,11 @@ void EditorFrame::OnAction(UINT id)
     if(!PrepareClipboardAction(id))return;
     if(job_.Busy()){if(activeAction_==0){if(pendingAction_!=SelectPixels)QueueAction(id);}else status_.SetWindowText(Tr(Text::Busy));return;}
     try {
+        if(id>=ReflowObjects&&id<=ExportSelectedSvg){RefinementCommand(id);return;}
+        if(id>=ExportSelectedPng&&id<=PictureAlphaSelection){AssetCommand(id);return;}
+        if(id>=CalloutTailPosition&&id<=StrokePixels){WorkflowCommand(id);return;}
+        if(id>=SelectSameType&&id<=DetachConnector){AdvancedCommand(id);return;}
+        if(id>=CopyStyle&&id<=PictureAdjustBypass){ProductivityCommand(id);return;}
         if(id>=CropPictureObject&&id<=DragImage){EnhancementCommand(id);return;}
         if(id>=DuplicatePage&&id<=Perspective){DiscoveryCommand(id);return;}
         if(id>=PixelRect&&id<=PixelSubtract){MaskCommand(id);return;}

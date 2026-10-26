@@ -2,13 +2,13 @@
 #include "ImageOperations.h"
 #include <gdiplus.h>
 namespace sct::core {
-Image Resize(const Image& image,int width,int height)
+Image Resize(const Image& image,int width,int height,int sampling)
 {
-    Image out; if(image.Empty() || !out.Create(width,height)) return {};
+    Image out; if(image.Empty()||sampling<0||sampling>2|| !out.Create(width,height)) return {};
     std::fill(out.pixels.begin(),out.pixels.end(),BYTE{0});
     Gdiplus::Bitmap src(image.width,image.height,image.width*4,PixelFormat32bppARGB,const_cast<BYTE*>(image.pixels.data()));
     Gdiplus::Bitmap dst(width,height,width*4,PixelFormat32bppARGB,out.pixels.data()); Gdiplus::Graphics g(&dst);
-    g.SetCompositingMode(Gdiplus::CompositingModeSourceCopy); g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+    g.SetCompositingMode(Gdiplus::CompositingModeSourceCopy); g.SetInterpolationMode(sampling==0?Gdiplus::InterpolationModeNearestNeighbor:sampling==1?Gdiplus::InterpolationModeBilinear:Gdiplus::InterpolationModeHighQualityBicubic);if(sampling==0)g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
     Gdiplus::ImageAttributes attrs; attrs.SetWrapMode(Gdiplus::WrapModeTileFlipXY);
     if(g.DrawImage(&src,Gdiplus::Rect(0,0,width,height),0,0,image.width,image.height,Gdiplus::UnitPixel,&attrs)!=Gdiplus::Ok) return {};
     return out;
@@ -76,18 +76,18 @@ Image Flatten(const Image& image,COLORREF bg)
     for(size_t i=0;i<out.pixels.size();i+=4) { const int alpha=out.pixels[i+3]; for(int c=0;c<3;++c) out.pixels[i+c]=static_cast<BYTE>((out.pixels[i+c]*alpha+colors[c]*(255-alpha)+127)/255);out.pixels[i+3]=255; }
     return out;
 }
-bool ResizeDocument(Document& doc,int w,int h)
+bool ResizeDocument(Document& doc,int w,int h,int sampling)
 {
-    auto s=doc.State(); auto base=Resize(*s.base,w,h); if(base.Empty()) return false;
+    auto s=doc.State(); auto base=Resize(*s.base,w,h,sampling); if(base.Empty()) return false;for(auto& a:s.objects)if(a.tool==Tool::Picture)a.sampling=sampling;
     const double sx=static_cast<double>(w)/doc.Width(),sy=static_cast<double>(h)/doc.Height();
     for(auto& a:s.objects) { RECT r{static_cast<LONG>(std::lround(a.rect.left*sx)),static_cast<LONG>(std::lround(a.rect.top*sy)),static_cast<LONG>(std::lround(a.rect.right*sx)),static_cast<LONG>(std::lround(a.rect.bottom*sy))};
-        Document::Fit(a,r);if(a.anchored){a.focus.x=static_cast<LONG>(std::lround(a.focus.x*sx));a.focus.y=static_cast<LONG>(std::lround(a.focus.y*sy));}a.width=std::clamp(static_cast<int>(a.width*std::min(sx,sy)),1,128);a.fontSize=std::clamp(static_cast<int>(a.fontSize*std::min(sx,sy)),6,512);for(auto& run:a.textRuns)run.size=std::clamp(static_cast<int>(run.size*std::min(sx,sy)),6,512); }
+        Document::Fit(a,r);if(a.anchored&&a.tool!=Tool::Callout){a.focus.x=static_cast<LONG>(std::lround(a.focus.x*sx));a.focus.y=static_cast<LONG>(std::lround(a.focus.y*sy));}a.width=std::clamp(static_cast<int>(a.width*std::min(sx,sy)),1,128);a.fontSize=std::clamp(static_cast<int>(a.fontSize*std::min(sx,sy)),6,512);for(auto& run:a.textRuns)run.size=std::clamp(static_cast<int>(run.size*std::min(sx,sy)),6,512); }
     s.base=std::make_shared<Image>(std::move(base)); doc.Commit(std::move(s));return true;
 }
 bool CropDocument(Document& doc,RECT crop)
 {
     RECT bounds{0,0,doc.Width(),doc.Height()},r{}; if(!IntersectRect(&r,&crop,&bounds)) return false;
     auto s=doc.State(); auto image=s.base->Crop(r); if(image.Empty()) return false;
-    s.base=std::make_shared<Image>(std::move(image));for(auto& a:s.objects){Document::Translate(a,-r.left,-r.top);if(a.anchored){a.focus.x-=r.left;a.focus.y-=r.top;}}doc.Commit(std::move(s));return true;
+    s.base=std::make_shared<Image>(std::move(image));for(auto& a:s.objects){Document::Translate(a,-r.left,-r.top);if(a.anchored&&a.tool!=Tool::Callout){a.focus.x-=r.left;a.focus.y-=r.top;}}doc.Commit(std::move(s));return true;
 }
 }

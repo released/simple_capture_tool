@@ -1,5 +1,5 @@
 param(
-[ValidateSet('ScreenshotOnly','SaveDirectory','PictureCrop','SelectionTools','EditorPreview','PolygonShapes','DragImage','ImportNormalization','TextRuns','Discovery','MaskEditing','CaptureInsert','ColorFilters','ImageReuse','OpenParity','WheelNavigation','TextViewport','EditorTransitions','ImagePrecision','CommandTools','ObjectPayload','EditableLayout','Sidebar','WorkspaceTools','EditorPerformance','ObjectAlignment','DefaultCursor','CropWorkflow','EditorMenus','Composition','ToolStyles','RibbonFont','ColorPicker','ToolTabs','Instance','CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
+[ValidateSet('EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','ScreenshotOnly','SaveDirectory','PictureCrop','SelectionTools','EditorPreview','PolygonShapes','DragImage','ImportNormalization','TextRuns','Discovery','MaskEditing','CaptureInsert','ColorFilters','ImageReuse','OpenParity','WheelNavigation','TextViewport','EditorTransitions','ImagePrecision','CommandTools','ObjectPayload','EditableLayout','Sidebar','WorkspaceTools','EditorPerformance','ObjectAlignment','DefaultCursor','CropWorkflow','EditorMenus','Composition','ToolStyles','RibbonFont','ColorPicker','ToolTabs','Instance','CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
     [switch]$Full,
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Release',
     [switch]$SkipBuild,
@@ -11,6 +11,10 @@ if($Full -and $Scope.Count){throw 'Use affected -Scope or explicit -Full, not bo
 $projectRoot=Split-Path -Parent $PSScriptRoot
 $configurations=if($Configuration -eq 'Both'){@('Release','Debug')}else{@($Configuration)}
 $testArguments=@{
+    EditorRefinements='--alignment-test --test-editor-refinements-only';AssetSelection='--alignment-test --test-asset-selection-only';
+    DocumentationTools='--alignment-test --test-documentation-tools-only';
+    AdvancedEditing='--alignment-test --test-advanced-editing-only';
+    Productivity='--alignment-test --test-productivity-only';
     ScreenshotOnly='--alignment-test --test-screenshot-only';
     SaveDirectory='--alignment-test --test-save-directory-only';
     PictureCrop='--alignment-test --test-picture-crop-only';SelectionTools='--alignment-test --test-selection-tools-only';EditorPreview='--alignment-test --test-editor-preview-only';PolygonShapes='--alignment-test --test-polygon-shapes-only';DragImage='--alignment-test --test-drag-image-only';ImportNormalization='--alignment-test --test-import-normalization-only';TextRuns='--alignment-test --test-text-runs-only';

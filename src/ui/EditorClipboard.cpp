@@ -2,10 +2,11 @@
 #include "EditorFrame.h"
 #include "../core/PixelTools.h"
 #include "../core/ImageOperations.h"
+#include "../core/DocumentationTools.h"
 #include "../services/DocumentRenderer.h"
 #include "../services/ClipboardTransfer.h"
 namespace sct::ui {
-namespace {bool Editable(core::Tool t){using core::Tool;return t==Tool::Pen||t==Tool::Rectangle||t==Tool::Ellipse||t==Tool::Arrow||t==Tool::CurvedArrow||t==Tool::Text||t==Tool::Step||t==Tool::Highlight||t==Tool::Redact||t==Tool::Line||t==Tool::RoundRectangle||t==Tool::Callout||t==Tool::Stamp||t==Tool::CursorStamp||t==Tool::Polygon||t==Tool::Picture;}}
+namespace {bool Editable(core::Tool t){using core::Tool;return t==Tool::Pen||t==Tool::Rectangle||t==Tool::Ellipse||t==Tool::Arrow||t==Tool::CurvedArrow||t==Tool::ElbowArrow||t==Tool::Text||t==Tool::Step||t==Tool::Highlight||t==Tool::Redact||t==Tool::Line||t==Tool::RoundRectangle||t==Tool::Callout||t==Tool::Stamp||t==Tool::CursorStamp||t==Tool::Polygon||t==Tool::Picture;}}
 bool EditorFrame::PrepareClipboardAction(UINT id)
 {
     if(id==Copy||id==Cut){
@@ -40,7 +41,7 @@ void EditorFrame::PollClipboardPaste()
 void EditorFrame::PublishClipboardResult(WorkResult& result)
 {
     CString error;const bool current=services::CanPublishClipboardTransfer(copyTicket_);
-    const bool copied=current&&result.clipboard&&services::PublishClipboardImage(*result.clipboard,m_hWnd,error);CompleteClipboardCopy(copied);
+    const bool copied=current&&result.clipboard&&(result.command==CopyScaled&&scaledPublishAudit_?scaledPublishAudit_(*result.clipboard,error):services::PublishClipboardImage(*result.clipboard,m_hWnd,error));CompleteClipboardCopy(copied);
     if(!copied){status_.SetWindowText(!current?Tr(Text::ClipboardSuperseded):error.IsEmpty()?Tr(Text::ClipboardCopyFailed):error);return;}
     status_.SetWindowText(Tr(Text::Copy));if(result.cut&&result.revision==revision_&&(!result.mask||result.maskEpoch==maskEpoch_)&&result.state.base){document_.Commit(std::move(result.state));selected_=-1;pixelSelection_.SetRectEmpty();Changed();}
 }
@@ -76,7 +77,7 @@ void EditorFrame::ClipboardCommand(UINT id)
     if(id==Cut&&core::composition::Locked(state,ids)){CompleteClipboardCopy(false);return;}
     activeAction_=5;StartWork([state,selected,ids,region,revision,id,mask,epoch]{WorkResult r;r.action=5;r.revision=revision;r.mask=mask;r.maskEpoch=epoch;r.cut=id==Cut;core::Image rendered;if(!services::RenderDocument(state,rendered,r.error))return r;core::DocumentState privateState;
         if(!region.IsRectEmpty()){r.image=mask?core::ExtractMasked(rendered,*mask):rendered.Crop(region);if(r.cut){if(mask)core::ClearMasked(rendered,*mask);else core::ClearRegion(rendered,region);r.state.base=std::make_shared<core::Image>(std::move(rendered));}}
-        else if(selected>=0&&selected<static_cast<int>(state.objects.size())){const auto& a=state.objects[selected];CRect box=core::composition::Bounds(state,ids);int margin=36;for(int i:ids)margin=std::max(margin,state.objects[i].width*6);box.InflateRect(margin,margin);CRect bounds(0,0,rendered.width,rendered.height);box.IntersectRect(box,bounds);if(box.IsRectEmpty()){r.error=L"Selected object is outside image";return r;}
+        else if(selected>=0&&selected<static_cast<int>(state.objects.size())){const auto& a=state.objects[selected];CRect box=core::composition::Bounds(state,ids);for(int i:ids){const auto ink=core::CalloutInkBounds(state.objects[i]);box.UnionRect(box,&ink);}int margin=36;for(int i:ids)margin=std::max(margin,state.objects[i].width*6);box.InflateRect(margin,margin);CRect bounds(0,0,rendered.width,rendered.height);box.IntersectRect(box,bounds);if(box.IsRectEmpty()){r.error=L"Selected object is outside image";return r;}
             if(ids.size()>1||Editable(a.tool)){auto blank=std::make_shared<core::Image>();if(!blank->Create(box.Width(),box.Height())){r.error=L"Clipboard dimensions exceed limit";return r;}std::fill(blank->pixels.begin(),blank->pixels.end(),BYTE{});privateState.base=blank;for(int i:ids){auto object=state.objects[i];core::Document::Translate(object,-box.left,-box.top);privateState.objects.push_back(std::move(object));}if(!services::RenderDocument(privateState,r.image,r.error))return r;}
             else r.image=rendered.Crop(box);if(r.cut)r.state=core::composition::Remove(state,ids);}
         else r.image=std::move(rendered);

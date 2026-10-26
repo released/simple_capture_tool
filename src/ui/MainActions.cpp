@@ -22,7 +22,7 @@ void MainFrame::OnAction(UINT id)
     if(!IsWindowEnabled()||!DialogOwner()->IsWindowEnabled())return;
     if(id==Record||id==Pause||id==Stop)return;
     if(commandAudit_){commandAudit_(id);return;}
-    if((id>=Full&&id<=Scroll)||id==CurrentMonitor||id==LastRegion||id==MenuCapture||id==ManualScroll||id==ActiveWindow){BeginCapture(id);return;}
+    if((id>=Full&&id<=Scroll)||id==CurrentMonitor||id==LastRegion||id==MenuCapture||id==ManualScroll||id==ManualHorizontal||id==ActiveWindow){BeginCapture(id);return;}
     if(id==Hide){HideToTray();return;}if(id==RestoreEditor){RestoreTrayEditor();return;}if(id==Open){ShowWindow(SW_RESTORE);SetForegroundWindow();return;}if(id==Exit){ExitApplication();return;}
     if(id==Folder){try{auto dir=std::filesystem::path(settings_.directory.GetString());if(dir.is_relative())dir=std::filesystem::path(services::ConfigService::ExecutableDirectory().GetString())/dir;std::filesystem::create_directories(dir);ShellExecute(m_hWnd,L"open",dir.c_str(),nullptr,nullptr,SW_SHOWNORMAL);}catch(const std::exception& e){CString error;error.Format(L"%hs",e.what());AfxMessageBox(error);}return;}
     if(job_.Busy()||selecting_||countdownMode_){status_.SetWindowText(Tr(Text::Busy));return;}

@@ -6,10 +6,10 @@ namespace sct::ui {
 void EditorFrame::Preview(){++previewGeneration_;renderPending_=true;EditorPolling(true);}
 void EditorFrame::OnMButtonDown(UINT,CPoint p){if(canvasHandle_>=0||canvasPending_||!canvas_.PtInRect(p))return;panning_=true;panStart_=p;panX_=offsetX_;panY_=offsetY_;SetCapture();}
 void EditorFrame::OnMButtonUp(UINT,CPoint){if(!panning_)return;panning_=false;ReleaseCapture();}
-void EditorFrame::OnLButtonDblClk(UINT,CPoint p){if(style_.tool==core::Tool::Crop||job_.Busy()&&activeAction_!=0)return;CancelComposition();dragging_=false;if(GetCapture()==this)ReleaseCapture();int index=document_.HitTest(ImagePoint(p));if(index>=0){auto a=document_.State().objects[index];if(a.group||a.locked){Select(index);GuardSelection(true);return;}if(a.tool==core::Tool::Text||a.tool==core::Tool::Callout)BeginText(a,index);}}
-void EditorFrame::OnCaptureChanged(CWnd*){if(maskGesture_)CancelMask();ClearSnapping();if(cropGesture_)CancelCrop(false);CancelComposition();CancelCanvasResize();if(dragging_){if(pixelMoving_)pixelSelection_=pixelOriginal_;pixelMoving_=false;dragging_=false;clickCandidate_=-1;Preview();Layout();InvalidateRect(canvas_,FALSE);}panning_=false;}
+void EditorFrame::OnLButtonDblClk(UINT,CPoint p){if(pathMode_){FinishPath();return;}if(style_.tool==core::Tool::Crop||job_.Busy()&&activeAction_!=0)return;CancelComposition();dragging_=false;if(GetCapture()==this)ReleaseCapture();int index=document_.HitTest(ImagePoint(p));if(index>=0){auto a=document_.State().objects[index];if(a.group||a.locked){Select(index);GuardSelection(true);return;}if(a.tool==core::Tool::Text||a.tool==core::Tool::Callout)BeginText(a,index);}}
+void EditorFrame::OnCaptureChanged(CWnd*){if(sweepGesture_)CancelSweep(false);if(maskGesture_)CancelMask();ClearSnapping();if(cropGesture_)CancelCrop(false);CancelComposition();CancelCanvasResize();if(dragging_){if(pixelMoving_)pixelSelection_=pixelOriginal_;pixelMoving_=false;dragging_=false;clickCandidate_=-1;Preview();Layout();InvalidateRect(canvas_,FALSE);}panning_=false;}
 void EditorFrame::BeginText(core::Annotation a,int index){if(index>=0&&(a.locked||core::composition::Expand(document_.State(),{index}).size()>1)){status_.SetWindowText(Tr(a.locked?Text::ObjectsLocked:Text::SingleObjectNeeded));return;}textDraft_=std::move(a);textIndex_=index;textEditing_=true;richSync_=true;services::SetRichText(text_.m_hWnd,textDraft_,zoom_);richScale_=zoom_;richDpi_=GetDpiForWindow(text_.m_hWnd);richSync_=false;SyncStyle();Layout();TextPosition();if(text_.GetStyle()&WS_VISIBLE)text_.SetFocus();text_.SetSel(0,-1);status_.SetWindowText(Tr(Text::InlineTextHelp));}
-void EditorFrame::OnInlineTextChanged(){if(textEditing_&&textDraft_.alignment>=3)TextPosition();}
+void EditorFrame::OnInlineTextChanged(){if(textEditing_&&(textDraft_.alignment>=3||textDraft_.textAutoHeight))TextPosition();}
 bool EditorFrame::FinishText(bool commit)
 {
     if(!textEditing_)return true;
@@ -17,7 +17,7 @@ bool EditorFrame::FinishText(bool commit)
     if(commit&&!ReadRichText(textDraft_)){status_.SetWindowText(Tr(Text::InvalidValue));return false;}CString value=textDraft_.text;const bool apply=commit&&!value.IsEmpty();
     if(apply){
         // Keep the draft visible if a bounded document commit cannot succeed.
-        try{auto annotation=textDraft_;annotation.text=value;if(textIndex_>=0)document_.Replace(textIndex_,annotation);else{document_.Add(annotation);textIndex_=static_cast<int>(document_.State().objects.size())-1;}textDraft_=std::move(annotation);}
+        try{auto annotation=textDraft_;annotation.text=value;services::FitTextHeight(annotation);if(textIndex_>=0)document_.Replace(textIndex_,annotation);else{document_.Add(annotation);textIndex_=static_cast<int>(document_.State().objects.size())-1;}textDraft_=std::move(annotation);}
         catch(const std::exception& e){CString error;error.Format(L"%s %hs",Tr(Text::Failed),e.what());status_.SetWindowText(error);return false;}
     }
     const bool focused=GetFocus()==&text_;textEditing_=false;text_.ShowWindow(SW_HIDE);if(focused)SetFocus();

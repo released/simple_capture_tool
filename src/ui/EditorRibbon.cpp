@@ -4,7 +4,7 @@
 #include "../core/Document.h"
 #include <gdiplus.h>
 namespace sct::ui {
-const std::vector<Text>& ToolLabels(){static const std::vector<Text> labels={Text::Pen,Text::Rectangle,Text::Ellipse,Text::Arrow,Text::Mosaic,Text::Crop,Text::TextTool,Text::SelectObject,Text::Step,Text::Highlight,Text::Redact,Text::Blur,Text::Picture,Text::Magnifier,Text::Spotlight,Text::Line,Text::RoundRectangle,Text::Callout,Text::Stamp,Text::CursorStamp,Text::Eraser,Text::SmartEraser,Text::Fill,Text::Eyedropper,Text::PixelSelection,Text::CurvedArrow,Text::Polygon};return labels;}
+const std::vector<Text>& ToolLabels(){static const std::vector<Text> labels={Text::Pen,Text::Rectangle,Text::Ellipse,Text::Arrow,Text::Mosaic,Text::Crop,Text::TextTool,Text::SelectObject,Text::Step,Text::Highlight,Text::Redact,Text::Blur,Text::Picture,Text::Magnifier,Text::Spotlight,Text::Line,Text::RoundRectangle,Text::Callout,Text::Stamp,Text::CursorStamp,Text::Eraser,Text::SmartEraser,Text::Fill,Text::Eyedropper,Text::PixelSelection,Text::CurvedArrow,Text::Polygon,Text::ElbowArrow,Text::CloneBrush};return labels;}
 const std::array<COLORREF,16>& QuickColors(){static const std::array<COLORREF,16> c={RGB(0,0,0),RGB(255,255,255),RGB(110,110,110),RGB(240,40,40),RGB(245,135,35),RGB(250,210,25),RGB(30,160,75),RGB(35,170,220),RGB(35,85,210),RGB(130,65,185),RGB(235,110,170),RGB(115,70,40),RGB(175,220,185),RGB(195,225,250),RGB(255,235,180),RGB(230,225,240)};return c;}
 BEGIN_MESSAGE_MAP(PaletteBar,CWnd)
  ON_WM_RBUTTONUP()
@@ -26,6 +26,8 @@ void Glyph(CDC& dc,CRect r,UINT id)
     if(tool==static_cast<int>(core::Tool::Rectangle)||tool==static_cast<int>(core::Tool::Crop)||id==FrameEffect){g.DrawRectangle(&p,x-s,y-s,s*2,s*2);if(id==FrameEffect)g.DrawRectangle(&p,x-s+4,y-s+4,s*2-8,s*2-8);}
     else if(tool==static_cast<int>(core::Tool::Ellipse)||tool==static_cast<int>(core::Tool::Step)||tool==static_cast<int>(core::Tool::Magnifier)){g.DrawEllipse(&p,x-s,y-s,s*2,s*2);if(tool==static_cast<int>(core::Tool::Magnifier))g.DrawLine(&p,x+s*.7f,y+s*.7f,x+s*1.5f,y+s*1.5f);}
     else if(tool==static_cast<int>(core::Tool::Arrow)){g.DrawLine(&p,x-s,y+s,x+s,y-s);g.DrawLine(&p,x+s,y-s,x-s*.1f,y-s);g.DrawLine(&p,x+s,y-s,x+s,y+s*.1f);}
+    else if(tool==static_cast<int>(core::Tool::ElbowArrow)){g.DrawLine(&p,x-s,y+s,x,y+s);g.DrawLine(&p,x,y+s,x,y-s);g.DrawLine(&p,x,y-s,x+s,y-s);g.DrawLine(&p,x+s,y-s,x+s*.4f,y-s*1.5f);g.DrawLine(&p,x+s,y-s,x+s*.4f,y-s*.5f);}
+    else if(tool==static_cast<int>(core::Tool::CloneBrush)){g.DrawRectangle(&p,x-s,y,s*2,s);g.DrawLine(&p,x,y,x,y-s);g.DrawEllipse(&p,x-s*.4f,y-s*1.8f,s*.8f,s*.8f);}
     else if(tool==static_cast<int>(core::Tool::CurvedArrow)){g.DrawBezier(&p,PointF(x-s,y+s),PointF(x-s*1.5f,y-s),PointF(x+s,y+s),PointF(x+s,y-s));g.DrawLine(&p,x+s,y-s,x+s*.4f,y-s*.4f);g.DrawLine(&p,x+s,y-s,x+s*1.6f,y-s*.4f);}
     else if(tool==static_cast<int>(core::Tool::Pen)||tool==static_cast<int>(core::Tool::Highlight)){g.DrawLine(&p,x-s,y+s,x+s,y-s);g.DrawLine(&p,x-s+4,y+s+2,x+s+4,y-s+2);g.FillEllipse(&fill,x-s-2,y+s-1,4.f,4.f);}
     else if(tool==static_cast<int>(core::Tool::Text)){FontFamily f(L"Segoe UI");GraphicsPath path;StringFormat format;format.SetAlignment(StringAlignmentCenter);format.SetLineAlignment(StringAlignmentCenter);path.AddString(L"A",1,&f,FontStyleBold,s*2.6f,RectF(x-s*1.5f,y-s*1.5f,s*3,s*3),&format);g.FillPath(&fill,&path);}

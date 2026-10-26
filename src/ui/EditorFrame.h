@@ -1,5 +1,6 @@
 #pragma once
 #include "../services/AnnotationService.h"
+#include "../services/DocumentationExport.h"
 #include "../core/BackgroundJob.h"
 #include "../services/ClipboardService.h"
 #include "EditorRibbon.h"
@@ -14,6 +15,7 @@
 #include "../services/EditorShortcutService.h"
 #include "../core/SelectionMask.h"
 #include "../core/ColorFilters.h"
+#include "../services/EditorRefinementService.h"
 namespace sct::services {struct ImageComparison;}
 namespace sct::ui {
 class EditorWorkspace;
@@ -21,6 +23,7 @@ class FormDialog;
 class ScreenColorDialog;
 class CommandSearchDialog;
 class ImageCompareDialog;
+class BatchExportDialog;class StickerLibraryDialog;class StyleGalleryDialog;
 class GuideDialog;class HistogramDialog;class MainFrame;class ImageDragDialog;
 class EditorFrame final : public CFrameWnd {
 public:
@@ -28,8 +31,8 @@ public:
     EditorFrame(core::DocumentState state,CString path,CWnd* workspace=nullptr,bool deferred=false);
     void Captured(){dirty_=true;NotifyWorkspace();}
     CString DocumentName()const;const core::Image& Thumbnail()const{return thumbnail_;}
-    bool HasUnsavedChanges()const{return maskGesture_||dirty_||textEditing_||dragging_||objectGesture_||sidebar_.Dirty()||!cropRegion_.IsRectEmpty()||canvasHandle_>=0||canvasPending_;}
-    bool WorkingForBuild()const{return maskGesture_||maskPending_||job_.Busy()||(renderPending_&&!renderSuspended_)||!pendingLayoutPaths_.empty()||pendingAction_!=0||copyTicket_||pasteTicket_||objectGesture_||sidebar_.Dragging()||cropGesture_||canvasHandle_>=0||canvasPending_||screenColorModal_;}
+    bool HasUnsavedChanges()const{return sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||dirty_||textEditing_||dragging_||objectGesture_||sidebar_.Dirty()||!cropRegion_.IsRectEmpty()||canvasHandle_>=0||canvasPending_;}
+    bool WorkingForBuild()const{return sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||maskPending_||job_.Busy()||(renderPending_&&!renderSuspended_)||!pendingLayoutPaths_.empty()||pendingAction_!=0||copyTicket_||pasteTicket_||objectGesture_||sidebar_.Dragging()||cropGesture_||canvasHandle_>=0||canvasPending_||screenColorModal_;}
     void AutomaticOutput(const std::shared_ptr<const core::Image>&,const CString& path,const CString& error);
 protected:
     BOOL PreTranslateMessage(MSG*) override;
@@ -57,6 +60,38 @@ protected:
     afx_msg LRESULT OnLanguageChanged(WPARAM,LPARAM);
     DECLARE_MESSAGE_MAP()
 private:
+    struct WorkResult;
+    friend class EditorRefinementsAccess;
+    void RefinementCommand(UINT);void CompleteRefinement(WorkResult&);void OpenStyleGallery();void ApplyNamedStyle(const std::vector<services::ToolStyle>&,int,const CString&);
+    void RunEffectRecipe(const core::EffectRecipe&);std::optional<core::EffectRecipe> LastRecipe()const;void RememberRecipe(const core::EffectRecipe&);
+    std::function<INT_PTR(core::ColorAdjust&)> generalEffectAudit_;
+    std::optional<core::EffectRecipe> repeatDraft_,localRecipe_;size_t galleryBytes_=0;
+    bool SweepDown(CPoint);bool SweepMove(CPoint);bool SweepUp(CPoint);void CancelSweep(bool mode=true);bool PaintSweep(CDC&);
+    bool sweepMode_=false,sweepGesture_=false;std::vector<POINT> sweepPoints_;uint64_t sweepRevision_=0,sweepEpoch_=0;core::composition::Indices sweepExpected_;
+    std::function<INT_PTR(StyleGalleryDialog&)> styleGalleryAudit_;std::function<bool()> svgFallbackAudit_;std::function<CString()> svgSaveAudit_;
+    friend class AssetSelectionAccess;
+    void AssetCommand(UINT);void CompleteAsset(WorkResult&);void OpenStickerLibrary();void PaintMaskTint(CDC&,const core::SelectionMask&,int,int);
+    bool maskTint_=false;int maskTintAlpha_=56;COLORREF maskTintColor_=RGB(90,150,220);CRgn maskTintRegion_;const core::SelectionMask* tintMask_=nullptr;uint64_t tintEpoch_=0;CRect tintView_,tintOrigin_,tintSelection_;double tintZoom_=0;size_t tintRects_=0;
+    std::function<CString()> selectedSaveAudit_;std::function<INT_PTR(StickerLibraryDialog&)> stickerDialogAudit_;
+    friend class WorkflowEditingAccess;
+    void WorkflowCommand(UINT);void CompleteWorkflow(WorkResult&);void ScaledOutput(UINT);void ExportBatchImages();bool StampDuringDrag();
+    bool stampMode_=false;int stampCount_=0;
+    std::function<CString()> scaledSaveAudit_;
+    std::function<INT_PTR(BatchExportDialog&)> batchExportAudit_;
+    std::function<void(const CString&)> batchReportAudit_;
+    std::function<bool(services::ClipboardPacket&,CString&)> scaledPublishAudit_;
+    friend class AdvancedEditingAccess;
+    void AdvancedCommand(UINT);void CompleteAdvanced(WorkResult&);
+    bool PathDown(CPoint);bool PathMove(CPoint);void FinishPath();void CancelPath();
+    bool centered_=false,pathDrawing_=false,textResizing_=false;int pathMode_=0;std::vector<POINT> pathVertices_;
+    friend class ProductivityAccess;
+    struct WorkResult;
+    void ProductivityCommand(UINT);void CompleteProductivity(WorkResult&);bool ProductivityForm(FormDialog&);
+    bool CloneDown(CPoint);void StartCloneCommit();void PaintGrid(CDC&);
+    std::function<INT_PTR(FormDialog&)> productivityFormAudit_;
+    std::function<CString()> replacementPathAudit_;
+    bool gridVisible_=false,gridSnap_=false,clonePicking_=false;int gridStep_=16;
+    CPoint cloneSource_{-1,-1};std::optional<core::Annotation> clonePending_;uint64_t cloneRevision_=0;
     friend class EnhancementAccess;
     friend class PreferenceAccess;
     friend class AlignmentAccess;
@@ -123,7 +158,7 @@ private:
     std::function<UINT(CMenu&)> contextMenuAudit_;
     friend class EditorRibbon;
     friend class EditorWorkspace;
-    struct WorkResult { core::Image image,thumbnail,colorPreview,colorOriginal;core::DocumentState state,sourceState;std::shared_ptr<const core::SelectionMask> mask;std::array<uint64_t,256> histogram{};UINT command=0;uint64_t maskEpoch=0;core::composition::Indices selected,expected;std::vector<core::Image> pages;HWND workspaceWindow=nullptr;CWnd* workspaceOwner=nullptr;CString path,error;int action=0;uint64_t revision=0,preview=0;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<services::ImageComparison> comparison;bool cut=false,colorChanged=false;Text colorTitle=Text::ColorGamma;CRect colorCrop;core::Tool colorTool=core::Tool::Select;CSize dimensions{1280,720};RECT screen{}; };
+    struct WorkResult { std::optional<core::EffectRecipe> recipe;core::Image image,thumbnail,colorPreview,colorOriginal;core::DocumentState state,sourceState;std::shared_ptr<const core::SelectionMask> mask;std::array<uint64_t,256> histogram{};UINT command=0;uint64_t maskEpoch=0;core::composition::Indices selected,expected;std::vector<core::Image> pages;std::vector<services::ImageExportOutcome> exports;HWND workspaceWindow=nullptr;CWnd* workspaceOwner=nullptr;CString path,error;int action=0;uint64_t revision=0,preview=0;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<services::ImageComparison> comparison;bool cut=false,colorChanged=false;Text colorTitle=Text::ColorGamma;CRect colorCrop;core::Tool colorTool=core::Tool::Select;CSize dimensions{1280,720};RECT screen{}; };
     void Layout();void Changed();void RequestRender();void ShowMore();void EditProperties();void ChooseFont();void Transform(UINT);void PaintContent(CDC&);
     bool FinishPropertyDraft();void ChangeTool(int);
     void CommandTools(UINT);void ReloadEditorShortcuts();UINT EditorShortcutCommand(UINT,UINT)const;bool RouteEditorShortcut(MSG*,bool);
@@ -212,7 +247,7 @@ private:
     uint64_t pendingRevision_=0,pendingMaskEpoch_=0;int pendingSelected_=-1;CRect pendingRegion_;void QueueAction(UINT);
     core::composition::Indices pendingObjects_;
     uint64_t copyTicket_=0,pasteTicket_=0,sessionNumber_=0;
-    COLORREF highlightColor_=RGB(255,235,0);int highlightOpacity_=90;
+    COLORREF highlightColor_=RGB(255,235,0);int highlightOpacity_=90;int highlightBlend_=0;
     int activeAction_=0,jpegQuality_=0;
     bool fit_=true,owned_=false,projectPrimary_=false;CWnd* workspace_=nullptr;
     std::vector<CString> openQueue_;bool fullScreen_=false;CRect restoreRect_;DWORD restoreStyle_=0;

@@ -3,6 +3,7 @@
 #include "LanguageService.h"
 #include "CaptureNaming.h"
 #include "ToolStyleService.h"
+#include "ObjectAssetService.h"
 #include "PaletteService.h"
 #include "EditorShortcutService.h"
 namespace sct::services {
@@ -46,6 +47,7 @@ bool ConfigService::Load(Settings& output, CString& error) const
             else if (key == "LanguageFile") {if(!SafeLanguageFile(wide.c_str()))throw std::runtime_error("Invalid language filename");s.languageFile=wide.c_str();}
             else if (key == "HomeFeatures") {if(value.size()>2048||value.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_,")!=std::string::npos)throw std::runtime_error("Invalid home feature list");s.homeFeatures=wide.c_str();s.homeFeaturesConfigured=true;}
             else if (key == "EditorHome") {if(value.size()>4096||value.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_,")!=std::string::npos)throw std::runtime_error("Invalid editor home list");s.editorHome=wide.c_str();s.editorHomeConfigured=true;}
+            else if(key=="StickerLibrary"){s.stickerLibrary=wide.c_str();std::vector<StickerEntry> entries;if(value.find('\0')!=std::string::npos||!DecodeStickerLibrary(s.stickerLibrary,entries,error))throw std::runtime_error("Invalid portable sticker library");}
             else if (key == "ToolStyles") {s.toolStyles=wide.c_str();CString styleError;if(!ValidateToolStyleData(s.toolStyles,styleError))throw std::runtime_error("Invalid portable tool styles");}
             else if(key=="Palette"){s.palette=wide.c_str();PaletteData data;if(!DecodePalette(s.palette,data,error))throw std::runtime_error("Invalid portable palette");}
             else if(key=="EditorShortcuts"){s.editorShortcuts=wide.c_str();EditorShortcuts bindings;if(!EffectiveEditorShortcuts(s.editorShortcuts,bindings,error))throw std::runtime_error("Invalid editor shortcuts");}
@@ -104,6 +106,8 @@ bool ConfigService::Save(const Settings& s, CString& error) const
     if(s.homeFeaturesConfigured)text<<L"HomeFeatures="<<s.homeFeatures.GetString()<<L"\n";
     if(s.editorHomeConfigured)text<<L"EditorHome="<<s.editorHome.GetString()<<L"\n";
     if(s.editorHomeChildrenConfigured)text<<L"EditorHomeChildren="<<s.editorHomeChildren.GetString()<<L"\n";
+    {std::vector<StickerEntry> entries;if(!DecodeStickerLibrary(s.stickerLibrary,entries,error))return false;}
+    if(!s.stickerLibrary.IsEmpty())text<<L"StickerLibrary="<<s.stickerLibrary.GetString()<<L"\n";
     if(!s.toolStyles.IsEmpty())text<<L"ToolStyles="<<s.toolStyles.GetString()<<L"\n";
     if(!s.palette.IsEmpty())text<<L"Palette="<<s.palette.GetString()<<L"\n";
     if(!s.editorShortcuts.IsEmpty())text<<L"EditorShortcuts="<<s.editorShortcuts.GetString()<<L"\n";

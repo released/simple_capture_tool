@@ -56,10 +56,10 @@ void MainFrame::HandleCapture(WorkResult& result)
     if(mode==Full||mode==CurrentMonitor||mode==LastRegion){RECT region=mode==Full?desktop:result.target.rect;
         if(mode==Full&&!result.cursor&&result.image.width==desktop.right-desktop.left&&result.image.height==desktop.bottom-desktop.top){result.action=2;result.target.rect=desktop;CompleteOutput(result);return;}
         OffsetRect(&region,-desktop.left,-desktop.top);SelectionResult selection;selection.frozen=std::make_shared<core::Image>(std::move(result.image));selection.regions.push_back({region});selection.cursor=result.cursor;DeliverFrozen(std::move(selection));return;}
-    selecting_=true;const auto selectionMode=mode==Window||mode==Scroll||mode==ManualScroll?SelectionMode::Window:mode==Fixed?SelectionMode::Fixed:SelectionMode::Region;
+    selecting_=true;const auto selectionMode=mode==Window||mode==Scroll||(mode==ManualScroll||mode==ManualHorizontal)?SelectionMode::Window:mode==Fixed?SelectionMode::Fixed:SelectionMode::Region;
     const auto cursor=result.cursor;SelectionWindow::Begin(this,std::move(result.image),selectionMode,CSize(settings_.fixedWidth,settings_.fixedHeight),[this,mode,cursor](bool ok,SelectionResult selection){selecting_=false;selection.cursor=cursor;
         if(!ok){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}
-        if(mode==Scroll||mode==ManualScroll){HWND window=selection.target.window;QueueCaptureWork([window,mode]{WorkResult r;r.action=3;r.target.window=window;r.target.cursor=mode==ManualScroll;Sleep(150);services::CaptureService::Grab({services::CaptureService::DesktopRect()},r.image,r.error);return r;});}
+        if(mode==Scroll||mode==ManualScroll||mode==ManualHorizontal){HWND window=selection.target.window;QueueCaptureWork([window,mode]{WorkResult r;r.action=3;r.target.window=window;r.target.cursor=mode!=Scroll;r.horizontal=mode==ManualHorizontal;Sleep(150);services::CaptureService::Grab({services::CaptureService::DesktopRect()},r.image,r.error);return r;});}
         else if(mode==Window)StartCapture(selection.target);else DeliverFrozen(std::move(selection));
     },settings_.clientOnly,settings_.childWindow,{settings_.captureMagnifier,settings_.captureGrid,settings_.dimOutside,true});
 }
@@ -97,10 +97,10 @@ void MainFrame::OnTimer(UINT_PTR timer)
     if(capturePolling_){KillTimer(CapturePollTimer);capturePolling_=false;}
     if(!r->error.IsEmpty()&&r->action!=2&&r->action!=4){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();status_.SetWindowText(CString(Tr(Text::Failed))+r->error);ShowWindow(SW_SHOW);return;}
     if(r->action==0){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}
-    if((r->action>=Full&&r->action<=Scroll)||r->action==CurrentMonitor||r->action==LastRegion||r->action==MenuCapture||r->action==ManualScroll){HandleCapture(*r);return;}
-    if(r->action==3){const HWND window=r->target.window;const bool manual=r->target.cursor;selecting_=true;
-        SelectionWindow::Begin(this,std::move(r->image),SelectionMode::Region,{},[this,window,manual](bool ok,SelectionResult selection){selecting_=false;if(!ok){RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}selection.target.window=window;selection.target.cropWindow=true;
-            if(manual){selecting_=true;const RECT region=selection.target.rect;ManualScrollFrame::Open(this,selection.target,[this,region](core::Image image){selecting_=false;if(image.Empty()){RestoreEditors();if(restore_)ShowWindow(SW_SHOW);}else DeliverImage(std::move(image),region);});}else StartCapture(selection.target,true);
+    if((r->action>=Full&&r->action<=Scroll)||r->action==CurrentMonitor||r->action==LastRegion||r->action==MenuCapture||r->action==ManualScroll||r->action==ManualHorizontal){HandleCapture(*r);return;}
+    if(r->action==3){const HWND window=r->target.window;const bool manual=r->target.cursor,horizontal=r->horizontal;selecting_=true;
+        SelectionWindow::Begin(this,std::move(r->image),SelectionMode::Region,{},[this,window,manual,horizontal](bool ok,SelectionResult selection){selecting_=false;if(!ok){RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}selection.target.window=window;selection.target.cropWindow=true;
+            if(manual){selecting_=true;const RECT region=selection.target.rect;ManualScrollFrame::Open(this,selection.target,[this,region](core::Image image){selecting_=false;if(image.Empty()){RestoreEditors();if(restore_)ShowWindow(SW_SHOW);}else DeliverImage(std::move(image),region);},horizontal);}else StartCapture(selection.target,true);
         },false,false,{settings_.captureMagnifier,settings_.captureGrid,settings_.dimOutside,true});return;}
     CompleteOutput(*r);
 }
