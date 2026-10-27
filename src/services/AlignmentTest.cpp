@@ -112,6 +112,7 @@ int RunAlignmentTests(){const auto dir=paths::TestEvidence()/L"alignment";std::f
         if(CString(GetCommandLine()).Find(L"--test-default-cursor-only")>=0){DefaultCursorChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-tool-styles-only")>=0){ToolStyleChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-crop-workflow-only")>=0){CropWorkflowChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
+        if(CString(GetCommandLine()).Find(L"--test-ribbon-clarity-only")>=0){RibbonClarityChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-editor-menus-only")>=0){EditorMenusChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-composition-only")>=0){CompositionChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-color-picker-only")>=0){ColorPickerChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}

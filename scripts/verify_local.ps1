@@ -1,5 +1,5 @@
 param(
-[ValidateSet('EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','ScreenshotOnly','SaveDirectory','PictureCrop','SelectionTools','EditorPreview','PolygonShapes','DragImage','ImportNormalization','TextRuns','Discovery','MaskEditing','CaptureInsert','ColorFilters','ImageReuse','OpenParity','WheelNavigation','TextViewport','EditorTransitions','ImagePrecision','CommandTools','ObjectPayload','EditableLayout','Sidebar','WorkspaceTools','EditorPerformance','ObjectAlignment','DefaultCursor','CropWorkflow','EditorMenus','Composition','ToolStyles','RibbonFont','ColorPicker','ToolTabs','Instance','CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
+[ValidateSet('RibbonClarity','EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','ScreenshotOnly','SaveDirectory','PictureCrop','SelectionTools','EditorPreview','PolygonShapes','DragImage','ImportNormalization','TextRuns','Discovery','MaskEditing','CaptureInsert','ColorFilters','ImageReuse','OpenParity','WheelNavigation','TextViewport','EditorTransitions','ImagePrecision','CommandTools','ObjectPayload','EditableLayout','Sidebar','WorkspaceTools','EditorPerformance','ObjectAlignment','DefaultCursor','CropWorkflow','EditorMenus','Composition','ToolStyles','RibbonFont','ColorPicker','ToolTabs','Instance','CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
     [switch]$Full,
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Release',
     [switch]$SkipBuild,
@@ -26,6 +26,7 @@ $testArguments=@{
     OpenParity='--alignment-test --test-open-parity-only';
     WheelNavigation='--alignment-test --test-wheel-navigation-only';
     TextViewport='--alignment-test --test-text-viewport-only';
+    RibbonClarity='--alignment-test --test-ribbon-clarity-only';
     EditorTransitions='--alignment-test --test-editor-transitions-only';
     ImagePrecision='--alignment-test --test-image-precision-only';
     CommandTools='--alignment-test --test-command-tools-only';

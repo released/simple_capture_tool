@@ -25,6 +25,7 @@ int EditorFrame::Handle(CPoint p)const
 }
 void EditorFrame::OnLButtonDown(UINT flags,CPoint p)
 {
+    if(!FinishWidthDraft())return;
     if(sidebar_.Dirty()){if(sidebar_.FinishProperties())SetFocus();return;}
     if(GetKeyState(VK_SPACE)<0){OnMButtonDown(0,p);return;}
     const bool finishText=textEditing_;if(!FinishText(true))return;
@@ -55,7 +56,7 @@ void EditorFrame::OnLButtonDown(UINT flags,CPoint p)
     if(style_.tool==core::Tool::Fill){auto a=style_;a.points={start_};a.rect={0,0,document_.Width(),document_.Height()};document_.Add(a);Changed();return;}
     if(style_.tool==core::Tool::Select){handle_=Handle(p);if(handle_<0)Select(document_.HitTest(start_,std::max(2,static_cast<int>(5/zoom_))),false);
         if(selected_<0||!GuardSelection(true)){Layout();return;}draft_=original_=document_.State().objects[selected_];if(handle_<0)BeginSnapping({selected_});else ClearSnapping();
-    }else {clickCandidate_=hit;selected_=-1;draft_=style_;draft_.sourceCrop={};if(draft_.tool==core::Tool::Callout){draft_.anchored=false;draft_.focus={};}if(draft_.tool!=core::Tool::Text&&draft_.tool!=core::Tool::Callout)draft_.textRuns.clear();draft_.id=draft_.sourceId=draft_.targetId=0;draft_.group=0;draft_.locked=false;draft_.points={start_};draft_.rect={start_.x,start_.y,start_.x,start_.y};text_.GetWindowText(draft_.text);CString width;width_.GetLBText(width_.GetCurSel(),width);draft_.width=_wtoi(width);
+    }else {clickCandidate_=hit;selected_=-1;draft_=style_;draft_.sourceCrop={};if(draft_.tool==core::Tool::Callout){draft_.anchored=false;draft_.focus={};}if(draft_.tool!=core::Tool::Text&&draft_.tool!=core::Tool::Callout)draft_.textRuns.clear();draft_.id=draft_.sourceId=draft_.targetId=0;draft_.group=0;draft_.locked=false;draft_.points={start_};draft_.rect={start_.x,start_.y,start_.x,start_.y};text_.GetWindowText(draft_.text);draft_.width=style_.width;
 if(draft_.tool==core::Tool::Step){int next=1;for(const auto& a:document_.State().objects)if(a.tool==core::Tool::Step)next=std::max(next,a.number+1);if(next>100000){status_.SetWindowText(Tr(Text::StepLimit));return;}draft_.number=next;}}
     dragging_=true;SetCapture();
 }
@@ -128,6 +129,15 @@ void EditorFrame::ChooseFont()
 }
 BOOL EditorFrame::PreTranslateMessage(MSG* m)
 {
+    if((m->hwnd==width_.GetSafeHwnd()||::GetFocus()==width_.GetSafeHwnd())&&width_.GetSafeHwnd()){
+        if(m->message==WM_KEYDOWN&&(m->wParam==VK_RETURN||m->wParam==VK_ESCAPE)){
+            if(m->wParam==VK_ESCAPE){SyncWidth();SetFocus();}
+            else{const HWND host=m_hWnd;const bool committed=FinishWidthDraft();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return TRUE;if(committed)SetFocus();else width_.SetSel(0,-1);}
+            return TRUE;
+        }
+        if((m->message==WM_KEYDOWN||m->message==WM_SYSKEYDOWN)&&RouteEditorShortcut(m,true))return TRUE;
+        return FALSE;
+    }
     if(sidebar_.OwnsFocus())return sidebar_.RouteKey(m)?TRUE:CFrameWnd::PreTranslateMessage(m);
     if(tips_.GetSafeHwnd())tips_.RelayEvent(m);
 if(m->message==WM_KEYDOWN||m->message==WM_SYSKEYDOWN){if(canvasHandle_>=0||canvasPending_){if(m->wParam==VK_ESCAPE&&!canvasPending_)CancelCanvasResize();return TRUE;}const bool ctrl=GetKeyState(VK_CONTROL)<0,editing=textEditing_&&GetFocus()==&text_;if(ctrl&&m->wParam=='A'&&editing){text_.SetSel(0,-1);return TRUE;}

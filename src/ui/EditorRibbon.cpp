@@ -2,7 +2,6 @@
 #include "EditorRibbon.h"
 #include "EditorHome.h"
 #include "../core/Document.h"
-#include <gdiplus.h>
 namespace sct::ui {
 const std::vector<Text>& ToolLabels(){static const std::vector<Text> labels={Text::Pen,Text::Rectangle,Text::Ellipse,Text::Arrow,Text::Mosaic,Text::Crop,Text::TextTool,Text::SelectObject,Text::Step,Text::Highlight,Text::Redact,Text::Blur,Text::Picture,Text::Magnifier,Text::Spotlight,Text::Line,Text::RoundRectangle,Text::Callout,Text::Stamp,Text::CursorStamp,Text::Eraser,Text::SmartEraser,Text::Fill,Text::Eyedropper,Text::PixelSelection,Text::CurvedArrow,Text::Polygon,Text::ElbowArrow,Text::CloneBrush};return labels;}
 const std::array<COLORREF,16>& QuickColors(){static const std::array<COLORREF,16> c={RGB(0,0,0),RGB(255,255,255),RGB(110,110,110),RGB(240,40,40),RGB(245,135,35),RGB(250,210,25),RGB(30,160,75),RGB(35,170,220),RGB(35,85,210),RGB(130,65,185),RGB(235,110,170),RGB(115,70,40),RGB(175,220,185),RGB(195,225,250),RGB(255,235,180),RGB(230,225,240)};return c;}
@@ -17,49 +16,11 @@ void PaletteBar::PaintContent(CDC& dc){CRect r;GetClientRect(r);const int size=P
 void PaletteBar::OnPaint(){CPaintDC target(this);surface_.Paint(*this,target,RGB(249,250,251),[&](CDC& dc){PaintContent(dc);});}
 void PaletteBar::OnLButtonDown(UINT,CPoint p){int i=p.x/Px(m_hWnd,18);if(i>=0&&i<16)GetParent()->SendMessage(WM_COMMAND,PaletteFirst+i);}
 void PaletteBar::OnRButtonUp(UINT,CPoint){GetParent()->SendMessage(WM_COMMAND,ColorPalette);}
-namespace {
-void Glyph(CDC& dc,CRect r,UINT id)
-{
-    using namespace Gdiplus;Graphics g(dc);g.SetSmoothingMode(SmoothingModeAntiAlias);Pen p(Gdiplus::Color(255,32,112,76),2);SolidBrush fill(Gdiplus::Color(255,32,112,76));
-    const REAL x=static_cast<REAL>(r.CenterPoint().x),y=static_cast<REAL>(r.CenterPoint().y),s=static_cast<REAL>(r.Height())*.32f;
-    int tool=id>=EditorToolFirst&&id<=EditorToolLast?static_cast<int>(id-EditorToolFirst):-1;
-    if(tool==static_cast<int>(core::Tool::Rectangle)||tool==static_cast<int>(core::Tool::Crop)||id==FrameEffect){g.DrawRectangle(&p,x-s,y-s,s*2,s*2);if(id==FrameEffect)g.DrawRectangle(&p,x-s+4,y-s+4,s*2-8,s*2-8);}
-    else if(tool==static_cast<int>(core::Tool::Ellipse)||tool==static_cast<int>(core::Tool::Step)||tool==static_cast<int>(core::Tool::Magnifier)){g.DrawEllipse(&p,x-s,y-s,s*2,s*2);if(tool==static_cast<int>(core::Tool::Magnifier))g.DrawLine(&p,x+s*.7f,y+s*.7f,x+s*1.5f,y+s*1.5f);}
-    else if(tool==static_cast<int>(core::Tool::Arrow)){g.DrawLine(&p,x-s,y+s,x+s,y-s);g.DrawLine(&p,x+s,y-s,x-s*.1f,y-s);g.DrawLine(&p,x+s,y-s,x+s,y+s*.1f);}
-    else if(tool==static_cast<int>(core::Tool::ElbowArrow)){g.DrawLine(&p,x-s,y+s,x,y+s);g.DrawLine(&p,x,y+s,x,y-s);g.DrawLine(&p,x,y-s,x+s,y-s);g.DrawLine(&p,x+s,y-s,x+s*.4f,y-s*1.5f);g.DrawLine(&p,x+s,y-s,x+s*.4f,y-s*.5f);}
-    else if(tool==static_cast<int>(core::Tool::CloneBrush)){g.DrawRectangle(&p,x-s,y,s*2,s);g.DrawLine(&p,x,y,x,y-s);g.DrawEllipse(&p,x-s*.4f,y-s*1.8f,s*.8f,s*.8f);}
-    else if(tool==static_cast<int>(core::Tool::CurvedArrow)){g.DrawBezier(&p,PointF(x-s,y+s),PointF(x-s*1.5f,y-s),PointF(x+s,y+s),PointF(x+s,y-s));g.DrawLine(&p,x+s,y-s,x+s*.4f,y-s*.4f);g.DrawLine(&p,x+s,y-s,x+s*1.6f,y-s*.4f);}
-    else if(tool==static_cast<int>(core::Tool::Pen)||tool==static_cast<int>(core::Tool::Highlight)){g.DrawLine(&p,x-s,y+s,x+s,y-s);g.DrawLine(&p,x-s+4,y+s+2,x+s+4,y-s+2);g.FillEllipse(&fill,x-s-2,y+s-1,4.f,4.f);}
-    else if(tool==static_cast<int>(core::Tool::Text)){FontFamily f(L"Segoe UI");GraphicsPath path;StringFormat format;format.SetAlignment(StringAlignmentCenter);format.SetLineAlignment(StringAlignmentCenter);path.AddString(L"A",1,&f,FontStyleBold,s*2.6f,RectF(x-s*1.5f,y-s*1.5f,s*3,s*3),&format);g.FillPath(&fill,&path);}
-    else if(tool==static_cast<int>(core::Tool::Select)){PointF pts[]={{x-s,y-s},{x+s,y+s*.2f},{x,y+s*.3f},{x-s*.2f,y+s}};g.DrawPolygon(&p,pts,4);}
-    else if(id==Save||id==SaveAs||id==SaveAll||id==SaveProject){g.DrawRectangle(&p,x-s,y-s,s*2,s*2);g.DrawRectangle(&p,x-s*.55f,y-s,s*1.1f,s*.8f);g.DrawRectangle(&p,x-s*.55f,y+s*.25f,s*1.1f,s*.75f);}
-    else if(id==Copy||id==Cut||id==PasteImage||id==PasteNewDocument){g.DrawRectangle(&p,x-s,y-s*.6f,s*1.6f,s*1.8f);g.DrawLine(&p,x-s*.5f,y-s,x+s,y-s);g.DrawLine(&p,x+s,y-s,x+s,y+s*.7f);}
-    else if(id==Undo||id==Redo){g.DrawArc(&p,x-s,y-s,s*2,s*2,id==Undo?180.f:0.f,250.f);g.DrawLine(&p,x-s,y,x-s-3,y-s*.8f);}
-    else if(id==ZoomFit||id==ZoomActual||id==ZoomIn||id==ZoomOut){g.DrawEllipse(&p,x-s,y-s,s*1.5f,s*1.5f);g.DrawLine(&p,x+s*.2f,y+s*.2f,x+s,y+s);g.DrawLine(&p,x-s*.6f,y-s*.25f,x+s*.1f,y-s*.25f);if(id!=ZoomOut)g.DrawLine(&p,x-s*.25f,y-s*.6f,x-s*.25f,y+s*.1f);}
-    else if(tool==static_cast<int>(core::Tool::Line)){g.DrawLine(&p,x-s,y+s,x+s,y-s);}
-    else if(tool==static_cast<int>(core::Tool::Mosaic)){for(int yy=0;yy<3;++yy)for(int xx=0;xx<3;++xx){SolidBrush tile(Gdiplus::Color(255,static_cast<BYTE>(30+xx*50),static_cast<BYTE>(100+yy*40),static_cast<BYTE>(70+xx*35)));g.FillRectangle(&tile,x-s+xx*s*.72f,y-s+yy*s*.72f,s*.62f,s*.62f);}}
-    else if(tool==static_cast<int>(core::Tool::Redact)){g.FillRectangle(&fill,x-s,y-s*.6f,s*2,s*1.2f);}
-    else if(tool==static_cast<int>(core::Tool::Blur)){for(int n=0;n<4;++n)g.DrawEllipse(&p,x-s+n*2,y-s+n*2,s*2-n*4,s*2-n*4);}
-    else if(tool==static_cast<int>(core::Tool::Picture)||id==BackgroundEffect){g.DrawRectangle(&p,x-s,y-s,s*2,s*2);PointF mountain[]={{x-s,y+s},{x-s*.3f,y-s*.2f},{x+s*.2f,y+s*.4f},{x+s*.5f,y},{x+s,y+s}};g.DrawLines(&p,mountain,5);g.FillEllipse(&fill,x+s*.3f,y-s*.7f,s*.35f,s*.35f);}
-    else if(tool==static_cast<int>(core::Tool::RoundRectangle)||tool==static_cast<int>(core::Tool::Callout)){g.DrawRectangle(&p,x-s,y-s*.65f,s*2,s*1.3f);g.DrawArc(&p,x-s,y-s,s*.7f,s*.7f,180.f,90.f);if(tool==static_cast<int>(core::Tool::Callout)){g.DrawLine(&p,x-s*.4f,y+s*.65f,x-s*.7f,y+s*1.2f);g.DrawLine(&p,x-s*.7f,y+s*1.2f,x+s*.1f,y+s*.65f);}}
-    else if(tool==static_cast<int>(core::Tool::Eraser)||tool==static_cast<int>(core::Tool::SmartEraser)){PointF eraser[]={{x-s,y+s*.3f},{x+s*.3f,y-s},{x+s,y-s*.3f},{x-s*.3f,y+s}};g.DrawPolygon(&p,eraser,4);g.DrawLine(&p,x-s*.4f,y-s*.3f,x+s*.3f,y+s*.4f);if(tool==static_cast<int>(core::Tool::SmartEraser)){g.DrawLine(&p,x+s,y+s*.3f,x+s,y+s*1.3f);g.DrawLine(&p,x+s*.5f,y+s*.8f,x+s*1.5f,y+s*.8f);}}
-    else if(tool==static_cast<int>(core::Tool::Fill)){PointF bucket[]={{x-s,y},{x,y-s},{x+s*.8f,y-s*.2f},{x-s*.2f,y+s*.8f}};g.DrawPolygon(&p,bucket,4);g.DrawArc(&p,x-s*.5f,y-s*1.4f,s*1.2f,s*1.2f,180.f,160.f);g.FillEllipse(&fill,x+s*.65f,y+s*.5f,s*.5f,s*.7f);}
-    else if(tool==static_cast<int>(core::Tool::Eyedropper)||id==ScreenColor){g.DrawLine(&p,x-s,y+s,x+s*.5f,y-s*.5f);g.DrawLine(&p,x-s*.6f,y+s*1.1f,x+s*.8f,y-s*.3f);g.DrawLine(&p,x,y-s*.8f,x+s*.9f,y+s*.1f);g.FillEllipse(&fill,x+s*.45f,y-s,5.f,5.f);}
-    else if(tool==static_cast<int>(core::Tool::PixelSelect)){p.SetDashStyle(DashStyleDash);g.DrawRectangle(&p,x-s,y-s,s*2,s*2);}
-    else if(id==Color||id==FillColor){for(int n=0;n<5;++n){SolidBrush c(Gdiplus::Color(255,static_cast<BYTE>(n*50),static_cast<BYTE>(220-n*30),static_cast<BYTE>(160-n*20)));g.FillEllipse(&c,x-s+n*s*.4f,y-s+static_cast<REAL>(n%2)*s*.7f,s,s);}}
-    else if(id==Font||id==StampGallery||id==CursorGallery||id==WatermarkEffect){FontFamily f(L"Segoe UI Symbol");Gdiplus::Font font(&f,s*2.1f,FontStyleRegular,UnitPixel);g.DrawString(id==StampGallery?L"★":id==CursorGallery?L"↖":L"A",-1,&font,PointF(x-s,y-s*1.5f),&fill);}
-    else if(id==Properties||id==Effects||id==ToolStyles){for(int n=0;n<3;++n){g.DrawLine(&p,x-s,y-s+n*s,x+s,y-s+n*s);g.FillEllipse(&fill,x-s*.6f+n*s*.45f,y-s+n*s-2,5.f,5.f);}}
-    else if(id>=SelectAllObjects&&id<=UnlockAllObjects){g.DrawRectangle(&p,x-s,y-s,s*1.4f,s*1.4f);g.DrawRectangle(&p,x-s*.3f,y-s*.3f,s*1.4f,s*1.4f);}
-    else if(id==PrintImage||id==PrintPreview){g.DrawRectangle(&p,x-s,y-s*.4f,s*2,s*1.2f);g.DrawRectangle(&p,x-s*.6f,y-s,s*1.2f,s*.6f);g.DrawRectangle(&p,x-s*.6f,y+s*.3f,s*1.2f,s*.9f);}
-    else if(id==ShadowEffect||id==FrameEffect||tool==static_cast<int>(core::Tool::Spotlight)){SolidBrush shade(Gdiplus::Color(90,20,30,40));g.FillRectangle(&shade,x-s+4,y-s+4,s*2,s*2);g.DrawRectangle(&p,x-s,y-s,s*2,s*2);}
-    else {g.DrawRectangle(&p,x-s*.7f,y-s,s*1.4f,s*2);g.DrawLine(&p,x-s*.4f,y-s*.3f,x+s*.4f,y-s*.3f);g.DrawLine(&p,x-s*.4f,y+s*.2f,x+s*.4f,y+s*.2f);}
-}
-}
 void RibbonButton::DrawItem(LPDRAWITEMSTRUCT item)
 {
     CDC dc;dc.Attach(item->hDC);CRect r=item->rcItem;const bool enabled=(item->itemState&ODS_DISABLED)==0,selected=checked||(item->itemState&ODS_SELECTED)!=0;
     dc.FillSolidRect(r,selected?RGB(218,239,226):RGB(249,250,251));if(selected)dc.Draw3dRect(r,RGB(55,145,90),RGB(55,145,90));
-    CRect icon=r;icon.bottom=icon.top+IconHeight();Glyph(dc,icon,command);CString caption;GetWindowText(caption);CRect text=r;text.top=icon.bottom;text.DeflateRect(3,0);if(Dropdown())text.bottom=ArrowRect().top;
+    CRect icon=r;icon.bottom=icon.top+IconHeight();DrawRibbonGlyph(dc,icon,command,enabled);CString caption;GetWindowText(caption);CRect text=r;text.top=icon.bottom;text.DeflateRect(3,0);if(Dropdown())text.bottom=ArrowRect().top;
     dc.SetBkMode(TRANSPARENT);dc.SetTextColor(enabled?RGB(30,38,45):RGB(145,150,155));auto* old=dc.SelectObject(GetFont());dc.DrawText(caption,text,RibbonButton::CaptionFlags());if(old)dc.SelectObject(old);
     if(Dropdown()){const auto arrow=ArrowRect();dc.FillSolidRect(arrow.left+Px(m_hWnd,4),arrow.top,arrow.Width()-Px(m_hWnd,8),1,RGB(220,225,228));const auto p=arrow.CenterPoint();const int size=Px(m_hWnd,3);POINT points[]={{p.x-size,p.y-1},{p.x+size,p.y-1},{p.x,p.y+size}};CBrush fill(enabled?RGB(45,65,55):RGB(150,155,155));CPen pen(PS_SOLID,1,enabled?RGB(45,65,55):RGB(150,155,155));auto* oldBrush=dc.SelectObject(&fill);auto* oldPen=dc.SelectObject(&pen);dc.Polygon(points,3);dc.SelectObject(oldPen);dc.SelectObject(oldBrush);}
     if(item->itemState&ODS_FOCUS){r.DeflateRect(2,2);dc.DrawFocusRect(r);}dc.Detach();

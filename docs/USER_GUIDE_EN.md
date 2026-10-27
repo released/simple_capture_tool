@@ -192,11 +192,19 @@ Under **Edit → View**, **Objects / layers sidebar** supports labels, visibilit
 
 Switching tools or sidebar tabs, running edit commands, or changing styles/colors first applies valid pending properties. Invalid values stay visible and block the transition until corrected or canceled with Esc. Closing a sidebar also cancels unapplied properties. Closing an image or the application still discards RAM content as described above.
 
+### Toolbar icons and hints
+
+**Brushes** contains Pen and Highlight. **Numbers** contains step numbers, symbol/cursor stamps, and renumbering. **Size/Canvas** separates image resizing from canvas size; **Rotate/Flip** includes rotation and horizontal/vertical mirroring. **Layout** provides image combining and arrangement, while **Objects** includes properties, layers, grouping, and alignment.
+
+Step numbers use a numbered circular badge. Crop, sizing, rotation, layout, viewing, and closing an image also have matching artwork. The icon follows the current quick action: click the body to repeat it, or the arrow to choose a related action. Hover to see the full name, current action, and related choices without opening the menu. Command search also accepts the short toolbar names. Complete menus and Customize Home retain full names; your settings continue to control the order.
+
 ### Colors and styles
 
 **Color** offers palettes, custom colors, HEX input, favorites/recent colors, image eyedropper, and the screen color picker. The screen picker shows a frozen desktop and magnified preview: left-click/Enter applies, right-click/Esc cancels. The image eyedropper reads only the current image.
 
 Changing color with objects selected applies it to the selection, subject to locks. With nothing selected, it sets the color for subsequent drawing. Named **Tool styles** preserve colors, line width, fonts, and other formatting without storing image or text content.
+
+The toolbar **Width** accepts 1–128 image pixels. Use its adjacent arrows or the Up/Down keys inside the field to adjust by 1. Press Enter or leave the field to apply; Esc cancels. Ctrl+S also applies the entry before Save. Invalid or out-of-range input restores the previous value. Editing one unlocked object creates one Undo step rather than one per typed digit; with nothing selected, width applies to subsequent drawing. Rectangular mosaic does not use line width, while the path mosaic brush allows diameter adjustment.
 
 ### Local text formatting and polygons
 

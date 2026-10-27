@@ -42,8 +42,17 @@ BOOL EditorRibbon::OnCommand(WPARAM wp,LPARAM lp){
 BOOL EditorRibbon::OnNotify(WPARAM wp,LPARAM lp,LRESULT* result){
     const auto* header=reinterpret_cast<NMHDR*>(lp);
     if(header&&header->code==BCN_DROPDOWN){auto* button=dynamic_cast<RibbonButton*>(CWnd::FromHandlePermanent(header->hwndFrom));if(button&&button->GetParent()==this){*result=0;ShowDropdown(*button);return TRUE;}}
-    if(header&&header->hwndFrom==tips_.GetSafeHwnd()&&header->code==TTN_NEEDTEXTW){auto* info=reinterpret_cast<NMTTDISPINFOW*>(lp);auto* button=dynamic_cast<RibbonButton*>(CWnd::FromHandlePermanent(reinterpret_cast<HWND>(info->hdr.idFrom)));if(button){tipText_=Tr(button->label);auto found=std::find_if(RibbonCommands().begin(),RibbonCommands().end(),[&](const auto& c){return c.id==button->command;});if(found!=RibbonCommands().end()&&button->Dropdown())tipText_+=CString(L" — ")+Tr(found->label)+L"\n"+Tr(Text::RibbonSplitHelp);info->lpszText=const_cast<wchar_t*>(tipText_.GetString());*result=0;return TRUE;}}
+    if(header&&header->hwndFrom==tips_.GetSafeHwnd()&&header->code==TTN_NEEDTEXTW){auto* info=reinterpret_cast<NMTTDISPINFOW*>(lp);auto* button=dynamic_cast<RibbonButton*>(CWnd::FromHandlePermanent(reinterpret_cast<HWND>(info->hdr.idFrom)));if(button&&button->GetParent()==this){tipText_=RibbonTooltip(*button);info->lpszText=const_cast<wchar_t*>(tipText_.GetString());*result=0;return TRUE;}}
     return CWnd::OnNotify(wp,lp,result);
+}
+CString RibbonTooltip(const RibbonButton& button){
+    CString result=RibbonCaption(button.label),full=Tr(button.label);
+    if(result!=full)result+=L" ("+full+L")";
+    auto found=std::find_if(RibbonCommands().begin(),RibbonCommands().end(),[&](const auto& c){return c.id==button.command;});
+    if(found!=RibbonCommands().end()&&button.Dropdown()){CString current;current.Format(Tr(Text::RibbonCurrentAction),Tr(found->label));result+=L"\n"+current;}
+    if(!button.choices.empty()){CString choices;for(size_t i=0;i<std::min<size_t>(6,button.choices.size());++i){if(!choices.IsEmpty())choices+=L", ";choices+=Tr(button.choices[i].label);}if(button.choices.size()>6)choices+=L", …";CString preview;preview.Format(Tr(Text::RibbonChoicesPreview),choices.GetString());result+=L"\n"+preview;}
+    if(button.Dropdown())result+=L"\n"+CString(Tr(Text::RibbonSplitHelp));
+    return result;
 }
 BOOL EditorRibbon::PreTranslateMessage(MSG* message){if(tips_.GetSafeHwnd())tips_.RelayEvent(message);return CWnd::PreTranslateMessage(message);}
 }

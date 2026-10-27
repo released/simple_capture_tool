@@ -6,6 +6,8 @@ namespace sct::ui {
 const std::array<COLORREF,16>& QuickColors();
 const std::vector<Text>& ToolLabels();
 CString RibbonCaption(Text);
+UINT RibbonGlyphId(UINT);void DrawRibbonGlyph(CDC&,CRect,UINT,bool enabled=true);
+class RibbonButton;CString RibbonTooltip(const RibbonButton&);
 class PaletteBar final:public CWnd {
     PaintSurface surface_;
     friend class RibbonMenuAccess;void PaintContent(CDC&);
@@ -33,6 +35,7 @@ protected:
     afx_msg void OnPaint();afx_msg void OnTab(NMHDR*,LRESULT*);BOOL OnCommand(WPARAM,LPARAM)override;DECLARE_MESSAGE_MAP()
     BOOL OnNotify(WPARAM,LPARAM,LRESULT*)override;BOOL PreTranslateMessage(MSG*)override;
 private:
+    friend class RibbonClarityAccess;
     friend class AlignmentAccess;
     friend class EditorHomeAccess;
     friend class RibbonMenuAccess;

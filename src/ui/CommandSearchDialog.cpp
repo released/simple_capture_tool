@@ -1,7 +1,8 @@
 #include "pch.h"
 #include "CommandSearchDialog.h"
+#include "EditorRibbon.h"
 namespace sct::ui {
-std::vector<SearchCommand> SearchCommands(){std::vector<SearchCommand> result;for(const auto& family:AllEditorFamilies())for(const auto& command:family.choices){CString caption=CString(Tr(family.label))+L"  >  "+Tr(command.label);result.push_back({command.id,caption,caption+L" "+CString(TextKey(command.label))});}return result;}
+std::vector<SearchCommand> SearchCommands(){std::vector<SearchCommand> result;for(const auto& family:AllEditorFamilies())for(const auto& command:family.choices){CString caption=CString(Tr(family.label))+L"  >  "+Tr(command.label);result.push_back({command.id,caption,caption+L" "+RibbonCaption(family.label)+L" "+CString(TextKey(command.label))});}return result;}
 std::vector<size_t> FilterCommands(const std::vector<SearchCommand>& commands,CString query){query.MakeLower();query.Trim();std::vector<CString> tokens;int start=0;while(start<query.GetLength()){int end=query.Find(L' ',start);if(end<0)end=query.GetLength();CString part=query.Mid(start,end-start);if(!part.IsEmpty())tokens.push_back(part);start=end+1;}std::vector<size_t> result;for(size_t i=0;i<commands.size();++i){CString text=commands[i].search;text.MakeLower();if(std::all_of(tokens.begin(),tokens.end(),[&](const auto& token){return text.Find(token)>=0;}))result.push_back(i);}return result;}
 BEGIN_MESSAGE_MAP(CommandSearchDialog,CDialog)
  ON_EN_CHANGE(SearchQuery,&CommandSearchDialog::OnFilter)

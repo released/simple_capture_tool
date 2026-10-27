@@ -73,7 +73,7 @@ enum Command : UINT {
     ExportSelectedPng,StickerLibrary,MaskOverlay,MaskOverlaySettings,ConnectorAnchors,SeparateOpacity,PictureFilters,PixelIntersect,PictureAlphaSelection,
     ReflowObjects,PictureOriginalSize,StyleGallery,RepeatLastEffect,ReshowLastEffect,SweepObjects,BlurBrush,MosaicBrush,BrushSettings,PictureCard,ExportSelectedSvg,
     CustomizeEditorHome=42400,EditorHomeList,EditorHomeUp,EditorHomeDown,EditorHomeDefaults,EditorHomeAll,EditorHomeNone,
-    RibbonTabs=42900,WorkspaceTabs,WorkspaceClose,ThumbnailPane,ZoomChoice,ZoomSlider,HorizontalScroll,VerticalScroll,FontSizeChoice,LineStyleChoice,OpacityChoice,RibbonOverflow,MosaicSlider,WorkspaceChoose,
+    RibbonTabs=42900,WorkspaceTabs,WorkspaceClose,ThumbnailPane,ZoomChoice,ZoomSlider,HorizontalScroll,VerticalScroll,FontSizeChoice,LineStyleChoice,OpacityChoice,RibbonOverflow,MosaicSlider,WorkspaceChoose,PenWidthSpin,
     EditorToolFirst=43000,EditorToolLast=43255,
     PaletteFirst=43400,PaletteLast=43431,StampFirst=43500,StampLast=43563,
     EffectFirst=43600,EffectLast=43663,ActiveWindow=43700,RestoreEditor,ToolStyleFirst=43800,ToolStyleLast=43831,

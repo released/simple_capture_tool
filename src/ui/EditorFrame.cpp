@@ -44,7 +44,8 @@ BEGIN_MESSAGE_MAP(EditorFrame,CFrameWnd)
     ON_COMMAND_RANGE(Command::PaletteFirst,Command::PaletteLast,&EditorFrame::OnPalette)
     ON_CBN_SELCHANGE(Command::ToolChoice,&EditorFrame::OnToolChanged)
     ON_CBN_SELCHANGE(Command::ZoomChoice,&EditorFrame::OnZoomChoice)
-    ON_CBN_SELCHANGE(Command::PenWidth,&EditorFrame::OnStyleChanged)
+    ON_EN_KILLFOCUS(Command::PenWidth,&EditorFrame::OnWidthCommit)
+    ON_NOTIFY(UDN_DELTAPOS,Command::PenWidthSpin,&EditorFrame::OnWidthDelta)
     ON_CBN_SELCHANGE(Command::FontSizeChoice,&EditorFrame::OnStyleChanged)
     ON_CBN_SELCHANGE(Command::LineStyleChoice,&EditorFrame::OnStyleChanged)
     ON_CBN_SELCHANGE(Command::OpacityChoice,&EditorFrame::OnStyleChanged)
@@ -74,9 +75,10 @@ int EditorFrame::OnCreate(LPCREATESTRUCT cs)
     tools_.SetRedraw(FALSE);
     for(auto name:ToolLabels())tools_.AddString(Tr(name));tools_.SetCurSel(static_cast<int>(style_.tool));
     if(!services::EnsureRichText()||!text_.CreateEx(0,MSFTEDIT_CLASS,L"",WS_CHILD|WS_BORDER|WS_TABSTOP|ES_MULTILINE|ES_AUTOVSCROLL|ES_WANTRETURN|WS_VSCROLL,CRect(),this,TextValue))return -1;text_.SetLimitText(65536);text_.SendMessage(EM_SETEVENTMASK,0,ENM_CHANGE|ENM_REQUESTRESIZE);
-    width_.Create(WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST|WS_VSCROLL,CRect(),this,PenWidth);
-    width_.SetRedraw(FALSE);
-    for(const auto* s:{L"1",L"2",L"3",L"5",L"8",L"12",L"20"})width_.AddString(s);width_.SetCurSel(2);
+    if(!width_.Create(WS_CHILD|WS_VISIBLE|WS_TABSTOP|WS_BORDER|ES_NUMBER|ES_RIGHT|ES_AUTOHSCROLL,CRect(),this,PenWidth))return -1;
+    width_.SetLimitText(3);
+    if(!widthSpin_.Create(WS_CHILD|WS_VISIBLE|UDS_ARROWKEYS|UDS_SETBUDDYINT|UDS_NOTHOUSANDS,CRect(),this,PenWidthSpin))return -1;
+    widthSpin_.SetBuddy(&width_);widthSpin_.SetRange32(1,128);widthSpin_.SetPos32(3);width_.SetModify(FALSE);
     fontSize_.Create(WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST|WS_VSCROLL,CRect(),this,FontSizeChoice);fontSize_.SetRedraw(FALSE);for(auto s:{L"12",L"16",L"20",L"28",L"36",L"48",L"72",L"96"})fontSize_.AddString(s);fontSize_.SetCurSel(3);
     lineStyle_.Create(WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST|WS_VSCROLL,CRect(),this,LineStyleChoice);lineStyle_.SetRedraw(FALSE);for(auto key:{Text::SolidLine,Text::DashedLine,Text::DottedLine})lineStyle_.AddString(Tr(key));lineStyle_.SetCurSel(0);
     opacity_.Create(WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST|WS_VSCROLL,CRect(),this,OpacityChoice);opacity_.SetRedraw(FALSE);for(auto s:{L"25%",L"50%",L"75%",L"100%"})opacity_.AddString(s);opacity_.SetCurSel(3);
@@ -92,7 +94,7 @@ int EditorFrame::OnCreate(LPCREATESTRUCT cs)
     status_.Create(Tr(Text::EditorHelp),WS_CHILD|WS_VISIBLE|SS_LEFTNOWORDWRAP|SS_ENDELLIPSIS|SS_NOTIFY,CRect(),this);
     tips_.Create(this,TTS_ALWAYSTIP);tips_.SetMaxTipWidth(Px(m_hWnd,700));tips_.AddTool(&status_,LPSTR_TEXTCALLBACK);tips_.SetDelayTime(TTDT_AUTOPOP,20000);
     ApplyFont(*this,font_);
-    for(auto* combo:{&tools_,&width_,&fontSize_,&lineStyle_,&opacity_,&zoomChoice_})combo->SetRedraw(TRUE);
+    for(auto* combo:{&tools_,&fontSize_,&lineStyle_,&opacity_,&zoomChoice_})combo->SetRedraw(TRUE);
     ReloadEditorShortcuts();SyncStyle();Layout();DragAcceptFiles(TRUE);EditorPolling(true);RequestRender();return 0;
 }
 void EditorFrame::OnSize(UINT t,int x,int y){CancelCanvasResize();CFrameWnd::OnSize(t,x,y);Layout();}
@@ -181,7 +183,7 @@ void EditorFrame::OnTimer(UINT_PTR)
     OpenNext();RequestRender();const HWND host=m_hWnd;RunQueuedLayout();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;
     EditorPolling(EditorWorkPending());
 }
-void EditorFrame::OnClose(){CancelSweep();openQueue_.clear();pendingLayoutPaths_.clear();pendingAction_=0;job_.cancel=true;dragging_=false;canvasHandle_=-1;textEditing_=false;if(GetCapture()==this)ReleaseCapture();CFrameWnd::OnClose();}
-void EditorFrame::OnDestroy(){CancelSweep();KillTimer(1);editorPollMs_=0;CompleteClipboardCopy(false);pasteTicket_=0;if(auto* w=dynamic_cast<EditorWorkspace*>(workspace_))w->ChildClosed(m_hWnd);CFrameWnd::OnDestroy();}
+void EditorFrame::OnClose(){widthClosing_=true;if(width_.GetSafeHwnd())width_.SetModify(FALSE);CancelSweep();openQueue_.clear();pendingLayoutPaths_.clear();pendingAction_=0;job_.cancel=true;dragging_=false;canvasHandle_=-1;textEditing_=false;if(GetCapture()==this)ReleaseCapture();CFrameWnd::OnClose();}
+void EditorFrame::OnDestroy(){widthClosing_=true;CancelSweep();KillTimer(1);editorPollMs_=0;CompleteClipboardCopy(false);pasteTicket_=0;if(auto* w=dynamic_cast<EditorWorkspace*>(workspace_))w->ChildClosed(m_hWnd);CFrameWnd::OnDestroy();}
 BOOL EditorFrame::OnNotify(WPARAM wp,LPARAM lp,LRESULT* result){auto* header=reinterpret_cast<NMHDR*>(lp);if(header&&header->hwndFrom==text_.GetSafeHwnd()&&header->code==EN_REQUESTRESIZE&&textEditing_&&textDraft_.textAutoHeight&&!richSync_&&!textResizing_){const auto* resize=reinterpret_cast<REQRESIZE*>(lp);const int extra=2*(textDraft_.textPadding+(textDraft_.tool==core::Tool::Callout?textDraft_.width+4:0)),height=static_cast<int>(std::ceil(double(resize->rc.bottom-resize->rc.top)/zoom_))+extra;if(height>0&&height<=32768&&textDraft_.rect.top+height<=1000000&&textDraft_.rect.bottom!=textDraft_.rect.top+height){textResizing_=true;textDraft_.rect.bottom=textDraft_.rect.top+height;TextPosition();textResizing_=false;}*result=0;return TRUE;}if(header&&header->hwndFrom==tips_.GetSafeHwnd()&&header->code==TTN_GETDISPINFOW){status_.GetWindowText(tipText_);reinterpret_cast<NMTTDISPINFOW*>(lp)->lpszText=const_cast<LPWSTR>(tipText_.GetString());*result=0;return TRUE;}return CFrameWnd::OnNotify(wp,lp,result);}
 }

@@ -4,6 +4,7 @@
 namespace sct::ui {
 bool EditorFrame::FinishPropertyDraft()
 {
+    if(!widthCommitting_&&!FinishWidthDraft())return false;
     if(!sidebar_.Dirty())return true;
     if(sweepGesture_||clonePending_||screenColorModal_||maskGesture_||maskPending_||dragging_||objectGesture_||cropGesture_||panning_||sidebar_.Dragging()||canvasHandle_>=0||canvasPending_||(job_.Busy()&&activeAction_!=0)){
         status_.SetWindowText(Tr(Text::Busy));return false;
@@ -33,7 +34,7 @@ void EditorFrame::ChangeTool(int requested)
 void EditorFrame::OnStyleChanged()
 {
     const UINT id=LOWORD(GetCurrentMessage()->wParam);
-    CComboBox* combo=id==PenWidth?&width_:id==FontSizeChoice?&fontSize_:id==LineStyleChoice?&lineStyle_:id==OpacityChoice?&opacity_:nullptr;
+    CComboBox* combo=id==FontSizeChoice?&fontSize_:id==LineStyleChoice?&lineStyle_:id==OpacityChoice?&opacity_:nullptr;
     if(!combo)return;const int requested=combo->GetCurSel();
     if(requested==CB_ERR){SyncStyle();return;}
     CString value;combo->GetLBText(requested,value);
@@ -41,8 +42,7 @@ void EditorFrame::OnStyleChanged()
     if(job_.Busy()&&activeAction_!=0){SyncStyle();status_.SetWindowText(Tr(Text::Busy));return;}
     if(textEditing_&&id==FontSizeChoice){CHARFORMAT2W format{};format.cbSize=sizeof(format);format.dwMask=CFM_SIZE;format.yHeight=std::max<LONG>(1,static_cast<LONG>(std::lround(std::clamp(_wtoi(value),6,512)*zoom_*1440/GetDpiForWindow(text_.m_hWnd))));text_.SendMessage(EM_SETCHARFORMAT,SCF_SELECTION,reinterpret_cast<LPARAM>(&format));ReadRichText(textDraft_);text_.SetFocus();return;}
     auto annotation=textEditing_?textDraft_:selected_>=0?document_.State().objects[selected_]:style_;
-    if(id==PenWidth)annotation.width=_wtoi(value);
-    else if(id==FontSizeChoice){annotation.fontSize=_wtoi(value);for(auto& run:annotation.textRuns)run.size=annotation.fontSize;}
+    if(id==FontSizeChoice){annotation.fontSize=_wtoi(value);for(auto& run:annotation.textRuns)run.size=annotation.fontSize;}
     else if(id==LineStyleChoice)annotation.lineStyle=requested;
     else{annotation.opacity=MulDiv(_wtoi(value),255,100);if(annotation.tool!=core::Tool::Highlight)annotation.alpha=annotation.opacity;}
     const auto tool=style_.tool;style_=annotation;style_.tool=tool;

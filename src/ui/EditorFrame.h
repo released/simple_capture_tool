@@ -31,7 +31,7 @@ public:
     EditorFrame(core::DocumentState state,CString path,CWnd* workspace=nullptr,bool deferred=false);
     void Captured(){dirty_=true;NotifyWorkspace();}
     CString DocumentName()const;const core::Image& Thumbnail()const{return thumbnail_;}
-    bool HasUnsavedChanges()const{return sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||dirty_||textEditing_||dragging_||objectGesture_||sidebar_.Dirty()||!cropRegion_.IsRectEmpty()||canvasHandle_>=0||canvasPending_;}
+    bool HasUnsavedChanges()const{return (width_.GetSafeHwnd()&&width_.GetModify()&&(selected_>=0||textEditing_))||sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||dirty_||textEditing_||dragging_||objectGesture_||sidebar_.Dirty()||!cropRegion_.IsRectEmpty()||canvasHandle_>=0||canvasPending_;}
     bool WorkingForBuild()const{return sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||maskPending_||job_.Busy()||(renderPending_&&!renderSuspended_)||!pendingLayoutPaths_.empty()||pendingAction_!=0||copyTicket_||pasteTicket_||objectGesture_||sidebar_.Dragging()||cropGesture_||canvasHandle_>=0||canvasPending_||screenColorModal_;}
     void AutomaticOutput(const std::shared_ptr<const core::Image>&,const CString& path,const CString& error);
 protected:
@@ -60,6 +60,9 @@ protected:
     afx_msg LRESULT OnLanguageChanged(WPARAM,LPARAM);
     DECLARE_MESSAGE_MAP()
 private:
+    bool ReadWidth(int&)const;bool FinishWidthDraft();bool ApplyWidth(int);void SyncWidth();
+    afx_msg void OnWidthCommit();afx_msg void OnWidthDelta(NMHDR*,LRESULT*);
+    bool widthCommitting_=false,widthClosing_=false;
     struct WorkResult;
     friend class EditorRefinementsAccess;
     void RefinementCommand(UINT);void CompleteRefinement(WorkResult&);void OpenStyleGallery();void ApplyNamedStyle(const std::vector<services::ToolStyle>&,int,const CString&);
@@ -233,7 +236,7 @@ private:
     CFont font_;
     CSliderCtrl mosaicSlider_;CStatic mosaicLabel_;
     EditorRibbon ribbon_;PaletteBar palette_;CStatic widthLabel_;CComboBox zoomChoice_;CSliderCtrl zoomSlider_;CScrollBar horizontal_,vertical_;EditorSidebar sidebar_;
-    InlineTextEdit text_;CComboBox width_,tools_;CStatic status_;
+    InlineTextEdit text_;CEdit width_;CSpinButtonCtrl widthSpin_;CComboBox tools_;CStatic status_;
     LOGFONT inlineFontSpec_{};CRect inlineClip_;bool inlineClipValid_=false,inlineClipFull_=false;
     CToolTipCtrl tips_;CString tipText_;
     std::shared_ptr<services::PreviewRenderCache> previewCache_=std::make_shared<services::PreviewRenderCache>();
