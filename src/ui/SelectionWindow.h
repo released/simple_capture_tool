@@ -29,10 +29,13 @@ private:
     friend class MainFrame;
     friend class SavePaintAccess;
     friend class OpenParityAccess;
+    friend class SelectionToolbarAccess;
     void CreateToolbar(RECT);void Finish(bool);void Coordinates();void Clamp();int Handle(CPoint)const;void AddCurrent();core::Region Current()const;void PaintFrame(CDC&);
+    CRect ToolbarBounds()const;CString SelectionHint()const;bool AvoidToolbar(CPoint);
     std::shared_ptr<const core::Image> image_;
     CDC frameDc_;CBitmap frameBitmap_;
     CRect desktop_,selected_,original_,toolbar_;
+    CRect toolbarWork_;int toolbarHelpHeight_=0;
     CPoint start_;SelectionMode mode_=SelectionMode::Region;CSize fixed_;
     bool dragging_=false,locked_=false,clientOnly_=false,child_=false,toolbarVisible_=true;
     int handle_=-1;HWND selectedWindow_=nullptr;

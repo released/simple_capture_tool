@@ -1,5 +1,5 @@
 param(
-[ValidateSet('RibbonClarity','EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','ScreenshotOnly','SaveDirectory','PictureCrop','SelectionTools','EditorPreview','PolygonShapes','DragImage','ImportNormalization','TextRuns','Discovery','MaskEditing','CaptureInsert','ColorFilters','ImageReuse','OpenParity','WheelNavigation','TextViewport','EditorTransitions','ImagePrecision','CommandTools','ObjectPayload','EditableLayout','Sidebar','WorkspaceTools','EditorPerformance','ObjectAlignment','DefaultCursor','CropWorkflow','EditorMenus','Composition','ToolStyles','RibbonFont','ColorPicker','ToolTabs','Instance','CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
+[ValidateSet('SelectionToolbar','RibbonClarity','EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','ScreenshotOnly','SaveDirectory','PictureCrop','SelectionTools','EditorPreview','PolygonShapes','DragImage','ImportNormalization','TextRuns','Discovery','MaskEditing','CaptureInsert','ColorFilters','ImageReuse','OpenParity','WheelNavigation','TextViewport','EditorTransitions','ImagePrecision','CommandTools','ObjectPayload','EditableLayout','Sidebar','WorkspaceTools','EditorPerformance','ObjectAlignment','DefaultCursor','CropWorkflow','EditorMenus','Composition','ToolStyles','RibbonFont','ColorPicker','ToolTabs','Instance','CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
     [switch]$Full,
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Release',
     [switch]$SkipBuild,
@@ -11,6 +11,7 @@ if($Full -and $Scope.Count){throw 'Use affected -Scope or explicit -Full, not bo
 $projectRoot=Split-Path -Parent $PSScriptRoot
 $configurations=if($Configuration -eq 'Both'){@('Release','Debug')}else{@($Configuration)}
 $testArguments=@{
+    SelectionToolbar='--alignment-test --test-selection-toolbar-only';
     EditorRefinements='--alignment-test --test-editor-refinements-only';AssetSelection='--alignment-test --test-asset-selection-only';
     DocumentationTools='--alignment-test --test-documentation-tools-only';
     AdvancedEditing='--alignment-test --test-advanced-editing-only';

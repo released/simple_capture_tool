@@ -32,6 +32,7 @@ HWND SelectionWindow::Begin(CWnd* owner,core::Image image,SelectionMode mode,CSi
     POINT cursor{};GetCursorPos(&cursor);MONITORINFO mi{sizeof(mi)};GetMonitorInfo(MonitorFromPoint(cursor,MONITOR_DEFAULTTOPRIMARY),&mi);
     self->cursor_={std::clamp<LONG>(cursor.x-self->desktop_.left,0,self->image_->width-1),std::clamp<LONG>(cursor.y-self->desktop_.top,0,self->image_->height-1)};
     self->CreateToolbar(mi.rcWork);
+    self->AvoidToolbar(self->cursor_);
     self->ShowWindow(SW_SHOW);self->SetForegroundWindow();self->SetFocus();return self->GetSafeHwnd();
 }
 void SelectionWindow::CreateToolbar(RECT work)
@@ -45,6 +46,11 @@ void SelectionWindow::CreateToolbar(RECT work)
     ApplyFont(*this,font_);
     for(auto& b:buttons_){CString text;b->GetWindowText(text);int w=TextWidth(*b,text);if(x+w>work.right-desktop_.left-gap){x=left;y+=h+gap;}b->MoveWindow(x,y,w,h);x+=w+gap;}
     toolbar_=CRect(left-gap,top-gap,work.right-desktop_.left-gap,y+h+gap);
+    toolbarWork_=work;toolbarWork_.OffsetRect(-desktop_.left,-desktop_.top);
+    toolbarWork_.IntersectRect(toolbarWork_,CRect(0,0,image_->width,image_->height));
+    CClientDC dc(this);auto* oldFont=dc.SelectObject(&font_);CRect hint(0,0,std::max(1,toolbar_.Width()-16),0);
+    dc.DrawText(SelectionHint()+L"  -999999, -999999, 999999, 999999",hint,DT_CALCRECT|DT_LEFT|DT_WORDBREAK);
+    toolbarHelpHeight_=std::max(Px(m_hWnd,52),hint.Height()+8);dc.SelectObject(oldFont);
     if(mode_!=SelectionMode::Region)shape_.EnableWindow(FALSE);
 }
 void SelectionWindow::OnPaint()
@@ -73,8 +79,8 @@ void SelectionWindow::PaintFrame(CDC& dc)
         const int px=std::clamp<int>(cursor_.x,0,image_->width-1),py=std::clamp<int>(cursor_.y,0,image_->height-1);CRect focus(x+(px-sx)*cell,y+(py-sy)*cell,x+(px-sx+1)*cell,y+(py-sy+1)*cell);dc.Draw3dRect(focus,RGB(255,50,50),RGB(255,50,50));const auto* value=image_->Row(py)+px*4;CString label;label.Format(L"%ld, %ld\n#%02X%02X%02X",px+desktop_.left,py+desktop_.top,value[2],value[1],value[0]);CRect text(x+4,y+actual+2,x+actual-2,y+actual+caption);dc.SetTextColor(RGB(255,255,255));dc.SetBkMode(TRANSPARENT);dc.SelectObject(&font_);dc.DrawText(label,text,DT_LEFT|DT_WORDBREAK);
     }
     if(!toolbarVisible_)return;dc.FillSolidRect(toolbar_,RGB(20,60,35));
-    CRect label=toolbar_;label.top=label.bottom+6;label.bottom+=Px(m_hWnd,52);dc.FillSolidRect(label,RGB(20,60,35));dc.SetBkMode(TRANSPARENT);dc.SetTextColor(RGB(255,255,255));dc.SelectObject(&font_);
-    CString text;text.Format(L"%s  X=%ld Y=%ld W=%d H=%d",Tr(mode_==SelectionMode::Window?Text::WindowHelp:options_.finishOnRelease?Text::QuickSelectionDetails:Text::SelectionDetails),selected_.left+desktop_.left,selected_.top+desktop_.top,selected_.Width(),selected_.Height());label.DeflateRect(8,4);dc.DrawText(text,label,DT_LEFT|DT_WORDBREAK);
+    CRect label=ToolbarBounds();label.top=toolbar_.bottom+6;dc.FillSolidRect(label,RGB(20,60,35));dc.SetBkMode(TRANSPARENT);dc.SetTextColor(RGB(255,255,255));dc.SelectObject(&font_);
+    label.DeflateRect(8,4);dc.DrawText(SelectionHint(),label,DT_LEFT|DT_WORDBREAK);
 }
 int SelectionWindow::Handle(CPoint p)const
 {
@@ -90,7 +96,8 @@ void SelectionWindow::AddCurrent(){if(!selected_.IsRectEmpty()&&regions_.size()<
 void SelectionWindow::OnMouseMove(UINT flags,CPoint p)
 {
     cursor_=p;
-    if(toolbarVisible_&&toolbar_.PtInRect(p)&&!dragging_)return;
+    AvoidToolbar(p);
+    if(toolbarVisible_&&ToolbarBounds().PtInRect(p)&&!dragging_)return;
     p.x=std::clamp<LONG>(p.x,0,image_->width);p.y=std::clamp<LONG>(p.y,0,image_->height);
     if(mode_==SelectionMode::Window&&!locked_){const CPoint screen=p+desktop_.TopLeft();selectedWindow_=nullptr;selected_.SetRectEmpty();
         for(const auto& pair:windows_)if(pair.second.PtInRect(screen)){selectedWindow_=pair.first;RECT r=pair.second;bool foundChild=false;
@@ -106,7 +113,7 @@ void SelectionWindow::OnMouseMove(UINT flags,CPoint p)
 }
 void SelectionWindow::OnLButtonDown(UINT flags,CPoint p)
 {
-    if(toolbarVisible_&&toolbar_.PtInRect(p))return;OnMouseMove(flags,p);
+    OnMouseMove(flags,p);if(toolbarVisible_&&ToolbarBounds().PtInRect(p))return;
     if(mode_==SelectionMode::Window||mode_==SelectionMode::Fixed){locked_=true;Invalidate(FALSE);return;}
     handle_=Handle(p);if(handle_<0&&locked_&&selected_.PtInRect(p))handle_=-2;
     if(handle_<0&&handle_!=-2){if(shape_.GetCurSel()==3&&locked_)AddCurrent();selected_=CRect(p,p);points_={p};}
@@ -125,6 +132,13 @@ void SelectionWindow::Coordinates()
 }
 BOOL SelectionWindow::PreTranslateMessage(MSG* m)
 {
+    if((m->message==WM_MOUSEMOVE||m->message==WM_LBUTTONDOWN)&&m->hwnd!=m_hWnd&&::IsChild(m_hWnd,m->hwnd)){
+        CRect child;::GetWindowRect(m->hwnd,child);
+        if(m->message==WM_LBUTTONDOWN&&!child.PtInRect(m->pt))return TRUE;
+        // MSG.pt survives relocation; queued child-client coordinates may be stale.
+        CPoint point=m->pt;ScreenToClient(&point);
+        if(AvoidToolbar(point)){OnMouseMove(static_cast<UINT>(m->wParam),point);return TRUE;}
+    }
     if(m->message==WM_KEYDOWN){if(ratio_.GetSafeHwnd()&&ratio_.GetDroppedState()||shape_.GetSafeHwnd()&&shape_.GetDroppedState())return CWnd::PreTranslateMessage(m);if(m->wParam==VK_TAB){toolbarVisible_=!toolbarVisible_;if(ratio_.GetSafeHwnd())ratio_.ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);shape_.ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);for(auto& b:buttons_)b->ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);SetFocus();Invalidate(FALSE);return TRUE;}if(m->wParam==VK_ESCAPE){Finish(false);return TRUE;}if(m->wParam==VK_RETURN){Finish(true);return TRUE;}if(m->wParam==VK_SPACE){AddCurrent();return TRUE;}
         if(GetFocus()!=&shape_&&GetFocus()!=&ratio_&&!selected_.IsRectEmpty()&&m->wParam>=VK_LEFT&&m->wParam<=VK_DOWN){const int step=GetKeyState(VK_SHIFT)<0?10:1;int dx=m->wParam==VK_LEFT?-step:m->wParam==VK_RIGHT?step:0,dy=m->wParam==VK_UP?-step:m->wParam==VK_DOWN?step:0;CRect old=selected_;
             if(GetKeyState(VK_CONTROL)<0){selected_.right=std::clamp<LONG>(selected_.right+dx,selected_.left+1,image_->width);selected_.bottom=std::clamp<LONG>(selected_.bottom+dy,selected_.top+1,image_->height);if(ratioX_>0&&shape_.GetCurSel()!=2){CPoint end=selected_.BottomRight();if(dx)end.y=selected_.top+LONG(std::lround(double(selected_.Width())*ratioY_/ratioX_));else end.x=selected_.left+LONG(std::lround(double(selected_.Height())*ratioX_/ratioY_));selected_=core::RatioSelection(selected_.TopLeft(),end,image_->width,image_->height,ratioX_,ratioY_);}}else{dx=std::clamp<int>(dx,-selected_.left,image_->width-selected_.right);dy=std::clamp<int>(dy,-selected_.top,image_->height-selected_.bottom);selected_.OffsetRect(dx,dy);}core::Annotation a;a.rect=old;a.points=points_;core::Document::Fit(a,selected_);points_=std::move(a.points);locked_=true;Invalidate(FALSE);return TRUE;}}

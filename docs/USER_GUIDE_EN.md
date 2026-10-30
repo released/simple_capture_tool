@@ -123,12 +123,15 @@ A single-region selection opens in the editor when you release the mouse. To adj
 
 Hold Ctrl while drawing a rectangle or ellipse to constrain it to a square or circle. Rectangles in multiple-region capture also support this. Fixed-region, window, and freehand selection keep their usual behavior. Ctrl constraints and Shift adjustment can be used together.
 
+When the pointer approaches the capture toolbar or its help panel from above, the whole strip moves down; approaching from below moves it up to reveal the frozen screen underneath. At the top screen edge it stays below the pointer, and at the bottom it stays above. It retains its new location when you move away and does not oscillate under a stationary pointer. Hold Alt to keep it still while using buttons or dropdowns. Open dropdowns also suspend movement. Use Tab to hide the toolbar when space is limited.
+
 During selection:
 
 | Action | Purpose |
 | --- | --- |
 | `Enter` / `Esc` | Confirm / cancel |
 | `Tab` | Hide or show the selection toolbar |
+| Hold `Alt` | Suspend toolbar avoidance to use its controls |
 | Arrow keys / `Shift+Arrow` | Move by 1 / 10 pixels |
 | `Ctrl+Arrow` | Resize the selection |
 | `Space` | Add the current region and continue selecting more regions |
