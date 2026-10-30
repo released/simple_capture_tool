@@ -11,12 +11,12 @@ CString SelectionWindow::SelectionHint()const
 {
     CString text;text.Format(L"%s  X=%ld Y=%ld W=%d H=%d\n%s",
         Tr(mode_==SelectionMode::Window?Text::WindowHelp:options_.finishOnRelease?Text::QuickSelectionDetails:Text::SelectionDetails),
-        selected_.left+desktop_.left,selected_.top+desktop_.top,selected_.Width(),selected_.Height(),Tr(Text::CaptureToolbarBidirectional));
+        selected_.left+desktop_.left,selected_.top+desktop_.top,selected_.Width(),selected_.Height(),Tr(Text::CaptureToolbarDragOnly));
     return text;
 }
 bool SelectionWindow::AvoidToolbar(CPoint point)
 {
-    if(!GetSafeHwnd()||!IsWindowEnabled()||!toolbarVisible_||toolbar_.IsRectEmpty()||toolbarWork_.IsRectEmpty()||GetKeyState(VK_MENU)<0||
+    if(!GetSafeHwnd()||!IsWindowEnabled()||!dragging_||!toolbarVisible_||toolbar_.IsRectEmpty()||toolbarWork_.IsRectEmpty()||GetKeyState(VK_MENU)<0||
         (shape_.GetSafeHwnd()&&shape_.GetDroppedState())||(ratio_.GetSafeHwnd()&&ratio_.GetDroppedState()))return false;
     const auto previous=ToolbarBounds();const int gap=Px(m_hWnd,12),height=previous.Height();
     CRect proximity=previous;proximity.InflateRect(0,gap);

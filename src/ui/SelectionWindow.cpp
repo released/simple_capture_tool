@@ -15,6 +15,7 @@ BEGIN_MESSAGE_MAP(SelectionWindow,CWnd)
  ON_WM_LBUTTONDOWN()
  ON_WM_LBUTTONUP()
  ON_WM_RBUTTONDOWN()
+ ON_WM_CAPTURECHANGED()
  ON_COMMAND_RANGE(SelectConfirm,SelectClear,&SelectionWindow::OnAction)
  ON_CBN_SELCHANGE(SelectShape,&SelectionWindow::OnShape)
  ON_CBN_SELCHANGE(SelectRatio,&SelectionWindow::OnRatio)
@@ -121,6 +122,7 @@ void SelectionWindow::OnLButtonDown(UINT flags,CPoint p)
 }
 void SelectionWindow::OnLButtonUp(UINT flags,CPoint p){if(!dragging_)return;OnMouseMove(flags,p);dragging_=false;locked_=true;if(GetCapture()==this)ReleaseCapture();if(shape_.GetCurSel()==2&&points_.size()>2)points_.push_back(points_.front());Invalidate(FALSE);if(options_.finishOnRelease&&mode_==SelectionMode::Region&&shape_.GetCurSel()!=3&&regions_.empty()&&!selected_.IsRectEmpty()&&GetKeyState(VK_SHIFT)>=0)Finish(true);}
 void SelectionWindow::OnRButtonDown(UINT,CPoint){Finish(false);}
+void SelectionWindow::OnCaptureChanged(CWnd* next){if(dragging_){dragging_=false;locked_=!selected_.IsRectEmpty();Invalidate(FALSE);}CWnd::OnCaptureChanged(next);}
 void SelectionWindow::OnShape(){if(ratio_.GetSafeHwnd())ratio_.EnableWindow(mode_==SelectionMode::Region&&shape_.GetCurSel()!=2);selected_.SetRectEmpty();points_.clear();regions_.clear();locked_=false;SetFocus();Invalidate(FALSE);}
 void SelectionWindow::OnAction(UINT id){if(id==SelectConfirm){Finish(true);return;}else if(id==SelectCoordinates)Coordinates();else if(id==SelectAdd)AddCurrent();else if(id==SelectClear){regions_.clear();selected_.SetRectEmpty();locked_=false;points_.clear();Invalidate(FALSE);}SetFocus();}
 void SelectionWindow::OnRatio(){const int chosen=ratio_.GetCurSel();if(chosen<0||chosen>4){ratio_.SetCurSel(ratioIndex_);return;}int x=0,y=0;if(chosen==1)x=y=1;else if(chosen==2){x=16;y=9;}else if(chosen==3){x=4;y=3;}else if(chosen==4){const HWND host=m_hWnd;const auto audit=ratioAudit_;FormDialog form(this,Text::CaptureRatio,{{Text::RatioWidth,Number(ratioX_?ratioX_:16)},{Text::RatioHeight,Number(ratioY_?ratioY_:9)}});const auto answer=audit?audit(form):form.Run();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;if(answer!=IDOK){ratio_.SetCurSel(ratioIndex_);return;}try{x=Range(form.Fields()[0],1,10000);y=Range(form.Fields()[1],1,10000);}catch(const std::exception&){ratio_.SetCurSel(ratioIndex_);MessageBox(Tr(Text::InvalidValue),Tr(Text::CaptureRatio));return;}}ratioX_=x;ratioY_=y;ratioIndex_=chosen;if(x&&!selected_.IsRectEmpty())selected_=core::RatioSelection(selected_.TopLeft(),selected_.BottomRight(),image_->width,image_->height,x,y);SetFocus();Invalidate(FALSE);}

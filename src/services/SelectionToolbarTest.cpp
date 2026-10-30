@@ -38,25 +38,26 @@ class SelectionToolbarAccess {
     static void Geometry(Check check){
         auto* s=Create();WindowGuard guard{s->m_hWnd};const auto source=s->image_;const auto pixels=source->pixels;
         const auto old=s->ToolbarBounds(),shape=Rect(s->shape_,*s),ratio=Rect(s->ratio_,*s);const CPoint point(old.left+2,old.top+2);
-        check(PaintPoint(*s,point)==RGB(20,60,35),"actual buffered painter covers the old toolbar footprint before avoidance");
-        s->SendMessage(WM_MOUSEMOVE,0,MAKELPARAM(point.x,point.y));const auto moved=s->ToolbarBounds();const int delta=moved.top-old.top;
+        s->dragging_=true;check(PaintPoint(*s,point)==RGB(20,60,35),"actual buffered painter covers the old toolbar footprint before avoidance");
+        s->AvoidToolbar(point);const auto moved=s->ToolbarBounds();const int delta=moved.top-old.top;
         check(moved.top>old.bottom&&!moved.PtInRect(point)&&Inside(*s),"toolbar and full help move below the original footprint within negative-desktop work area");
         check(PaintPoint(*s,point)==RGB(37,point.y%241,point.x%251),"actual repaint exposes original frozen RGB at the vacated toolbar location");
         CRect shiftedShape=shape,shiftedRatio=ratio;shiftedShape.OffsetRect(0,delta);shiftedRatio.OffsetRect(0,delta);
         check(Rect(s->shape_,*s)==shiftedShape&&Rect(s->ratio_,*s)==shiftedRatio,"native shape/ratio HWNDs move by exactly the same offset as the painted bar");
         bool buttons=true;for(const auto& b:s->buttons_)buttons=buttons&&moved.PtInRect(Rect(*b,*s).CenterPoint());check(buttons,"all real command buttons remain together with the moved toolbar");
-        for(int n=0;n<12;++n)s->SendMessage(WM_MOUSEMOVE,0,MAKELPARAM(point.x,point.y));
+        for(int n=0;n<12;++n)s->AvoidToolbar(point);
         check(s->ToolbarBounds()==moved,"stationary repeated pointer messages never oscillate or restore the toolbar");
-        s->SendMessage(WM_MOUSEMOVE,0,MAKELPARAM(1100,800));check(s->ToolbarBounds()==moved,"leaving the toolbar retains the new location without snap-back");
+        s->AvoidToolbar({1100,800});check(s->ToolbarBounds()==moved,"leaving the toolbar retains the new location without snap-back");
         bool bottom=false,clear=true;for(int n=0;n<12;++n){const auto before=s->ToolbarBounds();const auto p=before.CenterPoint();const bool changed=s->AvoidToolbar(p);const auto after=s->ToolbarBounds();bottom=bottom||after.top<before.top;clear=clear&&changed&&Inside(*s)&&!after.PtInRect(p);}
         check(bottom&&clear,"repeated entries move away on either side without leaving the work area");
         check(s->image_==source&&source->pixels==pixels&&s->selected_.IsRectEmpty(),"moving native toolbar never recaptures or changes frozen pixels/selection");
-        auto* shortViewport=Create(640,120);WindowGuard shortGuard{shortViewport->m_hWnd};const auto before=shortViewport->ToolbarBounds();check(!shortViewport->AvoidToolbar(before.CenterPoint())&&shortViewport->ToolbarBounds()==before,"insufficient vertical space preserves controls and existing Tab escape without invalid geometry");
+        auto* shortViewport=Create(640,120);WindowGuard shortGuard{shortViewport->m_hWnd};const auto before=shortViewport->ToolbarBounds();shortViewport->dragging_=true;check(!shortViewport->AvoidToolbar(before.CenterPoint())&&shortViewport->ToolbarBounds()==before,"insufficient vertical space preserves controls and existing Tab escape without invalid geometry");
     }
     static void Directional(Check check){
         auto* s=Create();WindowGuard guard{s->m_hWnd};const auto frozen=s->image_;const auto pixels=frozen->pixels;
+        s->SendMessage(WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(100,500));check(s->dragging_,"directional fixture starts a real region drag before avoidance");
         const int gap=Px(s->m_hWnd,12);auto previous=s->ToolbarBounds();
-        auto mouse=[&](CPoint p){s->SendMessage(WM_MOUSEMOVE,0,MAKELPARAM(p.x,p.y));};
+        auto mouse=[&](CPoint p){s->SendMessage(WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(p.x,p.y));};
         CPoint above(previous.CenterPoint().x,std::max<int>(s->toolbarWork_.top,previous.top-gap/2));mouse(above);
         auto next=s->ToolbarBounds();check(next.top>previous.top&&!previous.PtInRect(above)&&Inside(*s),"approaching from above moves down before the pointer enters the actual toolbar");
         previous=next;CPoint below(previous.CenterPoint().x,previous.bottom+gap/2);mouse(below);next=s->ToolbarBounds();
@@ -74,39 +75,52 @@ class SelectionToolbarAccess {
         check(s->ToolbarBounds().top>0,"at the top screen edge the toolbar is below the pointer");
         const int downBefore=downward;sweep(true);check(downward>downBefore+1,"reversing from the top repeatedly chases the toolbar downward");
         check(stable&&clear&&bounded,"bidirectional native sweeps maintain work-area bounds and clearance without stationary oscillation");
-        check(s->image_==frozen&&frozen->pixels==pixels&&s->selected_.IsRectEmpty(),"continuous chasing never changes frozen pixels or the selection");
+        check(s->image_==frozen&&frozen->pixels==pixels&&s->dragging_,"continuous drag chasing preserves the frozen source and active gesture");
         previous=s->ToolbarBounds();CPoint edge(previous.CenterPoint().x,previous.bottom-1);Alt(true);mouse(edge);
         check(s->ToolbarBounds()==previous,"Alt suspends directional proximity movement as well as actual overlap");Alt(false);
+        s->SendMessage(WM_LBUTTONUP,0,MAKELPARAM(edge.x,edge.y));const auto released=s->ToolbarBounds();
+        check(!s->dragging_&&s->locked_,"release ends avoidance and retains the staged selection");mouse(released.CenterPoint());
+        check(s->ToolbarBounds()==released&&!ChildEvent(*s,s->shape_,WM_MOUSEMOVE),"after release toolbar controls are reachable without Alt");
+        s->SendMessage(WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(100,500));s->SendMessage(WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(300,600));const auto staged=s->selected_;
+        s->SendMessage(WM_CAPTURECHANGED,0,0);if(::GetCapture()==s->m_hWnd)::ReleaseCapture();const auto interrupted=s->ToolbarBounds();mouse(interrupted.CenterPoint());
+        check(!s->dragging_&&s->selected_==staged&&s->locked_&&s->ToolbarBounds()==interrupted,"capture loss preserves selection without accepting it and makes toolbar stationary");
     }
     static void NativeControls(Check check){
-        auto* s=Create();WindowGuard guard{s->m_hWnd};const auto first=s->ToolbarBounds();
-        MSG queued{};queued.hwnd=s->shape_.m_hWnd;queued.message=WM_MOUSEMOVE;queued.lParam=MAKELPARAM(4,4);queued.pt={4,4};s->shape_.ClientToScreen(&queued.pt);
-        check(ChildEvent(*s,s->shape_,WM_MOUSEMOVE)&&s->ToolbarBounds()!=first,"pretranslation routes native combo hover that bypasses parent mouse messages");
-        const auto stable=s->ToolbarBounds();s->PreTranslateMessage(&queued);check(s->ToolbarBounds()==stable,"queued native child motion uses its original screen point instead of relocated client coordinates");
-        queued.message=WM_LBUTTONDOWN;check(s->PreTranslateMessage(&queued)&&s->ToolbarBounds()==stable,"queued clicks at a vacated child position are consumed without activation");
-        const auto moved=s->ToolbarBounds();check(ChildEvent(*s,*s->buttons_[1],WM_LBUTTONDOWN)&&s->ToolbarBounds()!=moved,"stale child click is consumed after moving, never activating old coordinates");
-        s->EnableWindow(FALSE);const auto modal=s->ToolbarBounds();check(!s->AvoidToolbar(modal.CenterPoint())&&s->ToolbarBounds()==modal,"disabled/modal selector does not relocate its controls");s->EnableWindow(TRUE);
-        Alt(true);const auto fixed=s->ToolbarBounds();check(!ChildEvent(*s,s->ratio_,WM_MOUSEMOVE)&&s->ToolbarBounds()==fixed,"holding Alt suspends avoidance for native toolbar interaction");
+        auto* s=Create();WindowGuard guard{s->m_hWnd};const auto first=s->ToolbarBounds();const auto frozen=s->image_;
+        bool pass=true;for(CWnd* child:std::initializer_list<CWnd*>{&s->shape_,&s->ratio_,s->buttons_[0].get(),s->buttons_[1].get(),s->buttons_[2].get(),s->buttons_[3].get()})
+            for(UINT message:{WM_MOUSEMOVE,WM_LBUTTONDOWN,WM_LBUTTONUP})pass=pass&&!ChildEvent(*s,*child,message);
+        check(pass&&s->ToolbarBounds()==first,"idle native hover/down/up pass through every toolbar control without Alt or relocation");
+        s->selected_={100,300,180,340};s->buttons_[2]->SendMessage(BM_CLICK);
+        check(s->regions_.size()==1&&s->selected_.IsRectEmpty()&&s->ToolbarBounds()==first,"native Add button click works without Alt and without moving");
+        s->buttons_[3]->SendMessage(BM_CLICK);check(s->regions_.empty()&&!s->locked_&&s->ToolbarBounds()==first,"native Clear button click works without Alt");
         s->shape_.SetCurSel(1);s->SendMessage(WM_COMMAND,MAKEWPARAM(SelectShape,CBN_SELCHANGE),reinterpret_cast<LPARAM>(s->shape_.m_hWnd));
         s->ratio_.SetCurSel(2);s->SendMessage(WM_COMMAND,MAKEWPARAM(SelectRatio,CBN_SELCHANGE),reinterpret_cast<LPARAM>(s->ratio_.m_hWnd));
-        check(s->shape_.GetCurSel()==1&&s->ratioX_==16&&s->ratioY_==9&&s->ToolbarBounds()==fixed,"Alt-held shape/ratio native notifications remain usable at the new location");Alt(false);
+        check(s->shape_.GetCurSel()==1&&s->ratioX_==16&&s->ratioY_==9&&s->ToolbarBounds()==first,"idle shape/ratio notifications apply without Alt and preserve toolbar position");
+        MSG queued{};queued.hwnd=s->shape_.m_hWnd;queued.message=WM_MOUSEMOVE;queued.lParam=MAKELPARAM(4,4);queued.pt={4,4};s->shape_.ClientToScreen(&queued.pt);
+        s->dragging_=true;check(ChildEvent(*s,s->shape_,WM_MOUSEMOVE)&&s->ToolbarBounds()!=first,"active drag still routes native child avoidance events");
+        const auto stable=s->ToolbarBounds();s->dragging_=false;s->PreTranslateMessage(&queued);check(s->ToolbarBounds()==stable,"queued old hover cannot restart avoidance after drag release");
+        queued.message=WM_LBUTTONDOWN;check(s->PreTranslateMessage(&queued)&&s->ToolbarBounds()==stable,"old clicks at a vacated child position remain safely consumed");
+        check(!ChildEvent(*s,s->shape_,WM_LBUTTONDOWN)&&s->ToolbarBounds()==stable,"current relocated controls accept idle clicks without Alt");
+        s->EnableWindow(FALSE);s->dragging_=true;check(!s->AvoidToolbar(stable.CenterPoint())&&s->ToolbarBounds()==stable,"disabled/modal selector does not relocate even during drag");s->EnableWindow(TRUE);s->dragging_=false;
         MSG key{};key.hwnd=s->m_hWnd;key.message=WM_KEYDOWN;key.wParam=VK_TAB;
-        check(s->PreTranslateMessage(&key)&&!s->toolbarVisible_&&!s->AvoidToolbar(fixed.CenterPoint()),"Tab hides toolbar and removes its avoidance hit target");
-        check(s->PreTranslateMessage(&key)&&s->toolbarVisible_&&s->ToolbarBounds()==fixed,"Tab restores controls at the retained position");
+        check(s->PreTranslateMessage(&key)&&!s->toolbarVisible_,"Tab hides the stationary toolbar to start selection beneath it");
+        check(s->PreTranslateMessage(&key)&&s->toolbarVisible_&&s->ToolbarBounds()==stable,"Tab restores controls at their retained position");
         s->ratioAudit_=[](FormDialog& form){form.Fields()[0].value=L"3";form.Fields()[1].value=L"2";return IDOK;};s->ratio_.SetCurSel(4);s->OnRatio();
-        check(s->ratioX_==3&&s->ratioY_==2,"owned custom ratio dialog remains compatible with relocated controls");
-        bool cancelled=false;s->done_=[&](bool ok,SelectionResult){cancelled=!ok;};key.wParam=VK_ESCAPE;s->PreTranslateMessage(&key);check(cancelled,"Esc cancels the moved selector normally");
+        check(s->ratioX_==3&&s->ratioY_==2,"owned custom ratio remains usable without Alt");
+        s->selected_={100,300,180,340};s->points_.clear();bool accepted=false;s->done_=[&](bool ok,SelectionResult r){accepted=ok&&r.frozen==frozen&&r.regions.size()==1;};
+        const HWND confirm=s->buttons_[0]->m_hWnd;::SendMessage(confirm,BM_CLICK,0,0);check(accepted,"native Confirm button accepts frozen selection without Alt");
+        auto* cancelled=Create();WindowGuard cancelGuard{cancelled->m_hWnd};bool cancel=false;cancelled->done_=[&](bool ok,SelectionResult){cancel=!ok;};key.hwnd=cancelled->m_hWnd;key.wParam=VK_ESCAPE;cancelled->PreTranslateMessage(&key);check(cancel,"Esc cancels the stationary selector normally");
     }
     static void Output(Check check,int shape,SelectionMode mode=SelectionMode::Region){
         auto* s=Create();WindowGuard guard{s->m_hWnd};s->shape_.SetCurSel(shape);s->mode_=mode;s->fixed_={120,80};
         const auto frozen=s->image_;const auto pixels=frozen->pixels;const auto old=s->ToolbarBounds();
-        const CPoint start(40,300),end(old.left+20,old.top+10);s->options_.finishOnRelease=shape!=3&&mode==SelectionMode::Region;
+        const CPoint start(40,300),end=mode==SelectionMode::Region?CPoint(old.left+20,old.top+10):CPoint(80,350);s->options_.finishOnRelease=shape!=3&&mode==SelectionMode::Region;
         bool accepted=false;SelectionResult result;s->done_=[&](bool ok,SelectionResult value){accepted=ok;result=std::move(value);};
-        if(mode==SelectionMode::Window){s->windows_={{reinterpret_cast<HWND>(UINT_PTR(123)),CRect(-380,-170,-100,120)}};}
+        if(mode==SelectionMode::Window){s->windows_={{reinterpret_cast<HWND>(UINT_PTR(123)),CRect(-380,-170,-100,240)}};}
         if(mode==SelectionMode::Region){s->SendMessage(WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(start.x,start.y));s->SendMessage(WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(end.x,end.y));
             check(s->ToolbarBounds()!=old&&!s->ToolbarBounds().PtInRect(end)&&s->dragging_,"active selection drag moves the toolbar without interrupting the gesture");
             s->SendMessage(WM_LBUTTONUP,0,MAKELPARAM(end.x,end.y));if(shape==3){check(!accepted&&s->locked_,"multiple regions retain explicit confirmation after toolbar movement");s->SendMessage(WM_COMMAND,SelectConfirm);}
-        }else{s->SendMessage(WM_MOUSEMOVE,0,MAKELPARAM(end.x,end.y));s->SendMessage(WM_LBUTTONDOWN,0,MAKELPARAM(end.x,end.y));s->SendMessage(WM_COMMAND,SelectConfirm);}
+        }else{s->SendMessage(WM_MOUSEMOVE,0,MAKELPARAM(end.x,end.y));s->SendMessage(WM_LBUTTONDOWN,0,MAKELPARAM(end.x,end.y));check(s->ToolbarBounds()==old,"fixed/window aiming keeps the toolbar stationary for direct use");s->SendMessage(WM_COMMAND,SelectConfirm);}
         check(accepted&&result.frozen==frozen&&frozen->pixels==pixels&&result.regions.size()==1,"selection returns the exact immutable frozen allocation after avoidance");
         if(!accepted||result.regions.empty())return;
         const CRect region=result.regions[0].rect;check(result.target.rect.left==region.left-400&&result.target.rect.top==region.top-180,"moved toolbar does not alter signed desktop coordinates");
@@ -120,7 +134,7 @@ public:
         auto cleanup=[&]{Alt(false);layoutTestDpi=0;CString error;services::ActivateLanguage(language,error);};
         try{for(auto file:{L"lang_tw.ini",L"lang_en.ini"})for(int dpi:{96,120,144}){
             CString error;check(services::ActivateLanguage(file,error),"private capture toolbar language activated");layoutTestDpi=dpi;
-            check(!CString(Tr(Text::CaptureToolbarBidirectional)).IsEmpty(),"localized bidirectional-avoidance/Alt help is available");Geometry(check);Directional(check);NativeControls(check);
+            check(!CString(Tr(Text::CaptureToolbarDragOnly)).IsEmpty(),"localized idle-click/drag-only avoidance help is available");Geometry(check);Directional(check);NativeControls(check);
             for(int shape:{0,1,2,3})Output(check,shape);Output(check,0,SelectionMode::Fixed);Output(check,0,SelectionMode::Window);
             log<<"CAPTURE_TOOLBAR language="<<CStringA(file).GetString()<<" simulated_dpi="<<dpi<<" private_noactivate_native_controls/frozen_output\n";
         }

@@ -20,6 +20,7 @@ protected:
     BOOL PreTranslateMessage(MSG*)override;
     void PostNcDestroy()override{delete this;}
     afx_msg void OnPaint();afx_msg BOOL OnEraseBkgnd(CDC*);afx_msg void OnMouseMove(UINT,CPoint);afx_msg void OnLButtonDown(UINT,CPoint);afx_msg void OnLButtonUp(UINT,CPoint);afx_msg void OnRButtonDown(UINT,CPoint);
+    afx_msg void OnCaptureChanged(CWnd*);
     afx_msg void OnAction(UINT);afx_msg void OnShape();afx_msg void OnRatio();DECLARE_MESSAGE_MAP()
 private:
     friend class WorkflowEditingAccess;

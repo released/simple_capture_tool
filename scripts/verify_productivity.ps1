@@ -7,7 +7,7 @@ $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot)).TrimEnd('\')
 $token=[Guid]::NewGuid().ToString('N')
 $owned=[IO.Path]::Combine($project,'artifacts','verify051',$token.Substring(0,12))
-$audit=[IO.Path]::Combine($project,'artifacts','audits','selection-toolbar-059',"verification-$token.json")
+$audit=[IO.Path]::Combine($project,'artifacts','audits','selection-toolbar-060',"verification-$token.json")
 $results=New-Object 'System.Collections.Generic.List[object]'
 $generated=0L;$removed=0L;$active=$null
 function Assert-Local([string]$Path,[string]$Boundary){
@@ -105,7 +105,7 @@ try{
         Assert-Local $owned $owned | Out-Null;if(@(Get-ChildItem -LiteralPath $owned -Force).Count -eq 0){Remove-Item -LiteralPath $owned}
     }catch{$cleanupError=$_.Exception.Message;if(Test-Path -LiteralPath $owned){$retained=(@(Owned-Entries | Where-Object {-not $_.PSIsContainer}) | Measure-Object Length -Sum).Sum}}
     $hashesUnchanged=$true;foreach($file in $protected.Keys){if(-not(Test-Path -LiteralPath $file) -or (Get-FileHash -LiteralPath $file).Hash -ne $protected[$file]){$hashesUnchanged=$false}}
-    Assert-Local $audit (Join-Path $project 'artifacts\audits\selection-toolbar-059') | Out-Null
+    Assert-Local $audit (Join-Path $project 'artifacts\audits\selection-toolbar-060') | Out-Null
     [pscustomobject]@{Results=@($results.ToArray());GeneratedBytes=$generated;RemovedBytes=$removed;RetainedBytes=$retained;CleanupError=$cleanupError;ProtectedUnchanged=$hashesUnchanged;OwnedRun=$owned} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $audit -Encoding UTF8
     Write-Output "RETENTION generated=$generated removed=$removed retained=$retained protected=$hashesUnchanged audit=$audit"
     if($cleanupError){throw $cleanupError};if(-not $hashesUnchanged){throw 'Protected production files changed'}
