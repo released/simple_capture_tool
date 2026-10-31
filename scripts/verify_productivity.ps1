@@ -1,13 +1,13 @@
 param(
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Both',
-    [ValidateSet('CaptureMagnifier','Canvas','SelectionToolbar','RibbonClarity','MaskEditing','SelectionTools','ColorFilters','EditorTransitions','EditableLayout','EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','Composition','ToolStyles','EditorMenus','ImagePrecision','PictureCrop','TextRuns','ObjectAlignment','DefaultCursor','Freehand','WorkspaceTools','CanvasFrame','TextViewport','ObjectPayload','PasteOriginal','EditorPerformance','CropWorkflow','PolygonShapes','ImageReuse','OpenParity','CaptureLatency','Startup')][string[]]$Scope=@('Productivity'),
+    [ValidateSet('ReviewOptimization','SaveDirectory','CaptureMagnifier','Canvas','SelectionToolbar','RibbonClarity','MaskEditing','SelectionTools','ColorFilters','EditorTransitions','EditableLayout','EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','Composition','ToolStyles','EditorMenus','ImagePrecision','PictureCrop','TextRuns','ObjectAlignment','DefaultCursor','Freehand','WorkspaceTools','CanvasFrame','TextViewport','ObjectPayload','PasteOriginal','EditorPerformance','CropWorkflow','PolygonShapes','ImageReuse','OpenParity','CaptureLatency','Startup')][string[]]$Scope=@('Productivity'),
     [switch]$SkipBuild
 )
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot)).TrimEnd('\')
 $token=[Guid]::NewGuid().ToString('N')
 $owned=[IO.Path]::Combine($project,'artifacts','verify051',$token.Substring(0,12))
-$audit=[IO.Path]::Combine($project,'artifacts','audits','capture-magnifier-062',"verification-$token.json")
+$audit=[IO.Path]::Combine($project,'artifacts','audits','review-optimization-063',"verification-$token.json")
 $results=New-Object 'System.Collections.Generic.List[object]'
 $generated=0L;$removed=0L;$active=$null
 function Assert-Local([string]$Path,[string]$Boundary){
@@ -32,7 +32,7 @@ $protected=@{}
 foreach($relative in 'build\SimpleCaptureTool.ini','build\lang_en.ini','build\lang_tw.ini','runtime\capture_sequence.dat'){
     $file=Join-Path $project $relative;if(Test-Path -LiteralPath $file){$protected[$file]=(Get-FileHash -LiteralPath $file).Hash}
 }
-$arguments=@{CaptureMagnifier='capture-magnifier';Canvas='canvas';SelectionToolbar='selection-toolbar';RibbonClarity='ribbon-clarity';EditorTransitions='editor-transitions';EditableLayout='editable-layout';MaskEditing='mask-editing';SelectionTools='selection-tools';ColorFilters='color-filters';EditorRefinements='editor-refinements';AssetSelection='asset-selection';DocumentationTools='documentation-tools';AdvancedEditing='advanced-editing';Productivity='productivity';Composition='composition';ToolStyles='tool-styles';EditorMenus='editor-menus';ImagePrecision='image-precision';PictureCrop='picture-crop';TextRuns='text-runs';ObjectAlignment='object-alignment';DefaultCursor='default-cursor';Freehand='freehand';WorkspaceTools='workspace-tools';CanvasFrame='canvas-frame';TextViewport='text-viewport';ObjectPayload='object-payload';PasteOriginal='paste-original';EditorPerformance='editor-performance';CropWorkflow='crop-workflow';PolygonShapes='polygon-shapes';ImageReuse='image-reuse';OpenParity='open-parity';CaptureLatency='capture-latency'}
+$arguments=@{ReviewOptimization='review-optimization';SaveDirectory='save-directory';CaptureMagnifier='capture-magnifier';Canvas='canvas';SelectionToolbar='selection-toolbar';RibbonClarity='ribbon-clarity';EditorTransitions='editor-transitions';EditableLayout='editable-layout';MaskEditing='mask-editing';SelectionTools='selection-tools';ColorFilters='color-filters';EditorRefinements='editor-refinements';AssetSelection='asset-selection';DocumentationTools='documentation-tools';AdvancedEditing='advanced-editing';Productivity='productivity';Composition='composition';ToolStyles='tool-styles';EditorMenus='editor-menus';ImagePrecision='image-precision';PictureCrop='picture-crop';TextRuns='text-runs';ObjectAlignment='object-alignment';DefaultCursor='default-cursor';Freehand='freehand';WorkspaceTools='workspace-tools';CanvasFrame='canvas-frame';TextViewport='text-viewport';ObjectPayload='object-payload';PasteOriginal='paste-original';EditorPerformance='editor-performance';CropWorkflow='crop-workflow';PolygonShapes='polygon-shapes';ImageReuse='image-reuse';OpenParity='open-parity';CaptureLatency='capture-latency'}
 if($Scope -contains 'Startup' -and -not('SctProductivityProbe.Native' -as [type])){Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -125,7 +125,7 @@ try{
         Assert-Local $owned $owned | Out-Null;if(@(Get-ChildItem -LiteralPath $owned -Force).Count -eq 0){Remove-Item -LiteralPath $owned}
     }catch{$cleanupError=$_.Exception.Message;if(Test-Path -LiteralPath $owned){$retained=(@(Owned-Entries | Where-Object {-not $_.PSIsContainer}) | Measure-Object Length -Sum).Sum}}
     $hashesUnchanged=$true;foreach($file in $protected.Keys){if(-not(Test-Path -LiteralPath $file) -or (Get-FileHash -LiteralPath $file).Hash -ne $protected[$file]){$hashesUnchanged=$false}}
-    Assert-Local $audit (Join-Path $project 'artifacts\audits\capture-magnifier-062') | Out-Null
+    Assert-Local $audit (Join-Path $project 'artifacts\audits\review-optimization-063') | Out-Null
     [pscustomobject]@{Results=@($results.ToArray());GeneratedBytes=$generated;RemovedBytes=$removed;RetainedBytes=$retained;CleanupError=$cleanupError;ProtectedUnchanged=$hashesUnchanged;OwnedRun=$owned} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $audit -Encoding UTF8
     Write-Output "RETENTION generated=$generated removed=$removed retained=$retained protected=$hashesUnchanged audit=$audit"
     if($cleanupError){throw $cleanupError};if(-not $hashesUnchanged){throw 'Protected production files changed'}

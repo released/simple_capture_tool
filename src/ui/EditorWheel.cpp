@@ -5,7 +5,7 @@ BOOL EditorFrame::OnMouseWheel(UINT flags,short delta,CPoint point)
 {
     const HWND root=::GetAncestor(m_hWnd,GA_ROOT);
     if(sweepGesture_||dragging_||objectGesture_||cropGesture_||canvasHandle_>=0||canvasPending_||panning_||screenColorModal_||sidebar_.Dragging()||
-        (job_.Busy()&&activeAction_!=0)||!IsWindowEnabled()||(root&&!::IsWindowEnabled(root)))return TRUE;
+        (job_.Busy()&&activeAction_!=WorkRender)||!IsWindowEnabled()||(root&&!::IsWindowEnabled(root)))return TRUE;
     // WM_MOUSEWHEEL supplies signed screen coordinates, including on left monitors.
     ScreenToClient(&point);
     if(!canvas_.PtInRect(point))return FALSE;

@@ -763,3 +763,8 @@ SCT_TEXT(CaptureToolbarBidirectional, L"從上方靠近往下避讓，從下方�
 SCT_TEXT(CaptureToolbarDragOnly, L"工具列可直接點選；拖曳選區時自動避讓；Tab 隱藏／顯示；Alt 暫停避讓", L"Click toolbar controls directly; it moves aside only while dragging a region. Tab hides/shows; Alt pauses movement")
 SCT_TEXT(CanvasResizeHelp, L"拖曳藍色拉點擴大或縮小畫布，不縮放圖片；縮小裁掉右／下邊界，可復原；放開套用，Esc 取消。", L"Drag blue grips to grow or shrink canvas without scaling; shrinking clips right/bottom pixels and supports Undo. Release applies; Esc cancels.")
 SCT_TEXT(CanvasResizeLimit, L"畫布每邊須為 1～32768 像素，像素資料最多 512 MiB。", L"Canvas must be 1–32768 pixels per side, with at most 512 MiB of pixels.")
+SCT_TEXT(OutputPendingPage, L"請先完成分頁「%s」的編輯或背景工作，再輸出。", L"Finish edits or background work on page \"%s\" before exporting.")
+SCT_TEXT(ClosingWork, L"正在安全結束背景工作，完成後會自動關閉。", L"Finishing background work safely; closes automatically when ready.")
+SCT_TEXT(CommandUnavailable, L"目前狀態無法使用此功能。", L"This command is unavailable in the current state.")
+SCT_TEXT(InsertImageFit, L"插入圖片（縮入畫布）", L"Insert image (fit canvas)")
+SCT_TEXT(OutputSnapshotLimit, L"輸出快照超過頁數或註記容量限制，請減少分頁或註記。", L"Output snapshot exceeds page or annotation limits; reduce the pages or annotations.")

@@ -10,8 +10,8 @@ void EditorFrame::AutoCropCommand(){
     FormDialog form(this,Text::AutoCrop,{{Text::CropDetectMode,L"0",FieldKind::Choice,{Tr(Text::CropTransparentBorder),Tr(Text::CropCornerBorder)}},{Text::CropTolerance,L"0"}});
     screenColorModal_=true;INT_PTR result=IDCANCEL;try{result=audit?audit(form):form.Run();}catch(...){if(::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)screenColorModal_=false;throw;}
     if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;screenColorModal_=false;if(result!=IDOK||revision!=revision_||selected!=Selection()||generation!=cropGeneration_)return;
-    const bool transparent=Range(form.Fields()[0],0,1)==0;const int tolerance=Range(form.Fields()[1],0,255);auto state=document_.State();activeAction_=21;
-    StartWork([state=std::move(state),transparent,tolerance,revision,generation,selected]{WorkResult r;r.action=21;r.revision=revision;r.preview=generation;r.selected=selected;core::Image image;if(services::RenderDocument(state,image,r.error))r.screen=core::DetectCrop(image,transparent,tolerance);return r;});
+    const bool transparent=Range(form.Fields()[0],0,1)==0;const int tolerance=Range(form.Fields()[1],0,255);auto state=document_.State();activeAction_=WorkAutoCrop;
+    StartWork([state=std::move(state),transparent,tolerance,revision,generation,selected]{WorkResult r;r.action=WorkAutoCrop;r.revision=revision;r.preview=generation;r.selected=selected;core::Image image;if(services::RenderDocument(state,image,r.error))r.screen=core::DetectCrop(image,transparent,tolerance);return r;});
 }
 void EditorFrame::CompleteAutoCrop(WorkResult& r){
     if(r.revision!=revision_||r.preview!=cropGeneration_||r.selected!=Selection())return;

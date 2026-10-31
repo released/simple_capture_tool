@@ -12,7 +12,7 @@ const std::vector<Family>& Families(){
         {Text::CaptureTab,{CaptureInto}},
         {Text::Save,{Save,SaveAs,SaveAll,SaveProject,SaveAllPdf,JpegQuality,ExportGuide,DragImage,ExportScaled,BatchExport,ExportSelectedPng,ExportSelectedSvg}},
         {Text::UndoRedoGroup,{Undo,Redo,UndoList,ClearUndoHistory}},
-        {Text::ClipboardGroup,{Copy,Cut,PasteImage,PasteNewDocument,InsertImage,Tool(core::Tool::Picture),CopyScaled}},
+        {Text::ClipboardGroup,{Copy,Cut,PasteImage,PasteNewDocument,InsertImage,InsertImageFit,Tool(core::Tool::Picture),CopyScaled}},
         {Text::SelectionGroup,{Tool(core::Tool::Select),Tool(core::Tool::PixelSelect),SelectAllPixels,DeselectPixels,SelectAllObjects,ObjectsHere,PixelRect,PixelEllipse,PixelLasso,PixelReplace,PixelAdd,PixelSubtract,PixelMagic,PixelByColor,PixelInvert,PixelGrow,PixelShrink,SelectSameType,SelectSameLine,SelectSameFill,FeatherSelection,StrokePixels,PixelIntersect,MaskOverlay,MaskOverlaySettings,PictureAlphaSelection,SweepObjects}},
         {Text::Arrow,{Tool(core::Tool::Arrow),Tool(core::Tool::CurvedArrow),Tool(core::Tool::ElbowArrow),ArrowOneBend,ArrowTwoBends,ArrowHorizontal,ArrowVertical,ArrowEnds,ConnectObjects,DetachConnector,ConnectorAnchors}},
         {Text::ShapeGroup,{Tool(core::Tool::Rectangle),Tool(core::Tool::RoundRectangle),Tool(core::Tool::Ellipse),Tool(core::Tool::Line),Tool(core::Tool::Callout),Tool(core::Tool::Polygon),ShapeTriangle,ShapeDiamond,ShapePentagon,ShapeHexagon,ToggleFill,ToggleShadow,FreePolygon,Polyline,CenterDrawing,CalloutTailPosition,SeparateOpacity}},

@@ -1,5 +1,6 @@
 #pragma once
 #include <optional>
+#include "Cancellation.h"
 namespace sct::core {
 // One owned worker. The UI polls completion; only destruction joins the worker.
 template<class T> class BackgroundJob {
@@ -23,7 +24,7 @@ private:
             { std::unique_lock<std::mutex> lock(mutex_); wake_.wait(lock, [&] { return stopping_ || static_cast<bool>(job_); });
               if (stopping_) return; task = std::move(job_); job_ = {}; }
             T result;
-            try { result = task(); } catch (const std::exception& e) { result.error.Format(L"%hs", e.what()); }
+            try { CancellationScope scope(cancel);CancellationPoint();result = task(); } catch (const std::exception& e) { result.error.Format(L"%hs", e.what()); }
             catch (...) { result.error = L"Unexpected background failure"; }
             { std::lock_guard<std::mutex> lock(mutex_); result_ = std::move(result); }
         }

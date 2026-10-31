@@ -11,7 +11,7 @@ class EditorWorkspace final:public CFrameWnd {
 public:
     static EditorFrame* Open(core::DocumentState state,CString path,bool captured=false);
     static EditorWorkspace* Current();static bool CloseCurrent();
-    void RefreshDocuments();void ChildClosed(HWND);void Activate(EditorFrame*);
+    void RefreshDocuments(bool resources=true);void ChildClosed(HWND);void Activate(EditorFrame*);
     void Action(UINT);const std::vector<EditorFrame*>& Pages()const{return pages_;}
     void ToggleFullScreenView();
     void RestoreEditorWindow();
@@ -28,6 +28,10 @@ protected:
     void PostNcDestroy()override{if(owned_)delete this;}
     BOOL PreTranslateMessage(MSG*)override;DECLARE_MESSAGE_MAP()
 private:
+    friend class ReviewOptimizationAccess;
+    struct OutputSnapshot {std::vector<core::DocumentState> states;std::vector<CString> labels;std::vector<EditorFrame*> pages;std::vector<HWND> windows;std::vector<uint64_t> revisions;};
+    bool SnapshotOutput(OutputSnapshot&,CString&,size_t metadataLimit=64ULL*1024*1024)const;bool OutputCurrent(const OutputSnapshot&)const;
+    void QueueRefresh(bool resources=true);bool refreshQueued_=false,refreshResources_=false;size_t refreshCount_=0,resourceCount_=0;
     std::optional<core::EffectRecipe> repeat_;
     friend class EditorRefinementsAccess;
     friend class WorkflowEditingAccess;friend class AssetSelectionAccess;

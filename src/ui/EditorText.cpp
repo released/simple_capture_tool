@@ -6,14 +6,14 @@ namespace sct::ui {
 void EditorFrame::Preview(){++previewGeneration_;renderPending_=true;EditorPolling(true);}
 void EditorFrame::OnMButtonDown(UINT,CPoint p){if(canvasHandle_>=0||canvasPending_||!canvas_.PtInRect(p))return;panning_=true;panStart_=p;panX_=offsetX_;panY_=offsetY_;SetCapture();}
 void EditorFrame::OnMButtonUp(UINT,CPoint){if(!panning_)return;panning_=false;ReleaseCapture();}
-void EditorFrame::OnLButtonDblClk(UINT,CPoint p){if(pathMode_){FinishPath();return;}if(style_.tool==core::Tool::Crop||job_.Busy()&&activeAction_!=0)return;CancelComposition();dragging_=false;if(GetCapture()==this)ReleaseCapture();int index=document_.HitTest(ImagePoint(p));if(index>=0){auto a=document_.State().objects[index];if(a.group||a.locked){Select(index);GuardSelection(true);return;}if(a.tool==core::Tool::Text||a.tool==core::Tool::Callout)BeginText(a,index);}}
+void EditorFrame::OnLButtonDblClk(UINT,CPoint p){if(pathMode_){FinishPath();return;}if(style_.tool==core::Tool::Crop||job_.Busy()&&activeAction_!=WorkRender)return;CancelComposition();dragging_=false;if(GetCapture()==this)ReleaseCapture();int index=document_.HitTest(ImagePoint(p));if(index>=0){auto a=document_.State().objects[index];if(a.group||a.locked){Select(index);GuardSelection(true);return;}if(a.tool==core::Tool::Text||a.tool==core::Tool::Callout)BeginText(a,index);}}
 void EditorFrame::OnCaptureChanged(CWnd*){if(sweepGesture_)CancelSweep(false);if(maskGesture_)CancelMask();ClearSnapping();if(cropGesture_)CancelCrop(false);CancelComposition();CancelCanvasResize();if(dragging_){if(pixelMoving_)pixelSelection_=pixelOriginal_;pixelMoving_=false;dragging_=false;clickCandidate_=-1;Preview();Layout();InvalidateRect(canvas_,FALSE);}panning_=false;}
 void EditorFrame::BeginText(core::Annotation a,int index){if(index>=0&&(a.locked||core::composition::Expand(document_.State(),{index}).size()>1)){status_.SetWindowText(Tr(a.locked?Text::ObjectsLocked:Text::SingleObjectNeeded));return;}textDraft_=std::move(a);textIndex_=index;textEditing_=true;richSync_=true;services::SetRichText(text_.m_hWnd,textDraft_,zoom_);richScale_=zoom_;richDpi_=GetDpiForWindow(text_.m_hWnd);richSync_=false;SyncStyle();Layout();TextPosition();if(text_.GetStyle()&WS_VISIBLE)text_.SetFocus();text_.SetSel(0,-1);status_.SetWindowText(Tr(Text::InlineTextHelp));}
 void EditorFrame::OnInlineTextChanged(){if(textEditing_&&(textDraft_.alignment>=3||textDraft_.textAutoHeight))TextPosition();}
 bool EditorFrame::FinishText(bool commit)
 {
     if(!textEditing_)return true;
-    if(commit&&job_.Busy()&&activeAction_!=0){status_.SetWindowText(Tr(Text::Busy));return false;}
+    if(commit&&job_.Busy()&&activeAction_!=WorkRender){status_.SetWindowText(Tr(Text::Busy));return false;}
     if(commit&&!ReadRichText(textDraft_)){status_.SetWindowText(Tr(Text::InvalidValue));return false;}CString value=textDraft_.text;const bool apply=commit&&!value.IsEmpty();
     if(apply){
         // Keep the draft visible if a bounded document commit cannot succeed.
@@ -23,12 +23,12 @@ bool EditorFrame::FinishText(bool commit)
     const bool focused=GetFocus()==&text_;textEditing_=false;text_.ShowWindow(SW_HIDE);if(focused)SetFocus();
     if(apply){selected_=textIndex_;Changed();}else{Preview();InvalidateRect(canvas_,FALSE);}return true;
 }
-void EditorFrame::StyleCommand(UINT id){if(textEditing_&&(id==TextBold||id==TextItalic||id==TextUnderline)){FormatTextRun(id==TextBold?RunBold:id==TextItalic?RunItalic:RunUnderline);return;}if(!GuardSelection(true)){SyncStyle();return;}if(job_.Busy()&&activeAction_!=0){SyncStyle();status_.SetWindowText(Tr(Text::Busy));return;}auto a=textEditing_?textDraft_:selected_>=0?document_.State().objects[selected_]:style_;if(id==TextBold)a.bold=!a.bold;else if(id==TextItalic)a.italic=!a.italic;else if(id==TextUnderline)a.underline=!a.underline;else if(id==ToggleFill)a.filled=!a.filled;else if(id==ToggleShadow)a.shadow=!a.shadow;else if(id==TextTransparent||id==TextOpaque)a.textBackground=id==TextOpaque;else if(id>=EraseTransparent&&id<=EraseColor)a.eraseMode=id==EraseColor?1:0;else if(id>=AlignLeft&&id<=AlignRight)a.alignment=id-AlignLeft;else if(id>=AlignLeftMiddle&&id<=AlignRightMiddle)a.alignment=3+id-AlignLeftMiddle;else if(id==FillColor){CColorDialog dlg(a.background,CC_FULLOPEN,this);if(dlg.DoModal()!=IDOK)return;a.background=dlg.GetColor();}
+void EditorFrame::StyleCommand(UINT id){if(textEditing_&&(id==TextBold||id==TextItalic||id==TextUnderline)){FormatTextRun(id==TextBold?RunBold:id==TextItalic?RunItalic:RunUnderline);return;}if(!GuardSelection(true)){SyncStyle();return;}if(job_.Busy()&&activeAction_!=WorkRender){SyncStyle();status_.SetWindowText(Tr(Text::Busy));return;}auto a=textEditing_?textDraft_:selected_>=0?document_.State().objects[selected_]:style_;if(id==TextBold)a.bold=!a.bold;else if(id==TextItalic)a.italic=!a.italic;else if(id==TextUnderline)a.underline=!a.underline;else if(id==ToggleFill)a.filled=!a.filled;else if(id==ToggleShadow)a.shadow=!a.shadow;else if(id==TextTransparent||id==TextOpaque)a.textBackground=id==TextOpaque;else if(id>=EraseTransparent&&id<=EraseColor)a.eraseMode=id==EraseColor?1:0;else if(id>=AlignLeft&&id<=AlignRight)a.alignment=id-AlignLeft;else if(id>=AlignLeftMiddle&&id<=AlignRightMiddle)a.alignment=3+id-AlignLeftMiddle;else if(id==FillColor){CColorDialog dlg(a.background,CC_FULLOPEN,this);if(dlg.DoModal()!=IDOK)return;a.background=dlg.GetColor();}
     if(!textEditing_)for(auto& run:a.textRuns){if(id==TextBold)run.bold=a.bold;else if(id==TextItalic)run.italic=a.italic;else if(id==TextUnderline)run.underline=a.underline;}
     if(textEditing_){textDraft_=a;TextPosition();}else if(selected_>=0){document_.Replace(selected_,a);Changed();}const auto tool=style_.tool;style_=a;style_.tool=tool;
     SyncStyle();}
 void EditorFrame::SyncStyle(){
-    style_.hidden=false;style_.label.Empty();
+    style_.hidden=false;style_.label.Empty();ribbon_.RefreshEnabled();
     sidebar_.Refresh();
     if(!fontSize_.GetSafeHwnd())return;const auto& a=textEditing_?textDraft_:selected_>=0&&selected_<static_cast<int>(document_.State().objects.size())?document_.State().objects[selected_]:style_;
     if(a.tool==core::Tool::Highlight){highlightColor_=a.color;highlightOpacity_=a.opacity;}

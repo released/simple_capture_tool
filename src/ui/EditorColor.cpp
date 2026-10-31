@@ -5,8 +5,8 @@
 namespace sct::ui {
 void EditorFrame::BeginScreenColor(){
     if(dragging_||panning_||GetCapture()==this){status_.SetWindowText(Tr(Text::Busy));return;}
-    screenColorVisible_=IsWindowVisible()!=FALSE;const auto read=screenColorReadAudit_;activeAction_=16;
-    StartWork([read]{WorkResult r;r.action=16;
+    screenColorVisible_=IsWindowVisible()!=FALSE;const auto read=screenColorReadAudit_;activeAction_=WorkScreenColor;
+    StartWork([read]{WorkResult r;r.action=WorkScreenColor;
         if(read){if(!read(r.image,r.screen,r.error)&&r.error.IsEmpty())r.error=Tr(Text::ScreenColorFailed);}
         else{r.screen=services::CaptureService::DesktopRect();services::CaptureTarget target;target.rect=r.screen;const bool captured=services::CaptureService::GrabGdi(target,r.image,r.error);const RECT now=services::CaptureService::DesktopRect();if(!captured||!EqualRect(&r.screen,&now)){r.image={};r.error=CString(Tr(Text::ScreenColorFailed))+(r.error.IsEmpty()?CString():CString(L" ")+r.error);}}
         return r;});status_.SetWindowText(Tr(Text::Busy));

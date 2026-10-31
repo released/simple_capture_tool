@@ -29,12 +29,13 @@ class EditorRibbon final:public CWnd {
     PaintSurface surface_;
 protected:afx_msg BOOL OnEraseBkgnd(CDC*){return TRUE;}
 public:
-    bool Create(CWnd* owner);int Arrange(int width);void Refresh();void CheckTool(int tool);
+    bool Create(CWnd* owner);int Arrange(int width);void Refresh();void RefreshEnabled();void CheckTool(int tool);
     CWnd* Find(UINT id);void Enable(UINT id,bool enabled);
 protected:
     afx_msg void OnPaint();afx_msg void OnTab(NMHDR*,LRESULT*);BOOL OnCommand(WPARAM,LPARAM)override;DECLARE_MESSAGE_MAP()
     BOOL OnNotify(WPARAM,LPARAM,LRESULT*)override;BOOL PreTranslateMessage(MSG*)override;
 private:
+    friend class ReviewOptimizationAccess;
     friend class RibbonClarityAccess;
     friend class AlignmentAccess;
     friend class EditorHomeAccess;

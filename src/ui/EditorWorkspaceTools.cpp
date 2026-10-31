@@ -15,7 +15,7 @@ void EditorWorkspace::ReclaimInactive(){
 void EditorWorkspace::UpdateResources(bool reclaim,size_t limit){
     try{
     core::DocumentResources usage;size_t caches=0;for(auto* p:pages_){p->document_.Account(usage);p->AccountAuxiliary(usage);usage.Add(&p->image_);usage.Add(&p->thumbnail_);caches+=p->surface_.Bytes()+p->previewCache_->Bytes();}
-    resources_=std::move(usage);cacheBytes_=caches;resourceBytes_=resources_.Bytes()+caches;
+    ++resourceCount_;resources_=std::move(usage);cacheBytes_=caches;resourceBytes_=resources_.Bytes()+caches;
     if(reclaim&&resourceBytes_>limit){ReclaimInactive();UpdateResources(false);return;}
     if(active_>=0&&active_<static_cast<int>(pages_.size()))pages_[active_]->ViewStatus();
     }catch(const std::exception& e){if(active_>=0&&active_<static_cast<int>(pages_.size())){CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());pages_[active_]->status_.SetWindowText(error);}}
@@ -39,7 +39,7 @@ void EditorFrame::WorkspaceCommand(UINT id){
     try{result=audit?audit(dialog):dialog.Run();}catch(...){if(::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)screenColorModal_=false;throw;}
     if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;screenColorModal_=false;
     if(!::IsWindow(workspace)||CWnd::FromHandlePermanent(workspace)!=w||revision_!=revision||pages!=w->pages_||result!=IDOK)return;
-    if(id==RenameDocument){CString label=dialog.Fields()[0].value;label.Trim();if(label.GetLength()>80||std::any_of(label.GetString(),label.GetString()+label.GetLength(),[](wchar_t c){return c<32||c==127;})){status_.SetWindowText(Tr(Text::InvalidSessionLabel));return;}sessionLabel_=label;NotifyWorkspace();}
+    if(id==RenameDocument){CString label=dialog.Fields()[0].value;label.Trim();if(label.GetLength()>80||std::any_of(label.GetString(),label.GetString()+label.GetLength(),[](wchar_t c){return c<32||c==127;})){status_.SetWindowText(Tr(Text::InvalidSessionLabel));return;}sessionLabel_=label;NotifyWorkspace(false);}
     else if(id==ChooseDocument){const int index=dialog.Fields()[0].Integer();if(index>=0&&index<static_cast<int>(pages.size()))w->Activate(pages[index]);}
 }
 BEGIN_MESSAGE_MAP(EditorWorkspace::TabStrip,CTabCtrl)

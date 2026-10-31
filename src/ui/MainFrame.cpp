@@ -80,9 +80,13 @@ void MainFrame::OnClose(){if(settings_.closeToTray&&!exiting_){CloseEditors();Sh
 void MainFrame::OnDestroy(){KillTimer(CapturePollTimer);capturePolling_=false;RestoreEditors();countdown_.Close();if(!isolated_){for(UINT i=1;i<=HotkeyCatalog().size();++i)UnregisterHotKey(m_hWnd,i);Shell_NotifyIcon(NIM_DELETE,&tray_);}SetMenu(nullptr);menu_.DestroyMenu();CFrameWnd::OnDestroy();}
 void MainFrame::ExitApplication()
 {
+    pendingExit_=true;deferredHotkey_=0;
     if(countdownMode_){countdownMode_=0;countdown_.Close();}
-    if(job_.Busy()||selecting_){job_.cancel=true;status_.SetWindowText(Tr(Text::Busy));return;}
-    CloseEditors();
+    job_.cancel=true;
+    if(selecting_){EnumThreadWindows(GetCurrentThreadId(),[](HWND window,LPARAM)->BOOL{if(auto* selection=dynamic_cast<SelectionWindow*>(CWnd::FromHandlePermanent(window))){selection->Finish(false);return FALSE;}return TRUE;},0);}
+    if(job_.Busy()||selecting_){status_.SetWindowText(Tr(Text::ClosingWork));return;}
+    CloseEditors();bool pages=false;EnumThreadWindows(GetCurrentThreadId(),[](HWND window,LPARAM value)->BOOL{if(dynamic_cast<EditorFrame*>(CWnd::FromHandlePermanent(window))||dynamic_cast<EditorWorkspace*>(CWnd::FromHandlePermanent(window))){*reinterpret_cast<bool*>(value)=true;return FALSE;}return TRUE;},reinterpret_cast<LPARAM>(&pages));
+    if(pages){status_.SetWindowText(Tr(Text::ClosingWork));return;}
     exiting_=true;CFrameWnd::OnClose();
 }
 }

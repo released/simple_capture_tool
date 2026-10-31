@@ -4,7 +4,7 @@ namespace sct::ui {
 void EditorFrame::MosaicScroll(UINT code)
 {
     if(!GuardSelection(true)){SyncStyle();return;}
-    if(job_.Busy()&&activeAction_!=0){SyncStyle();status_.SetWindowText(Tr(Text::Busy));return;}
+    if(job_.Busy()&&activeAction_!=WorkRender){SyncStyle();status_.SetWindowText(Tr(Text::Busy));return;}
     const int strength=mosaicSlider_.GetPos();CString label;label.Format(L"%s %d%%",Tr(Text::MosaicStrength),strength);mosaicLabel_.SetWindowText(label);
     // Apply a dragged slider once on release, preserving one useful undo step.
     if(code==TB_THUMBTRACK)return;

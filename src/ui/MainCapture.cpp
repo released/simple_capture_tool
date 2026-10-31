@@ -20,7 +20,7 @@ bool MainFrame::QueueCaptureWork(std::function<WorkResult()> work)
 }
 void MainFrame::BeginCapture(UINT mode)
 {
-    if(job_.Busy()||selecting_||countdownMode_){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(pendingExit_||job_.Busy()||selecting_||countdownMode_){status_.SetWindowText(Tr(Text::Busy));return;}
     if(!captureIntoRequested_){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;}captureIntoRequested_=false;
     captureRect_=requestedRect_;requestedRect_={};
     if(mode==ActiveWindow){activeTarget_=ExternalWindow();if(!activeTarget_){AfxMessageBox(Tr(Text::NoActiveWindow));return;}}
@@ -93,7 +93,7 @@ void MainFrame::OnTimer(UINT_PTR timer)
     if(countdownMode_){if(GetAsyncKeyState(VK_ESCAPE)<0){RestoreEditors();countdownMode_=0;countdown_.Close();if(restore_)ShowWindow(SW_SHOW);}
         else{const auto left=std::chrono::duration_cast<std::chrono::milliseconds>(deadline_-std::chrono::steady_clock::now()).count();if(left<=0){UINT mode=countdownMode_;countdownMode_=0;countdown_.Close();LaunchFrozen(mode);}else countdown_.UpdateSeconds(static_cast<int>((left+999)/1000));}}
     }
-    if(job_.Busy()&&GetAsyncKeyState(VK_ESCAPE)<0)job_.cancel=true;auto r=job_.Take();if(!r){if(capturePolling_&&!job_.Busy()){KillTimer(CapturePollTimer);capturePolling_=false;}return;}
+    if(job_.Busy()&&GetAsyncKeyState(VK_ESCAPE)<0)job_.cancel=true;auto r=job_.Take();if(pendingExit_){ExitApplication();return;}if(!r){if(capturePolling_&&!job_.Busy()){KillTimer(CapturePollTimer);capturePolling_=false;}return;}
     if(capturePolling_){KillTimer(CapturePollTimer);capturePolling_=false;}
     if(!r->error.IsEmpty()&&r->action!=2&&r->action!=4){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();status_.SetWindowText(CString(Tr(Text::Failed))+r->error);ShowWindow(SW_SHOW);return;}
     if(r->action==0){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}

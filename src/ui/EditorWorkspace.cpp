@@ -29,7 +29,7 @@ END_MESSAGE_MAP()
 EditorWorkspace* EditorWorkspace::Current(){return dynamic_cast<EditorWorkspace*>(CWnd::FromHandlePermanent(current_));}
 EditorFrame* EditorWorkspace::Open(core::DocumentState state,CString path,bool captured)
 {
-    auto* workspace=Current();if(!workspace){workspace=new EditorWorkspace;current_=workspace->GetSafeHwnd();
+    auto* workspace=Current();if(workspace&&workspace->closing_)workspace=nullptr;if(!workspace){workspace=new EditorWorkspace;current_=workspace->GetSafeHwnd();
         if(!workspace->Create(nullptr,Caption(),WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,CRect(60,60,1260,900))){delete workspace;throw std::runtime_error("Cannot create editor workspace");}workspace->owned_=true;current_=workspace->GetSafeHwnd();}
     EditorFrame* editor=nullptr;try{editor=new EditorFrame(std::move(state),std::move(path),workspace);}catch(...){if(workspace->pages_.empty())workspace->DestroyWindow();throw;}if(captured)editor->Captured();workspace->pages_.push_back(editor);workspace->Activate(editor);
     ::RemoveProp(workspace->m_hWnd,EditorTrayHidden);workspace->ShowWindow(captured?SW_MAXIMIZE:workspace->IsIconic()?SW_RESTORE:SW_SHOW);workspace->SetForegroundWindow();editor->SetFocus();return editor;
@@ -43,21 +43,33 @@ int EditorWorkspace::OnCreate(LPCREATESTRUCT cs)
 void EditorWorkspace::Layout(){if(!tabs_.GetSafeHwnd()||!choose_.GetSafeHwnd())return;CRect r;GetClientRect(r);const int top=Px(m_hWnd,34),side=showThumbs_?Px(m_hWnd,164):0;tabs_.MoveWindow(4,2,std::max(1,r.Width()-Px(m_hWnd,76)),top-2);choose_.MoveWindow(r.right-Px(m_hWnd,68),2,Px(m_hWnd,30),top-4);close_.MoveWindow(r.right-Px(m_hWnd,34),2,Px(m_hWnd,30),top-4);thumbs_.ShowWindow(showThumbs_?SW_SHOW:SW_HIDE);thumbs_.MoveWindow(0,top,side,std::max(1,r.Height()-top));for(size_t i=0;i<pages_.size();++i){auto* page=pages_[i];page->MoveWindow(side,top,std::max(1,r.Width()-side),std::max(1,r.Height()-top));page->ShowWindow(static_cast<int>(i)==active_?SW_SHOW:SW_HIDE);}RedrawWindow(nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN);}
 void EditorWorkspace::OnSize(UINT type,int w,int h){CFrameWnd::OnSize(type,w,h);Layout();}
 void EditorWorkspace::OnGetMinMaxInfo(MINMAXINFO* info){CFrameWnd::OnGetMinMaxInfo(info);info->ptMinTrackSize={Px(m_hWnd,680),Px(m_hWnd,480)};}
-void EditorWorkspace::RefreshDocuments()
-{
-    if(closing_)return;tabs_.DeleteAllItems();for(size_t i=0;i<pages_.size();++i)tabs_.InsertItem(static_cast<int>(i),pages_[i]->DocumentName());
-    if(!pages_.empty()){active_=std::clamp(active_,0,static_cast<int>(pages_.size())-1);tabs_.SetCurSel(active_);SetWindowText(Caption()+L" — "+pages_[active_]->DocumentName());}thumbs_.Invalidate(FALSE);UpdateResources();
+void EditorWorkspace::QueueRefresh(bool resources){
+    if(closing_)return;refreshResources_=refreshResources_||resources;
+    if(!refreshQueued_)refreshQueued_=PostMessage(WorkspaceRefresh)!=FALSE;
 }
-void EditorWorkspace::Activate(EditorFrame* page){const auto it=std::find(pages_.begin(),pages_.end(),page);if(it==pages_.end())return;if(active_>=0&&active_<static_cast<int>(pages_.size())&&pages_[active_]!=page&&!pages_[active_]->FinishText(true))return;active_=static_cast<int>(it-pages_.begin());ResumePage(page);RefreshDocuments();Layout();page->SetFocus();}
+void EditorWorkspace::RefreshDocuments(bool resources)
+{
+    if(closing_)return;++refreshCount_;
+    while(tabs_.GetItemCount()>static_cast<int>(pages_.size()))tabs_.DeleteItem(tabs_.GetItemCount()-1);
+    for(size_t i=0;i<pages_.size();++i){const CString name=pages_[i]->DocumentName();if(i>=static_cast<size_t>(tabs_.GetItemCount()))tabs_.InsertItem(static_cast<int>(i),name);
+        else{wchar_t text[32768]{};TCITEM item{};item.mask=TCIF_TEXT;item.pszText=text;item.cchTextMax=_countof(text);tabs_.GetItem(static_cast<int>(i),&item);if(name!=text){item.pszText=const_cast<LPWSTR>(name.GetString());tabs_.SetItem(static_cast<int>(i),&item);}}}
+    if(!pages_.empty()){active_=std::clamp(active_,0,static_cast<int>(pages_.size())-1);tabs_.SetCurSel(active_);SetWindowText(Caption()+L" — "+pages_[active_]->DocumentName());}
+    thumbs_.Invalidate(FALSE);if(resources)UpdateResources();else if(!pages_.empty())pages_[active_]->ViewStatus();
+}
+void EditorWorkspace::Activate(EditorFrame* page){if(closing_||page->closing_)return;const auto it=std::find(pages_.begin(),pages_.end(),page);if(it==pages_.end())return;if(active_>=0&&active_<static_cast<int>(pages_.size())&&pages_[active_]!=page&&!pages_[active_]->FinishText(true))return;active_=static_cast<int>(it-pages_.begin());ResumePage(page);RefreshDocuments();Layout();page->SetFocus();}
 void EditorWorkspace::OnTab(NMHDR*,LRESULT* result){const int next=tabs_.GetCurSel();if(next>=0&&next<static_cast<int>(pages_.size()))Activate(pages_[next]);tabs_.SetCurSel(active_);*result=0;}
-void EditorWorkspace::ChildClosed(HWND hwnd){EditorFrame* active=active_>=0&&active_<static_cast<int>(pages_.size())?pages_[active_]:nullptr;auto it=std::find_if(pages_.begin(),pages_.end(),[&](auto* p){return p->GetSafeHwnd()==hwnd;});if(it!=pages_.end())pages_.erase(it);if(closing_)return;if(pages_.empty()){PostMessage(WM_CLOSE);return;}auto found=std::find(pages_.begin(),pages_.end(),active);active_=found!=pages_.end()?static_cast<int>(found-pages_.begin()):std::clamp(active_,0,static_cast<int>(pages_.size())-1);ResumePage(pages_[active_]);RefreshDocuments();Layout();}
+void EditorWorkspace::ChildClosed(HWND hwnd){EditorFrame* active=active_>=0&&active_<static_cast<int>(pages_.size())?pages_[active_]:nullptr;auto it=std::find_if(pages_.begin(),pages_.end(),[&](auto* p){return p->GetSafeHwnd()==hwnd;});if(it!=pages_.end())pages_.erase(it);if(closing_){if(pages_.empty())PostMessage(WM_CLOSE);return;}if(pages_.empty()){PostMessage(WM_CLOSE);return;}auto found=std::find(pages_.begin(),pages_.end(),active);active_=found!=pages_.end()?static_cast<int>(found-pages_.begin()):std::clamp(active_,0,static_cast<int>(pages_.size())-1);ResumePage(pages_[active_]);RefreshDocuments();Layout();}
 bool EditorWorkspace::CloseCurrent(){auto* w=Current();if(!w)return true;HWND hwnd=w->GetSafeHwnd();w->SendMessage(WM_CLOSE);return !::IsWindow(hwnd);}
-void EditorWorkspace::OnClose(){if(closing_)return;closing_=true;auto pages=pages_;for(auto* p:pages){HWND hwnd=p->GetSafeHwnd();p->SendMessage(WM_CLOSE);if(::IsWindow(hwnd)){closing_=false;RefreshDocuments();Layout();return;}}DestroyWindow();}
+void EditorWorkspace::OnClose(){
+    if(closing_){if(pages_.empty())DestroyWindow();return;}closing_=true;
+    const auto pages=pages_;for(auto* page:pages){const HWND hwnd=page->GetSafeHwnd();if(::IsWindow(hwnd)&&CWnd::FromHandlePermanent(hwnd)==page)page->SendMessage(WM_CLOSE);}
+    if(pages_.empty()){DestroyWindow();return;}ShowWindow(SW_HIDE);
+}
 void EditorWorkspace::OnDestroy(){if(current_==m_hWnd)current_=nullptr;closing_=true;SetMenu(nullptr);appMenu_.DestroyMenu();CFrameWnd::OnDestroy();}
 void EditorWorkspace::OnAction(UINT id){Action(id==WorkspaceChoose?ChooseDocument:CloseDocument);}
-void EditorWorkspace::RestoreEditorWindow(){ShowWindow(IsIconic()?SW_RESTORE:SW_SHOW);SetForegroundWindow();if(active_>=0&&active_<static_cast<int>(pages_.size()))pages_[active_]->SetFocus();}
+void EditorWorkspace::RestoreEditorWindow(){if(closing_)return;ShowWindow(IsIconic()?SW_RESTORE:SW_SHOW);SetForegroundWindow();if(active_>=0&&active_<static_cast<int>(pages_.size()))pages_[active_]->SetFocus();}
 void EditorWorkspace::Action(UINT id){if(id==ShowThumbnails){showThumbs_=!showThumbs_;Layout();return;}if(id==CloseAllDocuments){SendMessage(WM_CLOSE);return;}if(pages_.empty())return;if(id==CloseDocument){pages_[active_]->SendMessage(WM_CLOSE);return;}if(id==SaveAll){for(auto* page:pages_)page->SendMessage(WM_COMMAND,Save);return;}pages_[active_]->SendMessage(WM_COMMAND,id);}
-LRESULT EditorWorkspace::OnRefresh(WPARAM,LPARAM){RefreshDocuments();return 0;}
+LRESULT EditorWorkspace::OnRefresh(WPARAM,LPARAM){const bool resources=refreshResources_;refreshQueued_=refreshResources_=false;RefreshDocuments(resources);return 0;}
 void EditorWorkspace::ToggleFullScreenView(){if(!fullScreen_){GetWindowRect(restoreRect_);restoreStyle_=GetStyle();ModifyStyle(WS_CAPTION|WS_THICKFRAME,0);MONITORINFO info{sizeof(info)};GetMonitorInfo(MonitorFromWindow(m_hWnd,MONITOR_DEFAULTTONEAREST),&info);SetWindowPos(nullptr,info.rcMonitor.left,info.rcMonitor.top,info.rcMonitor.right-info.rcMonitor.left,info.rcMonitor.bottom-info.rcMonitor.top,SWP_FRAMECHANGED|SWP_NOZORDER);}else{ModifyStyle(0,restoreStyle_&(WS_CAPTION|WS_THICKFRAME));SetWindowPos(nullptr,restoreRect_.left,restoreRect_.top,restoreRect_.Width(),restoreRect_.Height(),SWP_FRAMECHANGED|SWP_NOZORDER);}fullScreen_=!fullScreen_;}
 LRESULT EditorWorkspace::OnLanguageChanged(WPARAM,LPARAM){ApplyFont(*this,font_);BuildAppMenu();for(auto* p:pages_)p->SendMessage(LanguageChanged);RefreshDocuments();Layout();return 0;}
 LRESULT EditorWorkspace::OnDpiChanged(WPARAM,LPARAM value){const RECT& r=*reinterpret_cast<RECT*>(value);SetWindowPos(nullptr,r.left,r.top,r.right-r.left,r.bottom-r.top,SWP_NOZORDER);ApplyFont(*this,font_);for(auto* p:pages_)p->SendMessage(LanguageChanged);Layout();return 0;}

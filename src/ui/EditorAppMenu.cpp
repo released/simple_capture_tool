@@ -16,7 +16,7 @@ void EditorWorkspace::OnAppCommand(UINT id){MainFrame::DispatchAppCommand(id,m_h
 void EditorWorkspace::OnInitMenuPopup(CMenu* menu,UINT index,BOOL system){
     CFrameWnd::OnInitMenuPopup(menu,index,system);if(system||!menu||active_<0||active_>=static_cast<int>(pages_.size()))return;
     auto* page=pages_[active_];if(!page||!::IsWindow(page->GetSafeHwnd())||CWnd::FromHandlePermanent(page->m_hWnd)!=page)return;
-    for(int i=0;i<menu->GetMenuItemCount();++i){const UINT id=menu->GetMenuItemID(i),command=EditorMenuCommand(id);if((command<ObjectAlignLeft||command>SnapObjects)&&command!=CenterDrawing&&command!=StampCopies&&command!=MaskOverlay&&command!=SweepObjects&&command!=RepeatLastEffect&&command!=ReshowLastEffect)continue;const UINT flags=page->AlignmentMenuFlags(command);menu->CheckMenuItem(id,MF_BYCOMMAND|(flags&MF_CHECKED));menu->EnableMenuItem(id,MF_BYCOMMAND|(flags&MF_GRAYED));}
+    for(int i=0;i<menu->GetMenuItemCount();++i){const UINT id=menu->GetMenuItemID(i),command=EditorMenuCommand(id);if(!command)continue;const UINT flags=page->CommandMenuFlags(command);menu->CheckMenuItem(id,MF_BYCOMMAND|(flags&MF_CHECKED));menu->EnableMenuItem(id,MF_BYCOMMAND|(flags&MF_GRAYED));}
 }
 void EditorWorkspace::OnEditorMenuCommand(UINT id){const UINT command=EditorMenuCommand(id);if(!command||!IsWindowEnabled()||active_<0||active_>=static_cast<int>(pages_.size()))return;auto* page=pages_[active_];const HWND target=page->GetSafeHwnd();if(!::IsWindow(target)||CWnd::FromHandlePermanent(target)!=page||!page->IsWindowEnabled())return;if(command==CustomizeEditorHome){ConfigureEditorHome(page);return;}page->SendMessage(WM_COMMAND,command);}
 }

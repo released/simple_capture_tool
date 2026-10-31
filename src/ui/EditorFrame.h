@@ -4,6 +4,8 @@
 #include "../core/BackgroundJob.h"
 #include "../services/ClipboardService.h"
 #include "EditorRibbon.h"
+#include "EditorStatus.h"
+#include "EditorWork.h"
 #include "../core/ImageEffects.h"
 #include "PaintSurface.h"
 #include "../core/ObjectComposition.h"
@@ -31,8 +33,8 @@ public:
     EditorFrame(core::DocumentState state,CString path,CWnd* workspace=nullptr,bool deferred=false);
     void Captured(){dirty_=true;NotifyWorkspace();}
     CString DocumentName()const;const core::Image& Thumbnail()const{return thumbnail_;}
-    bool HasUnsavedChanges()const{return (width_.GetSafeHwnd()&&width_.GetModify()&&(selected_>=0||textEditing_))||sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||dirty_||textEditing_||dragging_||objectGesture_||sidebar_.Dirty()||!cropRegion_.IsRectEmpty()||canvasHandle_>=0||canvasPending_;}
-    bool WorkingForBuild()const{return sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||maskPending_||job_.Busy()||(renderPending_&&!renderSuspended_)||!pendingLayoutPaths_.empty()||pendingAction_!=0||copyTicket_||pasteTicket_||objectGesture_||sidebar_.Dragging()||cropGesture_||canvasHandle_>=0||canvasPending_||screenColorModal_;}
+    bool HasUnsavedChanges()const{return !closing_&&((width_.GetSafeHwnd()&&width_.GetModify()&&(selected_>=0||textEditing_))||sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||dirty_||textEditing_||dragging_||objectGesture_||sidebar_.Dirty()||!cropRegion_.IsRectEmpty()||canvasHandle_>=0||canvasPending_);}
+    bool WorkingForBuild()const{return closing_||sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||maskPending_||job_.Busy()||(renderPending_&&!renderSuspended_)||!pendingLayoutPaths_.empty()||pendingAction_!=0||copyTicket_||pasteTicket_||objectGesture_||sidebar_.Dragging()||cropGesture_||canvasHandle_>=0||canvasPending_||screenColorModal_;}
     void AutomaticOutput(const std::shared_ptr<const core::Image>&,const CString& path,const CString& error);
 protected:
     BOOL PreTranslateMessage(MSG*) override;
@@ -44,6 +46,7 @@ protected:
     afx_msg void OnMouseMove(UINT,CPoint);
     afx_msg void OnLButtonUp(UINT,CPoint);
     afx_msg BOOL OnMouseWheel(UINT,short,CPoint);
+    afx_msg void OnInsertFit(){OnAction(InsertImageFit);}
     afx_msg void OnAction(UINT);
     afx_msg void OnToolChanged();
     afx_msg void OnTimer(UINT_PTR);
@@ -63,6 +66,9 @@ private:
     bool ReadWidth(int&)const;bool FinishWidthDraft();bool ApplyWidth(int);void SyncWidth();
     afx_msg void OnWidthCommit();afx_msg void OnWidthDelta(NMHDR*,LRESULT*);
     bool widthCommitting_=false,widthClosing_=false;
+    friend class ReviewOptimizationAccess;
+    bool OutputDraft()const;UINT CommandMenuFlags(UINT)const;bool Closing()const{return closing_;}
+    bool closing_=false;
     struct WorkResult;
     friend class EditorRefinementsAccess;
     void RefinementCommand(UINT);void CompleteRefinement(WorkResult&);void OpenStyleGallery();void ApplyNamedStyle(const std::vector<services::ToolStyle>&,int,const CString&);
@@ -161,7 +167,7 @@ private:
     std::function<UINT(CMenu&)> contextMenuAudit_;
     friend class EditorRibbon;
     friend class EditorWorkspace;
-    struct WorkResult { std::optional<core::EffectRecipe> recipe;core::Image image,thumbnail,colorPreview,colorOriginal;core::DocumentState state,sourceState;std::shared_ptr<const core::SelectionMask> mask;std::array<uint64_t,256> histogram{};UINT command=0;uint64_t maskEpoch=0;core::composition::Indices selected,expected;std::vector<core::Image> pages;std::vector<services::ImageExportOutcome> exports;HWND workspaceWindow=nullptr;CWnd* workspaceOwner=nullptr;CString path,error;int action=0;uint64_t revision=0,preview=0;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<services::ImageComparison> comparison;bool cut=false,colorChanged=false;Text colorTitle=Text::ColorGamma;CRect colorCrop;core::Tool colorTool=core::Tool::Select;CSize dimensions{1280,720};RECT screen{}; };
+    struct WorkResult { std::optional<core::EffectRecipe> recipe;core::Image image,thumbnail,colorPreview,colorOriginal;core::DocumentState state,sourceState;std::shared_ptr<const core::SelectionMask> mask;std::array<uint64_t,256> histogram{};UINT command=0;uint64_t maskEpoch=0;core::composition::Indices selected,expected;std::vector<core::Image> pages;std::vector<services::ImageExportOutcome> exports;HWND workspaceWindow=nullptr;CWnd* workspaceOwner=nullptr;CString path,error;int action=WorkRender;uint64_t revision=0,preview=0;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<services::ImageComparison> comparison;bool cut=false,colorChanged=false;Text colorTitle=Text::ColorGamma;CRect colorCrop;core::Tool colorTool=core::Tool::Select;CSize dimensions{1280,720};RECT screen{}; };
     void Layout();void Changed();void RequestRender();void ShowMore();void EditProperties();void ChooseFont();void Transform(UINT);void PaintContent(CDC&);
     bool FinishPropertyDraft();void ChangeTool(int);
     void CommandTools(UINT);void ReloadEditorShortcuts();UINT EditorShortcutCommand(UINT,UINT)const;bool RouteEditorShortcut(MSG*,bool);
@@ -187,7 +193,7 @@ private:
     std::function<bool(const CString&,CString&)> paletteSaveAudit_;
     std::function<bool(const CString&,CString&)> hexCopyAudit_;
     std::function<bool()> historyConfirmAudit_;
-    void Export(bool project);void OutputCommand(UINT);void InsertFile(const CString&);void Insert(core::Image);
+    void Export(bool project);void OutputCommand(UINT);void InsertFile(const CString&,bool fit=false);void Insert(core::Image);
     int JpegPreview();std::shared_ptr<const core::Image> modalImage_;
     CPoint ImagePoint(CPoint) const;CRect ScreenRect(RECT) const;
     LPCTSTR CanvasCursor(CPoint)const;void ApplyCanvasCursor(CPoint);void RefreshCanvasCursor();
@@ -219,7 +225,7 @@ private:
     std::function<INT_PTR(FormDialog&)> newImageFormAudit_;
     bool newImageVisible_=false;
     std::function<UINT(CMenu&)> moreMenuAudit_;
-    void NotifyWorkspace();void DocumentCommand(UINT);void OpenNext();void ZoomTo(double,bool fit=false);void ViewStatus();void ClampViewport();CPoint ImageOrigin()const;
+    void NotifyWorkspace(bool resources=true);void DocumentCommand(UINT);void OpenNext();void ZoomTo(double,bool fit=false);void ViewStatus();void ClampViewport();CPoint ImageOrigin()const;
     void BeginText(core::Annotation,int);bool FinishText(bool);void TextPosition();void Preview();void ClipboardCommand(UINT);void StyleCommand(UINT);void StampMenu(bool);
     bool PrepareClipboardAction(UINT);void CompleteClipboardCopy(bool);void PollClipboardPaste();void PublishClipboardResult(WorkResult&);void RunPendingAction();
     void CompleteImagePaste(WorkResult&);
@@ -236,7 +242,7 @@ private:
     CFont font_;
     CSliderCtrl mosaicSlider_;CStatic mosaicLabel_;
     EditorRibbon ribbon_;PaletteBar palette_;CStatic widthLabel_;CComboBox zoomChoice_;CSliderCtrl zoomSlider_;CScrollBar horizontal_,vertical_;EditorSidebar sidebar_;
-    InlineTextEdit text_;CEdit width_;CSpinButtonCtrl widthSpin_;CComboBox tools_;CStatic status_;
+    InlineTextEdit text_;CEdit width_;CSpinButtonCtrl widthSpin_;CComboBox tools_;EditorStatus status_;
     LOGFONT inlineFontSpec_{};CRect inlineClip_;bool inlineClipValid_=false,inlineClipFull_=false;
     CToolTipCtrl tips_;CString tipText_;
     std::shared_ptr<services::PreviewRenderCache> previewCache_=std::make_shared<services::PreviewRenderCache>();
@@ -251,7 +257,7 @@ private:
     core::composition::Indices pendingObjects_;
     uint64_t copyTicket_=0,pasteTicket_=0,sessionNumber_=0;
     COLORREF highlightColor_=RGB(255,235,0);int highlightOpacity_=90;int highlightBlend_=0;
-    int activeAction_=0,jpegQuality_=0;
+    int activeAction_=WorkRender,jpegQuality_=0;
     bool fit_=true,owned_=false,projectPrimary_=false;CWnd* workspace_=nullptr;
     std::vector<CString> openQueue_;bool fullScreen_=false;CRect restoreRect_;DWORD restoreStyle_=0;
     uint64_t previewGeneration_=0;bool panning_=false,textEditing_=false,pixelMoving_=false;CPoint panStart_;int panX_=0,panY_=0,textIndex_=-1;core::Annotation textDraft_;CFont inlineFont_;CRect pixelSelection_,pixelOriginal_;std::vector<std::unique_ptr<CButton>> styleButtons_;CComboBox fontSize_,lineStyle_,opacity_;

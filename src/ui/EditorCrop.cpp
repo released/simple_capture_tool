@@ -6,7 +6,7 @@
 #include "../core/PreciseImage.h"
 namespace sct::ui {
 bool EditorFrame::CropDown(CPoint p){
-    if(style_.tool!=core::Tool::Crop)return false;if(job_.Busy()&&activeAction_!=0){status_.SetWindowText(Tr(Text::Busy));return true;}
+    if(style_.tool!=core::Tool::Crop)return false;if(job_.Busy()&&activeAction_!=WorkRender){status_.SetWindowText(Tr(Text::Busy));return true;}
     if(cropRevision_!=revision_)cropRegion_.SetRectEmpty();cropBefore_=cropRegion_;cropStart_=ImagePoint(p);cropHandle_=-2;
     if(!cropRegion_.IsRectEmpty()){const auto r=ScreenRect(cropRegion_);const int tolerance=Px(m_hWnd,7);for(int yy=0;yy<3;++yy)for(int xx=0;xx<3;++xx)if(xx!=1||yy!=1){const CPoint q(r.left+r.Width()*xx/2,r.top+r.Height()*yy/2);if(abs(q.x-p.x)<=tolerance&&abs(q.y-p.y)<=tolerance)cropHandle_=yy*3+xx;}
         if(cropHandle_==-2&&r.PtInRect(p))cropHandle_=-1;}
@@ -25,8 +25,8 @@ bool EditorFrame::PaintCrop(CDC& dc){if(style_.tool!=core::Tool::Crop||cropRevis
 void EditorFrame::CropCommand(UINT id){
     if(id==CancelCropSelection){CancelCrop();return;}if(cropGesture_||cropRevision_!=revision_||cropRegion_.IsRectEmpty()){status_.SetWindowText(Tr(Text::CropPendingHelp));return;}
     if(id==MoveCropContents){const auto region=cropRegion_;CancelCrop();pixelSelection_=pixelOriginal_=region;selected_=-1;style_.tool=core::Tool::PixelSelect;tools_.SetCurSel(static_cast<int>(style_.tool));ribbon_.CheckTool(static_cast<int>(style_.tool));SyncStyle();Layout();status_.SetWindowText(Tr(Text::MoveCropHelp));return;}
-    if(id!=ApplyCrop)return;const auto state=document_.State();const auto rect=cropRegion_;const auto revision=revision_,generation=cropGeneration_;activeAction_=17;
-    StartWork([state,rect,revision,generation]{WorkResult r;r.action=17;r.revision=revision;r.preview=generation;core::Document document;document.Reset(state);if(!core::CropDocument(document,rect)){r.error=L"Invalid crop bounds";return r;}r.state=document.State();if(services::RenderDocument(r.state,r.image,r.error)){const double scale=std::min({1.,144./r.image.width,96./r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,static_cast<int>(r.image.width*scale)),std::max(1,static_cast<int>(r.image.height*scale)));}return r;});
+    if(id!=ApplyCrop)return;const auto state=document_.State();const auto rect=cropRegion_;const auto revision=revision_,generation=cropGeneration_;activeAction_=WorkCrop;
+    StartWork([state,rect,revision,generation]{WorkResult r;r.action=WorkCrop;r.revision=revision;r.preview=generation;core::Document document;document.Reset(state);if(!core::CropDocument(document,rect)){r.error=L"Invalid crop bounds";return r;}r.state=document.State();if(services::RenderDocument(r.state,r.image,r.error)){const double scale=std::min({1.,144./r.image.width,96./r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,static_cast<int>(r.image.width*scale)),std::max(1,static_cast<int>(r.image.height*scale)));}return r;});
 }
 void EditorFrame::CompleteCrop(WorkResult& r){if(r.revision!=revision_||r.preview!=cropGeneration_){status_.SetWindowText(Tr(Text::Busy));return;}document_.Commit(std::move(r.state));image_=std::move(r.image);thumbnail_=std::move(r.thumbnail);dirty_=true;++revision_;++previewGeneration_;rendered_=revision_;renderPending_=false;selected_=-1;CancelMask();CancelCrop();pixelSelection_.SetRectEmpty();SyncStyle();Layout();NotifyWorkspace();InvalidateRect(canvas_,FALSE);}
 }

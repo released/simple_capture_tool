@@ -24,7 +24,7 @@ int EditorFrame::Handle(CPoint p)const
     return -1;
 }
 void EditorFrame::OnLButtonDown(UINT flags,CPoint p)
-{
+{if(closing_)return;status_.ClearOperation();
     if(!FinishWidthDraft())return;
     if(sidebar_.Dirty()){if(sidebar_.FinishProperties())SetFocus();return;}
     if(GetKeyState(VK_SPACE)<0){OnMButtonDown(0,p);return;}
@@ -32,7 +32,7 @@ void EditorFrame::OnLButtonDown(UINT flags,CPoint p)
     // A completion click must never also become the start of another annotation.
     if(canvas_.PtInRect(p))SetFocus();
     if(finishText){selected_=-1;SyncStyle();Layout();InvalidateRect(canvas_,FALSE);return;}
-    if(!canvas_.PtInRect(p)||canvasPending_||(job_.Busy()&&activeAction_!=0)||pendingAction_==SelectPixels)return;
+    if(!canvas_.PtInRect(p)||canvasPending_||(job_.Busy()&&activeAction_!=WorkRender)||pendingAction_==SelectPixels)return;
     if(BeginCanvasResize(p))return;
     if(SweepDown(p))return;
     if(PictureCropDown(p))return;
@@ -61,7 +61,7 @@ if(draft_.tool==core::Tool::Step){int next=1;for(const auto& a:document_.State()
     dragging_=true;SetCapture();
 }
 void EditorFrame::OnMouseMove(UINT,CPoint p)
-{
+{if(closing_)return;
     if(GetCapture()==this)ApplyCanvasCursor(p);
     if(SweepMove(p))return;
     if(PathMove(p))return;
@@ -83,7 +83,7 @@ void EditorFrame::OnMouseMove(UINT,CPoint p)
     Preview();ViewStatus();InvalidateRect(canvas_,FALSE);
 }
 void EditorFrame::OnLButtonUp(UINT f,CPoint p)
-{
+{if(closing_)return;
     if(SweepUp(p))return;
     if(pathMode_)return;
     if(PictureCropUp(p))return;
@@ -129,6 +129,7 @@ void EditorFrame::ChooseFont()
 }
 BOOL EditorFrame::PreTranslateMessage(MSG* m)
 {
+    if(closing_)return TRUE;
     if((m->hwnd==width_.GetSafeHwnd()||::GetFocus()==width_.GetSafeHwnd())&&width_.GetSafeHwnd()){
         if(m->message==WM_KEYDOWN&&(m->wParam==VK_RETURN||m->wParam==VK_ESCAPE)){
             if(m->wParam==VK_ESCAPE){SyncWidth();SetFocus();}
@@ -149,7 +150,7 @@ if(m->message==WM_KEYDOWN||m->message==WM_SYSKEYDOWN){if(canvasHandle_>=0||canva
             if(m->wParam==VK_APPS||(m->wParam==VK_F10&&GetKeyState(VK_SHIFT)<0)){OnContextMenu(this,{-1,-1});return TRUE;}
             if(m->wParam==VK_RETURN&&style_.tool==core::Tool::Crop){OnAction(ApplyCrop);return TRUE;}
             if(m->wParam==VK_ESCAPE){CancelSweep();pictureCropMode_=false;colorSelectionMode_=0;CancelMask();CancelCrop();CancelComposition();selected_=-1;pixelSelection_.SetRectEmpty();pixelMoving_=false;if(dragging_){dragging_=false;ReleaseCapture();Preview();}SyncStyle();Layout();InvalidateRect(canvas_,FALSE);return TRUE;}
-            if(selected_>=0&&GetFocus()!=&tools_&&GetFocus()!=&width_&&m->wParam>=VK_LEFT&&m->wParam<=VK_DOWN){if(objectGesture_||job_.Busy()&&activeAction_!=0){status_.SetWindowText(Tr(Text::Busy));return TRUE;}int step=GetKeyState(VK_SHIFT)<0?10:1;NudgeSelection(m->wParam==VK_LEFT?-step:m->wParam==VK_RIGHT?step:0,m->wParam==VK_UP?-step:m->wParam==VK_DOWN?step:0);return TRUE;}
+            if(selected_>=0&&GetFocus()!=&tools_&&GetFocus()!=&width_&&m->wParam>=VK_LEFT&&m->wParam<=VK_DOWN){if(objectGesture_||job_.Busy()&&activeAction_!=WorkRender){status_.SetWindowText(Tr(Text::Busy));return TRUE;}int step=GetKeyState(VK_SHIFT)<0?10:1;NudgeSelection(m->wParam==VK_LEFT?-step:m->wParam==VK_RIGHT?step:0,m->wParam==VK_UP?-step:m->wParam==VK_DOWN?step:0);return TRUE;}
         }
     }return CFrameWnd::PreTranslateMessage(m);
 }

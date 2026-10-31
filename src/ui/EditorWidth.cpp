@@ -23,7 +23,7 @@ bool EditorFrame::ApplyWidth(int value)
     if(widthClosing_||widthCommitting_)return false;
     const HWND root=::GetAncestor(m_hWnd,GA_ROOT);
     if(value<1||value>128){SyncWidth();status_.SetWindowText(Tr(Text::InvalidValue));return false;}
-    if(!IsWindowEnabled()||(root&&!::IsWindowEnabled(root))||!width_.IsWindowEnabled()||sweepGesture_||pathDrawing_||clonePending_||screenColorModal_||maskGesture_||maskPending_||dragging_||objectGesture_||cropGesture_||panning_||sidebar_.Dragging()||canvasHandle_>=0||canvasPending_||(job_.Busy()&&activeAction_!=0)){
+    if(!IsWindowEnabled()||(root&&!::IsWindowEnabled(root))||!width_.IsWindowEnabled()||sweepGesture_||pathDrawing_||clonePending_||screenColorModal_||maskGesture_||maskPending_||dragging_||objectGesture_||cropGesture_||panning_||sidebar_.Dragging()||canvasHandle_>=0||canvasPending_||(job_.Busy()&&activeAction_!=WorkRender)){
         SyncWidth();status_.SetWindowText(Tr(Text::Busy));return false;
     }
     const HWND host=m_hWnd;const auto expected=Selection();

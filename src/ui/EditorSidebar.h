@@ -5,6 +5,7 @@ namespace sct::ui {
 class EditorFrame;
 class EditorSidebar final:public CWnd {
 public:
+    friend class ReviewOptimizationAccess;
     EditorFrame* owner=nullptr;bool Create(EditorFrame*);void ShowPane(int);bool Open()const{return open_;}bool Dirty()const{return propertyDirty_;}bool Dragging()const{return dragging_;}void Refresh(bool force=false);void RefreshLanguage();bool OwnsFocus()const;BOOL RouteKey(MSG*);
     bool FinishProperties(){if(!propertyDirty_)return true;OnApply();return lastApplySucceeded_;}
 protected:

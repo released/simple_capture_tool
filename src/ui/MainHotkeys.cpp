@@ -21,7 +21,7 @@ bool MainFrame::MenuLoopActive()const
 }
 LRESULT MainFrame::OnHotkey(WPARAM id,LPARAM)
 {
-    if(id<1||id>HotkeyCatalog().size()||!HotkeyCatalog()[id-1].command||!IsWindowEnabled()||AppDialogActive()||!DialogOwner()->IsWindowEnabled())return 0;
+    if(pendingExit_||id<1||id>HotkeyCatalog().size()||!HotkeyCatalog()[id-1].command||!IsWindowEnabled()||AppDialogActive()||!DialogOwner()->IsWindowEnabled())return 0;
     deferredHotkey_=static_cast<UINT>(id);
     if(MenuLoopActive())::EndMenu();
     PostMessage(DispatchHotkey);return 0;

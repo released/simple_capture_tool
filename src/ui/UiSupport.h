@@ -82,6 +82,7 @@ enum Command : UINT {
     SearchQuery=44500,SearchList,CompareMode,CompareDivider,
     GuideList=44600,GuideUp,GuideDown,GuideTitleEdit,GuideCaptionEdit,HistogramBlack,HistogramWhite,HistogramSelection,
     PreviewOriginal=44700,PreviewSplit,PreviewDivider,ManualHorizontal=44800,
+    InsertImageFit=44820,
     BatchList=44900,BatchNameEdit,BatchFolderEdit,BatchBrowse,BatchFormatChoice,BatchQualityEdit,SelectRatio=44920,StickerList=44950,StickerAdd,StickerRename,StickerRemove,StickerSave
 };
 constexpr UINT TrayMessage = WM_APP + 21;

@@ -19,6 +19,7 @@ void MainFrame::ShowNewImage(CSize size,HWND ownerWindow,CWnd* ownerIdentity)
 }
 void MainFrame::OnAction(UINT id)
 {
+    if(pendingExit_&&id!=Exit)return;
     if(!IsWindowEnabled()||!DialogOwner()->IsWindowEnabled())return;
     if(id==Record||id==Pause||id==Stop)return;
     if(commandAudit_){commandAudit_(id);return;}

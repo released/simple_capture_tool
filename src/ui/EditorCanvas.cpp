@@ -17,7 +17,7 @@ int EditorFrame::CanvasGrip(CPoint p)const
 bool EditorFrame::BeginCanvasResize(CPoint p)
 {
     const int grip=CanvasGrip(p);if(grip<0)return false;
-    if(pendingAction_||copyTicket_||pasteTicket_||(job_.Busy()&&activeAction_!=0)){status_.SetWindowText(Tr(Text::Busy));return true;}
+    if(pendingAction_||copyTicket_||pasteTicket_||(job_.Busy()&&activeAction_!=WorkRender)){status_.SetWindowText(Tr(Text::Busy));return true;}
     canvasHandle_=grip;canvasTarget_={document_.Width(),document_.Height()};canvasPress_=p;canvasZoom_=zoom_;SetCapture();ViewStatus();InvalidateRect(canvas_,FALSE);return true;
 }
 void EditorFrame::UpdateCanvasResize(CPoint p)
@@ -43,8 +43,8 @@ void EditorFrame::ApplyCanvasResize()
 {
     if(!canvasPending_||job_.Busy())return;
     EditorPolling(true);
-    try{const auto state=document_.State();const auto revision=revision_;const auto size=canvasTarget_;const CString error=Tr(Text::CanvasResizeLimit);activeAction_=13;
-        StartWork([state,revision,size,error]{WorkResult r;r.action=13;r.revision=revision;
+    try{const auto state=document_.State();const auto revision=revision_;const auto size=canvasTarget_;const CString error=Tr(Text::CanvasResizeLimit);activeAction_=WorkCanvas;
+        StartWork([state,revision,size,error]{WorkResult r;r.action=WorkCanvas;r.revision=revision;
             try{if(!core::ResizeCanvas(state,size.cx,size.cy,r.state))r.error=error;else if(services::RenderDocument(r.state,r.image,r.error)){const double scale=std::min({1.0,144.0/r.image.width,96.0/r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,static_cast<int>(r.image.width*scale)),std::max(1,static_cast<int>(r.image.height*scale)));}}
             catch(const std::exception& e){r.error.Format(L"%s (%hs)",error.GetString(),e.what());}catch(...){r.error=error;}return r;});status_.SetWindowText(Tr(Text::Busy));
     }catch(...){canvasPending_=false;status_.SetWindowText(Tr(Text::CanvasResizeLimit));InvalidateRect(canvas_,FALSE);}

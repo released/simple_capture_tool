@@ -107,7 +107,7 @@ Run `build\SimpleCaptureTool.exe` to start in the system tray. Right-click the i
 
 The main window and editor both provide **File**, **Capture**, and **Settings** menus. The editor also has the complete categorized **Edit** menu. Home toolbar buttons are shortcuts; hiding them through customization does not remove their commands.
 
-Closing an image, closing the editor, or exiting the application immediately discards unsaved images. To leave temporarily while keeping images open, minimize or use the editor's **Minimize to tray** command.
+Closing an image, closing the editor, or exiting discards unsaved images without asking. If background work is still running, the close request is remembered and completes automatically after safe cancellation or completion; no second exit request is needed. An output already being written may finish first. To leave temporarily while keeping images open, minimize or use the editor's **Minimize to tray** command.
 
 ## Screen capture
 
@@ -241,7 +241,7 @@ The limit is 64 images per guide, 128 MiB per base image, 64 MiB per encoded PNG
 
 Ctrl+A followed by Ctrl+C copies the full composed image without permanently merging objects on the source page. Pasting into another image creates one movable, resizable Picture. Inside text input, Ctrl+A selects text only.
 
-Ordinary image paste with Ctrl+V retains original pixels and transparency and switches to a 100% view. The canvas expands right/down with white space when needed. Scroll when the image exceeds the viewport. Paste and expansion form one Undo step.
+Single-file Insert image and ordinary image paste with Ctrl+V retain original pixels and transparency and switch to a 100% view. The canvas expands right/down with white space when needed. Scroll when the image exceeds the viewport. Insertion/paste and expansion form one Undo step. To keep the existing canvas size, choose **Clipboard > Insert image (fit canvas)**; it fits the object display box while retaining the original image asset.
 
 With the pointer inside the canvas, the wheel scrolls vertically, Shift+wheel scrolls horizontally, and Ctrl+wheel zooms around the image position under the pointer. Zoom follows wheel movement and ranges from 1–800%; canvas edges still limit scrolling. Wheel navigation is suspended during drawing, dragging, selection adjustment, or canvas resizing, and resumes when the gesture finishes.
 
@@ -299,7 +299,9 @@ Undo/Redo exist only in RAM. The timeline identifies snapshots by steps, dimensi
 
 ## Saving, output, and sharing
 
-**Save / Save as / Save all** always opens a file dialog and requires your filename. Save all asks separately for each image. The first dialog uses Windows Downloads. After a successful image, image-PDF, or annotation-SVG save, the folder becomes the preference for other images and subsequent launches. A missing folder falls back to Downloads. Canceling, a failed image write, or saving an editable project does not update this location; canceling also retains the unsaved state.
+**Save / Save as / Save all** always opens a file dialog and requires your filename. Save all asks separately for each image. The first dialog uses Windows Downloads. After a successful image, image-PDF, or annotation-SVG save, the folder becomes the preference for other images and subsequent launches. A missing folder falls back to Downloads. Canceling, a failed image write, or saving an editable project does not update this location; canceling also retains the unsaved state. Operation results and errors remain alongside size/zoom information through tab, zoom, and resource refreshes; the next operation updates the message. Failed saves clean up their own temporary file. If cleanup fails, the error includes that temporary path.
+
+Multipage PDF and batch image export check every page first. Pending properties, text, crop, or background work identify the page that needs attention. Complete or cancel that editing before exporting; drafts on other pages are never silently applied. Multipage PDF supports up to 500 pages; shared output snapshots allow up to 64 MiB of annotation metadata.
 
 - JPG, PNG, BMP, static GIF, PDF, multipage PDF, and printing are supported.
 - PNG retains transparency. JPG, BMP, GIF, PDF, and printing composite onto white. The transparency checkerboard is an editor preview only.

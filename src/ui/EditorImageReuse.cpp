@@ -29,7 +29,7 @@ void EditorFrame::ImageReuseCommand(UINT id){
 }
 void EditorFrame::CompleteImageReuse(WorkResult& r){
     if(r.maskEpoch!=maskEpoch_||r.revision!=revision_||r.preview!=cropGeneration_||r.expected!=Selection()||textEditing_||sidebar_.Dirty()||dragging_||objectGesture_||cropGesture_){status_.SetWindowText(Tr(Text::Busy));return;}
-    if(r.action==23){CompleteLayout(r);return;}
+    if(r.action==WorkReusePages){CompleteLayout(r);return;}
     if(!::IsWindow(r.workspaceWindow)||CWnd::FromHandlePermanent(r.workspaceWindow)!=r.workspaceOwner||workspace_!=r.workspaceOwner){status_.SetWindowText(Tr(Text::Busy));return;}
     auto* workspace=static_cast<EditorWorkspace*>(r.workspaceOwner);const HWND host=m_hWnd;const bool opened=workspace->AppendPreparedImages(this,std::move(r.pages));if(::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this&&!opened)status_.SetWindowText(Tr(Text::Busy));
 }

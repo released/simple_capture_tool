@@ -8,6 +8,7 @@
 #include "../services/ClipboardService.h"
 #include "../services/DocumentRenderer.h"
 #include "../services/ProjectService.h"
+#include "../core/ImageOperations.h"
 namespace sct::ui {
 void EditorFrame::ShowMore()
 {
@@ -17,6 +18,9 @@ void EditorFrame::ShowMore()
 }
 void EditorFrame::OnAction(UINT id)
 {
+    if(CommandMenuFlags(id)&MF_GRAYED){status_.SetWindowText(Tr(job_.Busy()?Text::Busy:Text::CommandUnavailable));return;}
+    const bool viewportCommand=id>=ZoomFit&&id<=ToggleFullScreen;
+    if(!viewportCommand&&id!=ChooseDocument)status_.ClearOperation();
     if(id>=BringToFront&&id<=ExportSelectedSvg&&(maskGesture_||maskPending_||dragging_||panning_||sidebar_.Dragging()||!IsWindowEnabled()||!::IsWindowEnabled(::GetAncestor(m_hWnd,GA_ROOT)))){status_.SetWindowText(Tr(Text::Busy));return;}
     if(sweepGesture_){status_.SetWindowText(Tr(Text::Busy));return;}
     if(pathDrawing_&&id!=CloseDocument&&id!=CloseAllDocuments){status_.SetWindowText(Tr(Text::PathHelp));return;}
@@ -36,7 +40,7 @@ void EditorFrame::OnAction(UINT id)
     if(id==SelectAllObjects){CompositionCommand(id);return;}
     if(id==Cut&&!GuardSelection())return;
     if(!PrepareClipboardAction(id))return;
-    if(job_.Busy()){if(activeAction_==0){if(pendingAction_!=SelectPixels)QueueAction(id);}else status_.SetWindowText(Tr(Text::Busy));return;}
+    if(job_.Busy()&&!(activeAction_==WorkRender&&viewportCommand)){if(activeAction_==WorkRender){if(pendingAction_!=SelectPixels)QueueAction(id);}else status_.SetWindowText(Tr(Text::Busy));return;}
     try {
         if(id>=ReflowObjects&&id<=ExportSelectedSvg){RefinementCommand(id);return;}
         if(id>=ExportSelectedPng&&id<=PictureAlphaSelection){AssetCommand(id);return;}
@@ -72,7 +76,7 @@ void EditorFrame::OnAction(UINT id)
         if(id==DeleteObject&&selected_>=0){document_.Remove(selected_);selected_=-1;SyncStyle();Layout();Changed();return;}
         if((id==Forward||id==Backward)&&selected_>=0){const int delta=id==Forward?1:-1;document_.Reorder(selected_,delta);selected_=std::clamp(selected_+delta,0,static_cast<int>(document_.State().objects.size())-1);Changed();return;}
         if(id==OpenProject){CFileDialog dlg(TRUE,L"sctproj",nullptr,OFN_FILEMUSTEXIST,Tr(Text::ProjectFilter),this);if(dlg.DoModal()!=IDOK)return;openQueue_.push_back(dlg.GetPathName());OpenNext();return;}
-        if(id==InsertImage){CFileDialog dlg(TRUE,L"png",nullptr,OFN_FILEMUSTEXIST,ImageOpenFilter(),this);if(dlg.DoModal()==IDOK)InsertFile(dlg.GetPathName());return;}
+        if(id==InsertImage||id==InsertImageFit){CFileDialog dlg(TRUE,L"png",nullptr,OFN_FILEMUSTEXIST,ImageOpenFilter(),this);const HWND host=m_hWnd;if(dlg.DoModal()==IDOK&&::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)InsertFile(dlg.GetPathName(),id==InsertImageFit);return;}
         if(id==JpegQuality){if(rendered_!=revision_){QueueAction(id);RequestRender();return;}int quality=JpegPreview();if(quality>=0)jpegQuality_=quality;return;}
         if(id>=ResizeImage&&id<=RemoveStrip)Transform(id);
     }catch(const std::exception& e){if(id==Copy||id==Cut)CompleteClipboardCopy(false);CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());AfxMessageBox(error);}
@@ -87,12 +91,17 @@ void EditorFrame::Export(bool project)
     CString canonical=std::filesystem::path(path.GetString()).replace_extension(project?L".sctproj":extensions[index-1]).c_str();
     if(canonical.CompareNoCase(path)!=0&&PathFileExists(canonical)&&MessageBox(canonical,Tr(Text::Save),MB_OKCANCEL|MB_ICONQUESTION)!=IDOK)return;path=canonical;
     int quality=jpegQuality_?jpegQuality_:settings.jpegQuality;
-    const auto state=document_.State();const auto revision=revision_;activeAction_=project?2:1;StartWork([state,path,project,quality,revision]{WorkResult r;r.action=project?2:1;r.path=path;r.revision=revision;
+    const auto state=document_.State();const auto revision=revision_;activeAction_=project?WorkProjectSave:WorkImageSave;StartWork([state,path,project,quality,revision]{WorkResult r;r.action=project?WorkProjectSave:WorkImageSave;r.path=path;r.revision=revision;
         if(project)services::SaveProject(state,path,r.error);else if(services::RenderDocument(state,r.image,r.error))services::CaptureService::Save(r.image,path,r.error,quality);return r;});status_.SetWindowText(Tr(Text::Busy));
 }
-void EditorFrame::InsertFile(const CString& path)
+void EditorFrame::InsertFile(const CString& path,bool fit)
 {
-    if(job_.Busy()){status_.SetWindowText(Tr(Text::Busy));return;}activeAction_=4;StartWork([path]{WorkResult r;r.action=4;services::CaptureService::Load(path,r.image,r.error);return r;});
+    if(job_.Busy()||closing_){status_.SetWindowText(Tr(Text::Busy));return;}
+    const auto state=document_.State();const auto revision=revision_;const CString limit=Tr(Text::PasteImageLimit);
+    activeAction_=fit?WorkInsertFit:WorkImagePaste;StartWork([state,path,revision,fit,limit]{WorkResult r;r.action=fit?WorkInsertFit:WorkImagePaste;r.revision=revision;
+        core::Image image;if(!services::CaptureService::Load(path,image,r.error))return r;if(fit){r.image=std::move(image);return r;}
+        if(!core::PasteImageOriginalSize(state,std::move(image),r.state)){r.error=limit;return r;}
+        if(services::RenderDocument(r.state,r.image,r.error)){const double scale=std::min({1.0,144.0/r.image.width,96.0/r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,int(r.image.width*scale)),std::max(1,int(r.image.height*scale)));}return r;});
 }
 int EditorFrame::JpegPreview(){auto source=std::make_shared<core::Image>(std::move(image_));modalImage_=source;int quality=-1;{JpegDialog dialog(this,source);if(dialog.Run()==IDOK)quality=dialog.Quality();}image_=std::move(*source);modalImage_.reset();InvalidateRect(canvas_,FALSE);return quality;}
 void EditorFrame::Insert(core::Image image)
@@ -103,7 +112,7 @@ void EditorFrame::Insert(core::Image image)
 }
 void EditorFrame::OnDropFiles(HDROP drop)
 {
-    const UINT count=DragQueryFile(drop,0xFFFFFFFF,nullptr,0);std::vector<CString> paths;POINT point{};DragQueryPoint(drop,&point);
+    if(closing_){DragFinish(drop);return;}const UINT count=DragQueryFile(drop,0xFFFFFFFF,nullptr,0);std::vector<CString> paths;POINT point{};DragQueryPoint(drop,&point);
     try{if(count>64)throw std::runtime_error("Drop image count limit (64)");for(UINT i=0;i<count;++i){const UINT length=DragQueryFile(drop,i,nullptr,0);if(!length||length>=32768)throw std::runtime_error("Invalid dropped path");CString path;DragQueryFile(drop,i,path.GetBuffer(length+1),length+1);path.ReleaseBuffer();paths.push_back(std::move(path));}DragFinish(drop);drop=nullptr;InsertImages(std::move(paths),ImagePoint(point));}
     catch(const std::exception& e){if(drop)DragFinish(drop);CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());status_.SetWindowText(error);}
 }

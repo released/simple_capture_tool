@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../core/Cancellation.h"
 #include "../core/AnnotationExtensions.h"
 #include "RichTextService.h"
 #include "../core/ProductiveImage.h"
@@ -111,8 +112,8 @@ bool RenderObject(core::Image& image,const core::Annotation& a)
 bool RenderDocument(const core::DocumentState& doc,core::Image& image,CString& error)
 {
     if(!doc.base || doc.base->Empty()) { error=L"Document has no base image";return false; }
-    image=*doc.base;core::DocumentState linked;const auto* scene=&doc;if(std::any_of(doc.objects.begin(),doc.objects.end(),[](const auto& a){return a.sourceId||a.targetId;})){linked=doc;core::RefreshConnections(linked);scene=&linked;}
-    for(const auto& a:scene->objects) if(!RenderObject(image,a)) { error=L"Cannot render annotation";return false; }
+    core::CancellationPoint();image=*doc.base;core::DocumentState linked;const auto* scene=&doc;if(std::any_of(doc.objects.begin(),doc.objects.end(),[](const auto& a){return a.sourceId||a.targetId;})){linked=doc;core::RefreshConnections(linked);scene=&linked;}
+    for(const auto& a:scene->objects){core::CancellationPoint();if(!RenderObject(image,a)){error=L"Cannot render annotation";return false;}}
     return true;
 }
 }

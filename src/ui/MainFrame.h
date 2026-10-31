@@ -24,6 +24,8 @@ protected:
     afx_msg LRESULT OnHotkey(WPARAM,LPARAM);afx_msg LRESULT OnDeferredHotkey(WPARAM,LPARAM);
     afx_msg void OnEnterMenuLoop(BOOL);afx_msg void OnExitMenuLoop(BOOL);
 private:
+    friend class ReviewOptimizationAccess;
+    bool pendingExit_=false;
     friend class ::SimpleCaptureToolApp;
     friend class EditorRefinementsAccess;
     friend class AssetSelectionAccess;

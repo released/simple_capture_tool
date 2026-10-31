@@ -8,7 +8,7 @@ bool EditorFrame::ReadRichText(core::Annotation& a){if(richSync_)return true;ric
 void EditorFrame::SyncRichText(){if(!textEditing_||richSync_)return;richSync_=true;try{services::SetRichText(text_.GetSafeHwnd(),textDraft_,zoom_,false);richScale_=zoom_;richDpi_=GetDpiForWindow(text_.m_hWnd);}catch(...){richSync_=false;throw;}richSync_=false;}
 void EditorFrame::FormatTextRun(UINT id){
     const HWND entry=m_hWnd;try{
-    if(screenColorModal_||job_.Busy()&&activeAction_!=0||!GuardSelection(true))return;
+    if(screenColorModal_||job_.Busy()&&activeAction_!=WorkRender||!GuardSelection(true))return;
     if(!textEditing_){const auto ids=Selection();if(ids.size()!=1)return;const auto& a=document_.State().objects[ids[0]];if(a.tool!=core::Tool::Text&&a.tool!=core::Tool::Callout)return;BeginText(a,ids[0]);}
     CHARRANGE selected{};text_.SendMessage(EM_EXGETSEL,0,reinterpret_cast<LPARAM>(&selected));if(selected.cpMin==selected.cpMax){status_.SetWindowText(Tr(Text::RunSelectionRequired));return;}if(!ReadRichText(textDraft_))return;
     CHARFORMAT2W current{};current.cbSize=sizeof(current);text_.SendMessage(EM_GETCHARFORMAT,SCF_SELECTION,reinterpret_cast<LPARAM>(&current));auto format=current;format.dwMask=0;
