@@ -37,7 +37,21 @@ Image Canvas(const Image& image,int left,int top,int right,int bottom,COLORREF b
 }
 bool CanvasExpansionSize(int oldWidth,int oldHeight,int width,int height)
 {
-    return oldWidth>0&&oldHeight>0&&width>=oldWidth&&height>=oldHeight&&width<=32768&&height<=32768&&static_cast<uint64_t>(width)*height*4<=512ULL*1024*1024;
+    return oldWidth>0&&oldHeight>0&&width>=oldWidth&&height>=oldHeight&&CanvasResizeSize(width,height);
+}
+bool CanvasResizeSize(int width,int height)
+{
+    return width>0&&height>0&&width<=32768&&height<=32768&&static_cast<uint64_t>(width)*height*4<=512ULL*1024*1024;
+}
+bool ResizeCanvas(const DocumentState& source,int width,int height,DocumentState& output)
+{
+    if(!source.base||source.base->Empty()||!CanvasResizeSize(width,height)||
+        static_cast<uint64_t>(source.base->width)*source.base->height*4!=source.base->pixels.size())return false;
+    if(width==source.base->width&&height==source.base->height){output=source;return true;}
+    Image image;if(!image.Create(width,height))return false;
+    const int rows=std::min(height,source.base->height),columns=std::min(width,source.base->width);
+    for(int y=0;y<rows;++y)memcpy(image.Row(y),source.base->Row(y),static_cast<size_t>(columns)*4);
+    auto state=source;state.base=std::make_shared<Image>(std::move(image));output=std::move(state);return true;
 }
 bool ExpandCanvas(const DocumentState& source,int width,int height,DocumentState& output)
 {

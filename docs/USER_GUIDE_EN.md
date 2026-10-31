@@ -136,7 +136,7 @@ During selection:
 | `Ctrl+Arrow` | Resize the selection |
 | `Space` | Add the current region and continue selecting more regions |
 
-Desktop and region capture use a frozen image. Window and scrolling modes capture the target window's live content. Coordinates across monitors can be negative. Configure the cursor, magnifier, pixel grid, and dimming outside the selection under **Settings → Capture options**.
+Desktop and region capture use a frozen image. Window and scrolling modes capture the target window's live content. Coordinates across monitors can be negative. Configure the cursor, magnifier, pixel grid, and dimming outside the selection under **Settings → Capture options**. Near monitor edges, the magnifier switches to the other side of the pointer and avoids the selection, added regions, and toolbar. It temporarily hides when no clear space fits, or while the shape or ratio dropdown is open.
 
 ### Capture into the current image and editable cursors
 
@@ -249,7 +249,7 @@ With the pointer inside the canvas, the wheel scrolls vertically, Shift+wheel sc
 - Drop multiple image files, or use **Image layout → Insert images / layout**, to set columns, gaps, and the insertion origin. Images remain separate editable objects, and the batch supports one-step Undo.
 - Collage of open images creates a new page of editable Picture objects, preserving source pages.
 - **Image layout → Split into image tabs** creates 2–16 RAM pages by rows and columns in left-to-right, top-to-bottom order. All pixels are retained even when dimensions do not divide evenly. Pages are raster copies of the current composition at 100%; the source image and its objects stay editable, and nothing is saved automatically. Combined input-composition and output-pixel buffers are bounded to 512 MiB; other objects, history, and process overhead are additional.
-- Drag the right, bottom, or bottom-right canvas handles to add space. Dragging inward does not crop content. Use canvas expansion settings for left/top margins or other background colors.
+- Drag the blue right, bottom, or bottom-right canvas handles outward to add white space or inward to shrink the canvas and remove excess margins. Images and objects are not scaled. Shrinking clips base pixels outside the right/bottom edges; a gray preview marks removed areas. Release to apply, Esc to cancel, and Ctrl+Z to restore. Editable object assets and coordinates are retained; parts outside the new canvas are not displayed or included in raster output. Each drag is one Undo step. Use canvas expansion settings for left/top margins or other background colors.
 - Reorder tabs by dragging, rename them, or switch through the list at the right. Tab names are session-only metadata.
 
 ## Cropping, image processing, and comparison

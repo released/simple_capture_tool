@@ -19,6 +19,10 @@ BEGIN_MESSAGE_MAP(SelectionWindow,CWnd)
  ON_COMMAND_RANGE(SelectConfirm,SelectClear,&SelectionWindow::OnAction)
  ON_CBN_SELCHANGE(SelectShape,&SelectionWindow::OnShape)
  ON_CBN_SELCHANGE(SelectRatio,&SelectionWindow::OnRatio)
+ ON_CBN_DROPDOWN(SelectShape,&SelectionWindow::OnOverlayRefresh)
+ ON_CBN_CLOSEUP(SelectShape,&SelectionWindow::OnOverlayRefresh)
+ ON_CBN_DROPDOWN(SelectRatio,&SelectionWindow::OnOverlayRefresh)
+ ON_CBN_CLOSEUP(SelectRatio,&SelectionWindow::OnOverlayRefresh)
 END_MESSAGE_MAP()
 HWND SelectionWindow::Begin(CWnd* owner,core::Image image,SelectionMode mode,CSize fixed,Done done,bool clientOnly,bool child,SelectionOptions options)
 {
@@ -32,7 +36,7 @@ HWND SelectionWindow::Begin(CWnd* owner,core::Image image,SelectionMode mode,CSi
     if(!buffered){auto callback=std::move(self->done_);self->DestroyWindow();callback(false,{});return nullptr;}
     POINT cursor{};GetCursorPos(&cursor);MONITORINFO mi{sizeof(mi)};GetMonitorInfo(MonitorFromPoint(cursor,MONITOR_DEFAULTTOPRIMARY),&mi);
     self->cursor_={std::clamp<LONG>(cursor.x-self->desktop_.left,0,self->image_->width-1),std::clamp<LONG>(cursor.y-self->desktop_.top,0,self->image_->height-1)};
-    self->CreateToolbar(mi.rcWork);
+    self->CollectMonitorBounds();self->CreateToolbar(mi.rcWork);
     self->AvoidToolbar(self->cursor_);
     self->ShowWindow(SW_SHOW);self->SetForegroundWindow();self->SetFocus();return self->GetSafeHwnd();
 }
@@ -74,11 +78,7 @@ void SelectionWindow::PaintFrame(CDC& dc)
     if(!selected_.IsRectEmpty()){if(shape_.GetCurSel()==1)dc.Ellipse(selected_);else if(shape_.GetCurSel()==2&&points_.size()>1)dc.Polyline(points_.data(),static_cast<int>(points_.size()));else dc.Rectangle(selected_);
         if(locked_&&mode_!=SelectionMode::Window)for(int yy=0;yy<3;++yy)for(int xx=0;xx<3;++xx)if(xx!=1||yy!=1){int x=selected_.left+selected_.Width()*xx/2,y=selected_.top+selected_.Height()*yy/2;dc.FillSolidRect(x-4,y-4,9,9,RGB(30,240,90));}}
     dc.SelectObject(brush);dc.SelectObject(old);
-    if(options_.magnifier){const int size=Px(m_hWnd,150),cell=std::max(1,size/15),actual=cell*15,caption=Px(m_hWnd,48);int x=std::clamp<int>(cursor_.x+Px(m_hWnd,24),0,std::max(0,image_->width-actual-4)),y=std::clamp<int>(cursor_.y+Px(m_hWnd,24),0,std::max(0,image_->height-actual-caption-4));CRect box(x,y,x+actual,y+actual);dc.FillSolidRect(x-2,y-2,actual+4,actual+caption+4,RGB(20,60,35));int sx=std::clamp<int>(cursor_.x-7,0,std::max(0,image_->width-15)),sy=std::clamp<int>(cursor_.y-7,0,std::max(0,image_->height-15));
-        {Gdiplus::Bitmap bitmap(image_->width,image_->height,image_->width*4,PixelFormat32bppARGB,const_cast<BYTE*>(image_->pixels.data()));Gdiplus::Graphics graphics(dc);graphics.SetInterpolationMode(Gdiplus::InterpolationModeNearestNeighbor);graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);graphics.DrawImage(&bitmap,Gdiplus::Rect(x,y,actual,actual),sx,sy,std::min(15,image_->width),std::min(15,image_->height),Gdiplus::UnitPixel);}
-        if(options_.grid){CPen grid(PS_SOLID,1,RGB(100,100,100));auto* previous=dc.SelectObject(&grid);for(int n=0;n<=15;++n){dc.MoveTo(x+n*cell,y);dc.LineTo(x+n*cell,y+actual);dc.MoveTo(x,y+n*cell);dc.LineTo(x+actual,y+n*cell);}dc.SelectObject(previous);}
-        const int px=std::clamp<int>(cursor_.x,0,image_->width-1),py=std::clamp<int>(cursor_.y,0,image_->height-1);CRect focus(x+(px-sx)*cell,y+(py-sy)*cell,x+(px-sx+1)*cell,y+(py-sy+1)*cell);dc.Draw3dRect(focus,RGB(255,50,50),RGB(255,50,50));const auto* value=image_->Row(py)+px*4;CString label;label.Format(L"%ld, %ld\n#%02X%02X%02X",px+desktop_.left,py+desktop_.top,value[2],value[1],value[0]);CRect text(x+4,y+actual+2,x+actual-2,y+actual+caption);dc.SetTextColor(RGB(255,255,255));dc.SetBkMode(TRANSPARENT);dc.SelectObject(&font_);dc.DrawText(label,text,DT_LEFT|DT_WORDBREAK);
-    }
+    PaintMagnifier(dc);
     if(!toolbarVisible_)return;dc.FillSolidRect(toolbar_,RGB(20,60,35));
     CRect label=ToolbarBounds();label.top=toolbar_.bottom+6;dc.FillSolidRect(label,RGB(20,60,35));dc.SetBkMode(TRANSPARENT);dc.SetTextColor(RGB(255,255,255));dc.SelectObject(&font_);
     label.DeflateRect(8,4);dc.DrawText(SelectionHint(),label,DT_LEFT|DT_WORDBREAK);
@@ -98,7 +98,7 @@ void SelectionWindow::OnMouseMove(UINT flags,CPoint p)
 {
     cursor_=p;
     AvoidToolbar(p);
-    if(toolbarVisible_&&ToolbarBounds().PtInRect(p)&&!dragging_)return;
+    if(toolbarVisible_&&ToolbarBounds().PtInRect(p)&&!dragging_){Invalidate(FALSE);return;}
     p.x=std::clamp<LONG>(p.x,0,image_->width);p.y=std::clamp<LONG>(p.y,0,image_->height);
     if(mode_==SelectionMode::Window&&!locked_){const CPoint screen=p+desktop_.TopLeft();selectedWindow_=nullptr;selected_.SetRectEmpty();
         for(const auto& pair:windows_)if(pair.second.PtInRect(screen)){selectedWindow_=pair.first;RECT r=pair.second;bool foundChild=false;
@@ -139,6 +139,7 @@ BOOL SelectionWindow::PreTranslateMessage(MSG* m)
         if(m->message==WM_LBUTTONDOWN&&!child.PtInRect(m->pt))return TRUE;
         // MSG.pt survives relocation; queued child-client coordinates may be stale.
         CPoint point=m->pt;ScreenToClient(&point);
+        if(m->message==WM_MOUSEMOVE){cursor_=point;Invalidate(FALSE);}
         if(AvoidToolbar(point)){OnMouseMove(static_cast<UINT>(m->wParam),point);return TRUE;}
     }
     if(m->message==WM_KEYDOWN){if(ratio_.GetSafeHwnd()&&ratio_.GetDroppedState()||shape_.GetSafeHwnd()&&shape_.GetDroppedState())return CWnd::PreTranslateMessage(m);if(m->wParam==VK_TAB){toolbarVisible_=!toolbarVisible_;if(ratio_.GetSafeHwnd())ratio_.ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);shape_.ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);for(auto& b:buttons_)b->ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);SetFocus();Invalidate(FALSE);return TRUE;}if(m->wParam==VK_ESCAPE){Finish(false);return TRUE;}if(m->wParam==VK_RETURN){Finish(true);return TRUE;}if(m->wParam==VK_SPACE){AddCurrent();return TRUE;}

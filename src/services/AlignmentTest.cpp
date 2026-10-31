@@ -78,6 +78,7 @@ public:static void Run(Check check,std::ofstream& log,const std::filesystem::pat
 namespace sct::services {
 int RunAlignmentTests(){const auto dir=paths::TestEvidence()/L"alignment";std::filesystem::create_directories(dir);std::ofstream log(dir/L"alignment-test.log");int total=0,fail=0;Check check=[&](bool ok,const char* name){++total;if(!ok)++fail;log<<(ok?"PASS ":"FAIL ")<<name<<"\n";log.flush();};
     try{NativeTestInput input;CString error;InitializeLanguages(ConfigService::ExecutableDirectory(),error);
+        if(CString(GetCommandLine()).Find(L"--test-capture-magnifier-only")>=0){CaptureMagnifierChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-selection-toolbar-only")>=0){SelectionToolbarChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-editor-refinements-only")>=0){EditorRefinementsChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-asset-selection-only")>=0){AssetSelectionChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "EditorFrame.h"
+#include "EditorViewportVisuals.h"
 #include "../core/ImageOperations.h"
 #include "../services/DocumentRenderer.h"
 namespace sct::ui {
@@ -22,9 +23,10 @@ bool EditorFrame::BeginCanvasResize(CPoint p)
 void EditorFrame::UpdateCanvasResize(CPoint p)
 {
     if(canvasHandle_<0)return;canvasTarget_={document_.Width(),document_.Height()};
-    if(canvasHandle_&1)canvasTarget_.cx+=std::max(0,static_cast<int>(lround((p.x-canvasPress_.x)/canvasZoom_)));
-    if(canvasHandle_&2)canvasTarget_.cy+=std::max(0,static_cast<int>(lround((p.y-canvasPress_.y)/canvasZoom_)));
-    ViewStatus();if(!core::CanvasExpansionSize(document_.Width(),document_.Height(),canvasTarget_.cx,canvasTarget_.cy))status_.SetWindowText(Tr(Text::CanvasLimit));InvalidateRect(canvas_,FALSE);
+    auto dimension=[&](int original,int point,int pressed){return static_cast<int>(std::clamp(original+std::round((double(point)-pressed)/canvasZoom_),1.0,32769.0));};
+    if(canvasHandle_&1)canvasTarget_.cx=dimension(document_.Width(),p.x,canvasPress_.x);
+    if(canvasHandle_&2)canvasTarget_.cy=dimension(document_.Height(),p.y,canvasPress_.y);
+    ViewStatus();if(!core::CanvasResizeSize(canvasTarget_.cx,canvasTarget_.cy))status_.SetWindowText(Tr(Text::CanvasResizeLimit));InvalidateRect(canvas_,FALSE);
 }
 void EditorFrame::CancelCanvasResize()
 {
@@ -33,7 +35,7 @@ void EditorFrame::CancelCanvasResize()
 void EditorFrame::EndCanvasResize(CPoint p)
 {
     if(canvasHandle_<0)return;UpdateCanvasResize(p);canvasHandle_=-1;if(GetCapture()==this)ReleaseCapture();
-    if(!core::CanvasExpansionSize(document_.Width(),document_.Height(),canvasTarget_.cx,canvasTarget_.cy)){status_.SetWindowText(Tr(Text::CanvasLimit));InvalidateRect(canvas_,FALSE);return;}
+    if(!core::CanvasResizeSize(canvasTarget_.cx,canvasTarget_.cy)){status_.SetWindowText(Tr(Text::CanvasResizeLimit));InvalidateRect(canvas_,FALSE);return;}
     if(canvasTarget_==CSize(document_.Width(),document_.Height())){ViewStatus();InvalidateRect(canvas_,FALSE);return;}
     canvasPending_=true;ApplyCanvasResize();InvalidateRect(canvas_,FALSE);
 }
@@ -41,23 +43,25 @@ void EditorFrame::ApplyCanvasResize()
 {
     if(!canvasPending_||job_.Busy())return;
     EditorPolling(true);
-    try{const auto state=document_.State();const auto revision=revision_;const auto size=canvasTarget_;const CString error=Tr(Text::CanvasLimit);activeAction_=13;
+    try{const auto state=document_.State();const auto revision=revision_;const auto size=canvasTarget_;const CString error=Tr(Text::CanvasResizeLimit);activeAction_=13;
         StartWork([state,revision,size,error]{WorkResult r;r.action=13;r.revision=revision;
-            try{if(!core::ExpandCanvas(state,size.cx,size.cy,r.state))r.error=error;else if(services::RenderDocument(r.state,r.image,r.error)){const double scale=std::min({1.0,144.0/r.image.width,96.0/r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,static_cast<int>(r.image.width*scale)),std::max(1,static_cast<int>(r.image.height*scale)));}}
+            try{if(!core::ResizeCanvas(state,size.cx,size.cy,r.state))r.error=error;else if(services::RenderDocument(r.state,r.image,r.error)){const double scale=std::min({1.0,144.0/r.image.width,96.0/r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,static_cast<int>(r.image.width*scale)),std::max(1,static_cast<int>(r.image.height*scale)));}}
             catch(const std::exception& e){r.error.Format(L"%s (%hs)",error.GetString(),e.what());}catch(...){r.error=error;}return r;});status_.SetWindowText(Tr(Text::Busy));
-    }catch(...){canvasPending_=false;status_.SetWindowText(Tr(Text::CanvasLimit));InvalidateRect(canvas_,FALSE);}
+    }catch(...){canvasPending_=false;status_.SetWindowText(Tr(Text::CanvasResizeLimit));InvalidateRect(canvas_,FALSE);}
 }
 void EditorFrame::CompleteCanvasResize(WorkResult& r)
 {
     canvasPending_=false;if(r.revision!=revision_){status_.SetWindowText(Tr(Text::Busy));InvalidateRect(canvas_,FALSE);return;}
-    document_.Commit(std::move(r.state));image_=std::move(r.image);thumbnail_=std::move(r.thumbnail);dirty_=true;++revision_;++previewGeneration_;rendered_=revision_;renderPending_=false;selected_=-1;pixelSelection_.SetRectEmpty();SyncStyle();Layout();NotifyWorkspace();InvalidateRect(canvas_,FALSE);
+    document_.Commit(std::move(r.state));CancelMask();if(!cropRegion_.IsRectEmpty())CancelCrop();image_=std::move(r.image);thumbnail_=std::move(r.thumbnail);dirty_=true;++revision_;++previewGeneration_;rendered_=revision_;renderPending_=false;selected_=-1;selectedObjects_.clear();pixelSelection_.SetRectEmpty();SyncStyle();Layout();NotifyWorkspace();InvalidateRect(canvas_,FALSE);
 }
 void EditorFrame::PaintCanvasControls(CDC& dc)
 {
     if(canvasHandle_>=0||canvasPending_){
         const CRect original=ScreenRect({0,0,document_.Width(),document_.Height()}),target=ScreenRect({0,0,canvasTarget_.cx,canvasTarget_.cy});
         if(target.right>original.right)dc.FillSolidRect(original.right,original.top,target.right-original.right,std::max<LONG>(0,target.bottom-original.top),RGB(255,255,255));
-        if(target.bottom>original.bottom)dc.FillSolidRect(original.left,original.bottom,original.Width(),target.bottom-original.bottom,RGB(255,255,255));
+        if(target.bottom>original.bottom)dc.FillSolidRect(original.left,original.bottom,std::min(original.Width(),target.Width()),target.bottom-original.bottom,RGB(255,255,255));
+        if(target.right<original.right)dc.FillSolidRect(target.right,original.top,original.right-target.right,original.Height(),viewport::SurroundColor);
+        if(target.bottom<original.bottom)dc.FillSolidRect(original.left,target.bottom,original.Width(),original.bottom-target.bottom,viewport::SurroundColor);
         CPen pen(PS_DOT,1,RGB(35,160,235));auto* old=dc.SelectObject(&pen);auto* brush=dc.SelectStockObject(NULL_BRUSH);dc.Rectangle(target);dc.SelectObject(brush);dc.SelectObject(old);return;
     }
     if(dragging_||panning_||textEditing_)return;const int size=Px(m_hWnd,3);

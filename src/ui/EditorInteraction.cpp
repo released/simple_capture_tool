@@ -70,7 +70,7 @@ void EditorFrame::OnMouseMove(UINT,CPoint p)
     if(MaskMove(p))return;
     if(UpdateComposition(p))return;
     if(canvasHandle_>=0){UpdateCanvasResize(p);return;}
-    if(!dragging_&&CanvasGrip(p)>=0){status_.SetWindowText(Tr(Text::CanvasDragHelp));return;}
+    if(!dragging_&&CanvasGrip(p)>=0){status_.SetWindowText(Tr(Text::CanvasResizeHelp));return;}
     if(panning_){offsetX_=panX_+panStart_.x-p.x;offsetY_=panY_+panStart_.y-p.y;ClampViewport();TextPosition();InvalidateRect(canvas_,FALSE);return;}
     if(!dragging_){if(canvas_.PtInRect(p)){ViewStatus();CString text;status_.GetWindowText(text);auto q=ImagePoint(p);CString xy;xy.Format(L"  |  X:%d Y:%d",q.x,q.y);status_.SetWindowText(text+xy);}return;}
     if(clickCandidate_>=0){if(abs(p.x-pressPoint_.x)<GetSystemMetrics(SM_CXDRAG)&&abs(p.y-pressPoint_.y)<GetSystemMetrics(SM_CYDRAG))return;clickCandidate_=-1;}auto q=ImagePoint(p);if(draft_.tool==core::Tool::CloneBrush){q.x=std::min<LONG>(q.x,document_.Width()-1);q.y=std::min<LONG>(q.y,document_.Height()-1);}

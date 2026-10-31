@@ -1,4 +1,5 @@
 #pragma once
+namespace sct::services {void CaptureMagnifierChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 namespace sct::services {void SelectionToolbarChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 namespace sct::services {void AdvancedEditingChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 namespace sct::services {void ProductivityChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
