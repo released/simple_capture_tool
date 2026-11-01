@@ -16,6 +16,8 @@ BEGIN_MESSAGE_MAP(SelectionWindow,CWnd)
  ON_WM_LBUTTONUP()
  ON_WM_RBUTTONDOWN()
  ON_WM_CAPTURECHANGED()
+ ON_WM_TIMER()
+ ON_WM_DESTROY()
  ON_COMMAND_RANGE(SelectConfirm,SelectClear,&SelectionWindow::OnAction)
  ON_CBN_SELCHANGE(SelectShape,&SelectionWindow::OnShape)
  ON_CBN_SELCHANGE(SelectRatio,&SelectionWindow::OnRatio)
@@ -37,6 +39,7 @@ HWND SelectionWindow::Begin(CWnd* owner,core::Image image,SelectionMode mode,CSi
     POINT cursor{};GetCursorPos(&cursor);MONITORINFO mi{sizeof(mi)};GetMonitorInfo(MonitorFromPoint(cursor,MONITOR_DEFAULTTOPRIMARY),&mi);
     self->cursor_={std::clamp<LONG>(cursor.x-self->desktop_.left,0,self->image_->width-1),std::clamp<LONG>(cursor.y-self->desktop_.top,0,self->image_->height-1)};
     self->CollectMonitorBounds();self->CreateToolbar(mi.rcWork);
+    if(!self->StartEscapeWatch()){auto callback=std::move(self->done_);self->DestroyWindow();callback(false,{});return nullptr;}
     self->AvoidToolbar(self->cursor_);
     self->ShowWindow(SW_SHOW);self->SetForegroundWindow();self->SetFocus();return self->GetSafeHwnd();
 }
@@ -125,15 +128,24 @@ void SelectionWindow::OnRButtonDown(UINT,CPoint){Finish(false);}
 void SelectionWindow::OnCaptureChanged(CWnd* next){if(dragging_){dragging_=false;locked_=!selected_.IsRectEmpty();Invalidate(FALSE);}CWnd::OnCaptureChanged(next);}
 void SelectionWindow::OnShape(){if(ratio_.GetSafeHwnd())ratio_.EnableWindow(mode_==SelectionMode::Region&&shape_.GetCurSel()!=2);selected_.SetRectEmpty();points_.clear();regions_.clear();locked_=false;SetFocus();Invalidate(FALSE);}
 void SelectionWindow::OnAction(UINT id){if(id==SelectConfirm){Finish(true);return;}else if(id==SelectCoordinates)Coordinates();else if(id==SelectAdd)AddCurrent();else if(id==SelectClear){regions_.clear();selected_.SetRectEmpty();locked_=false;points_.clear();Invalidate(FALSE);}SetFocus();}
-void SelectionWindow::OnRatio(){const int chosen=ratio_.GetCurSel();if(chosen<0||chosen>4){ratio_.SetCurSel(ratioIndex_);return;}int x=0,y=0;if(chosen==1)x=y=1;else if(chosen==2){x=16;y=9;}else if(chosen==3){x=4;y=3;}else if(chosen==4){const HWND host=m_hWnd;const auto audit=ratioAudit_;FormDialog form(this,Text::CaptureRatio,{{Text::RatioWidth,Number(ratioX_?ratioX_:16)},{Text::RatioHeight,Number(ratioY_?ratioY_:9)}});const auto answer=audit?audit(form):form.Run();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;if(answer!=IDOK){ratio_.SetCurSel(ratioIndex_);return;}try{x=Range(form.Fields()[0],1,10000);y=Range(form.Fields()[1],1,10000);}catch(const std::exception&){ratio_.SetCurSel(ratioIndex_);MessageBox(Tr(Text::InvalidValue),Tr(Text::CaptureRatio));return;}}ratioX_=x;ratioY_=y;ratioIndex_=chosen;if(x&&!selected_.IsRectEmpty())selected_=core::RatioSelection(selected_.TopLeft(),selected_.BottomRight(),image_->width,image_->height,x,y);SetFocus();Invalidate(FALSE);}
+void SelectionWindow::OnRatio(){const int chosen=ratio_.GetCurSel();if(chosen<0||chosen>4){ratio_.SetCurSel(ratioIndex_);return;}int x=0,y=0;if(chosen==1)x=y=1;else if(chosen==2){x=16;y=9;}else if(chosen==3){x=4;y=3;}else if(chosen==4){const HWND host=m_hWnd;const auto audit=ratioAudit_;FormDialog form(this,Text::CaptureRatio,{{Text::RatioWidth,Number(ratioX_?ratioX_:16)},{Text::RatioHeight,Number(ratioY_?ratioY_:9)}});const auto answer=audit?audit(form):form.Run();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;escapeDown_=escapeKeyAudit_?escapeKeyAudit_():GetAsyncKeyState(VK_ESCAPE)<0;if(answer!=IDOK){ratio_.SetCurSel(ratioIndex_);return;}try{x=Range(form.Fields()[0],1,10000);y=Range(form.Fields()[1],1,10000);}catch(const std::exception&){ratio_.SetCurSel(ratioIndex_);MessageBox(Tr(Text::InvalidValue),Tr(Text::CaptureRatio));if(::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)escapeDown_=escapeKeyAudit_?escapeKeyAudit_():GetAsyncKeyState(VK_ESCAPE)<0;return;}}ratioX_=x;ratioY_=y;ratioIndex_=chosen;if(x&&!selected_.IsRectEmpty())selected_=core::RatioSelection(selected_.TopLeft(),selected_.BottomRight(),image_->width,image_->height,x,y);SetFocus();Invalidate(FALSE);}
 void SelectionWindow::Coordinates()
 {
     const bool constrained=mode_==SelectionMode::Region&&shape_.GetCurSel()!=2&&ratioX_>0;
     std::vector<Field> fields{{Text::XCoordinate,Number(selected_.left+desktop_.left)},{Text::YCoordinate,Number(selected_.top+desktop_.top)},{Text::WidthPixels,Number(std::max(1,selected_.Width()))}};if(!constrained)fields.push_back({Text::HeightPixels,Number(std::max(1,selected_.Height()))});FormDialog dlg(this,Text::Coordinates,std::move(fields));
-    if(dlg.Run()!=IDOK)return;try{auto& f=dlg.Fields();int x=Range(f[0],desktop_.left,desktop_.right-1),y=Range(f[1],desktop_.top,desktop_.bottom-1),w=Range(f[2],1,image_->width),h=constrained?std::max(1,int(std::lround(double(w)*ratioY_/ratioX_))):Range(f[3],1,image_->height);RECT r{x,y,x+w,y+h};if(!core::ValidRegion(r,desktop_))throw std::runtime_error("Region outside desktop");selected_=r;selected_.OffsetRect(-desktop_.left,-desktop_.top);shape_.SetCurSel(0);points_.clear();locked_=true;Invalidate(FALSE);}catch(...){AfxMessageBox(Tr(Text::InvalidValue));}
+    const HWND host=m_hWnd;const auto answer=dlg.Run();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;escapeDown_=escapeKeyAudit_?escapeKeyAudit_():GetAsyncKeyState(VK_ESCAPE)<0;
+    if(answer!=IDOK)return;try{auto& f=dlg.Fields();int x=Range(f[0],desktop_.left,desktop_.right-1),y=Range(f[1],desktop_.top,desktop_.bottom-1),w=Range(f[2],1,image_->width),h=constrained?std::max(1,int(std::lround(double(w)*ratioY_/ratioX_))):Range(f[3],1,image_->height);RECT r{x,y,x+w,y+h};if(!core::ValidRegion(r,desktop_))throw std::runtime_error("Region outside desktop");selected_=r;selected_.OffsetRect(-desktop_.left,-desktop_.top);shape_.SetCurSel(0);points_.clear();locked_=true;Invalidate(FALSE);}catch(...){AfxMessageBox(Tr(Text::InvalidValue));if(::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)escapeDown_=escapeKeyAudit_?escapeKeyAudit_():GetAsyncKeyState(VK_ESCAPE)<0;}
 }
 BOOL SelectionWindow::PreTranslateMessage(MSG* m)
 {
+    if((m->message==WM_KEYUP||m->message==WM_SYSKEYUP)&&m->wParam==VK_ESCAPE)escapeDown_=false;
+    if((m->message==WM_KEYDOWN||m->message==WM_SYSKEYDOWN)&&m->wParam==VK_ESCAPE){
+        // A dropdown owns the first Escape; holding it must not cancel capture too.
+        const bool pressed=!escapeDown_;escapeDown_=true;
+        if(!IsWindowEnabled()||DropdownOpen())return CWnd::PreTranslateMessage(m);
+        if(pressed&&!(m->lParam&(LPARAM(1)<<30)))Finish(false);
+        return TRUE;
+    }
     if((m->message==WM_MOUSEMOVE||m->message==WM_LBUTTONDOWN)&&m->hwnd!=m_hWnd&&::IsChild(m_hWnd,m->hwnd)){
         CRect child;::GetWindowRect(m->hwnd,child);
         if(m->message==WM_LBUTTONDOWN&&!child.PtInRect(m->pt))return TRUE;
@@ -142,16 +154,42 @@ BOOL SelectionWindow::PreTranslateMessage(MSG* m)
         if(m->message==WM_MOUSEMOVE){cursor_=point;Invalidate(FALSE);}
         if(AvoidToolbar(point)){OnMouseMove(static_cast<UINT>(m->wParam),point);return TRUE;}
     }
-    if(m->message==WM_KEYDOWN){if(ratio_.GetSafeHwnd()&&ratio_.GetDroppedState()||shape_.GetSafeHwnd()&&shape_.GetDroppedState())return CWnd::PreTranslateMessage(m);if(m->wParam==VK_TAB){toolbarVisible_=!toolbarVisible_;if(ratio_.GetSafeHwnd())ratio_.ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);shape_.ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);for(auto& b:buttons_)b->ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);SetFocus();Invalidate(FALSE);return TRUE;}if(m->wParam==VK_ESCAPE){Finish(false);return TRUE;}if(m->wParam==VK_RETURN){Finish(true);return TRUE;}if(m->wParam==VK_SPACE){AddCurrent();return TRUE;}
+    if(m->message==WM_KEYDOWN){if(DropdownOpen())return CWnd::PreTranslateMessage(m);if(m->wParam==VK_TAB){toolbarVisible_=!toolbarVisible_;if(ratio_.GetSafeHwnd())ratio_.ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);shape_.ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);for(auto& b:buttons_)b->ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);SetFocus();Invalidate(FALSE);return TRUE;}if(m->wParam==VK_RETURN){Finish(true);return TRUE;}if(m->wParam==VK_SPACE){AddCurrent();return TRUE;}
         if(GetFocus()!=&shape_&&GetFocus()!=&ratio_&&!selected_.IsRectEmpty()&&m->wParam>=VK_LEFT&&m->wParam<=VK_DOWN){const int step=GetKeyState(VK_SHIFT)<0?10:1;int dx=m->wParam==VK_LEFT?-step:m->wParam==VK_RIGHT?step:0,dy=m->wParam==VK_UP?-step:m->wParam==VK_DOWN?step:0;CRect old=selected_;
             if(GetKeyState(VK_CONTROL)<0){selected_.right=std::clamp<LONG>(selected_.right+dx,selected_.left+1,image_->width);selected_.bottom=std::clamp<LONG>(selected_.bottom+dy,selected_.top+1,image_->height);if(ratioX_>0&&shape_.GetCurSel()!=2){CPoint end=selected_.BottomRight();if(dx)end.y=selected_.top+LONG(std::lround(double(selected_.Width())*ratioY_/ratioX_));else end.x=selected_.left+LONG(std::lround(double(selected_.Height())*ratioX_/ratioY_));selected_=core::RatioSelection(selected_.TopLeft(),end,image_->width,image_->height,ratioX_,ratioY_);}}else{dx=std::clamp<int>(dx,-selected_.left,image_->width-selected_.right);dy=std::clamp<int>(dy,-selected_.top,image_->height-selected_.bottom);selected_.OffsetRect(dx,dy);}core::Annotation a;a.rect=old;a.points=points_;core::Document::Fit(a,selected_);points_=std::move(a.points);locked_=true;Invalidate(FALSE);return TRUE;}}
     return CWnd::PreTranslateMessage(m);
 }
+bool SelectionWindow::DropdownOpen()const
+{
+    return (ratio_.GetSafeHwnd()&&ratio_.GetDroppedState())||(shape_.GetSafeHwnd()&&shape_.GetDroppedState());
+}
+bool SelectionWindow::StartEscapeWatch()
+{
+    escapeDown_=escapeKeyAudit_?escapeKeyAudit_():GetAsyncKeyState(VK_ESCAPE)<0;
+    return SetTimer(EscapeTimer,25,nullptr)!=0;
+}
+void SelectionWindow::PollEscape(bool down)
+{
+    const bool pressed=down&&!escapeDown_;escapeDown_=down;
+    if(!pressed||!IsWindowEnabled())return;
+    if(DropdownOpen()){
+        if(shape_.GetSafeHwnd())shape_.ShowDropDown(FALSE);
+        if(ratio_.GetSafeHwnd())ratio_.ShowDropDown(FALSE);
+        return;
+    }
+    Finish(false);
+}
+void SelectionWindow::OnTimer(UINT_PTR timer)
+{
+    if(timer==EscapeTimer){PollEscape(escapeKeyAudit_?escapeKeyAudit_():GetAsyncKeyState(VK_ESCAPE)<0);return;}
+    CWnd::OnTimer(timer);
+}
+void SelectionWindow::OnDestroy(){KillTimer(EscapeTimer);CWnd::OnDestroy();}
 void SelectionWindow::Finish(bool accepted)
 {
     if(accepted&&selected_.IsRectEmpty()&&regions_.empty())return;
-    SelectionResult result;result.target.rect=selected_;result.target.window=mode_==SelectionMode::Window?selectedWindow_:nullptr;result.target.cropWindow=clientOnly_||child_;OffsetRect(&result.target.rect,desktop_.left,desktop_.top);
-    result.frozen=image_;result.regions=regions_;if(!selected_.IsRectEmpty())result.regions.push_back(Current());
-    auto done=std::move(done_);ShowWindow(SW_HIDE);DestroyWindow();done(accepted,std::move(result));
+    SelectionResult result;if(accepted){result.target.rect=selected_;result.target.window=mode_==SelectionMode::Window?selectedWindow_:nullptr;result.target.cropWindow=clientOnly_||child_;OffsetRect(&result.target.rect,desktop_.left,desktop_.top);
+        result.frozen=image_;result.regions=regions_;if(!selected_.IsRectEmpty())result.regions.push_back(Current());}
+    auto done=std::move(done_);KillTimer(EscapeTimer);dragging_=false;if(GetCapture()==this)ReleaseCapture();ShowWindow(SW_HIDE);DestroyWindow();if(done)done(accepted,std::move(result));
 }
 }

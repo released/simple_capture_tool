@@ -121,6 +121,8 @@ Closing an image, closing the editor, or exiting discards unsaved images without
 
 A single-region selection opens in the editor when you release the mouse. To adjust it first, hold Shift while releasing, adjust the region, and press Enter. Multiple-region capture requires confirmation.
 
+Press Esc to cancel capture, including during a drag, without creating an image. If a toolbar dropdown is open, the first Esc closes it; release the key and press Esc again to cancel capture. Esc inside the coordinates or custom-ratio dialog closes only that dialog.
+
 Hold Ctrl while drawing a rectangle or ellipse to constrain it to a square or circle. Rectangles in multiple-region capture also support this. Fixed-region, window, and freehand selection keep their usual behavior. Ctrl constraints and Shift adjustment can be used together.
 
 The toolbar stays still during ordinary hover, so buttons and dropdowns can be used directly without Alt. It moves up or down away from the pointer only while drawing, moving, or resizing a region selection. Releasing the mouse or interrupting the drag stops movement. Fixed-region and window capture keep the toolbar stationary. Press Tab to hide it when starting a selection underneath, and press Tab again to restore it. Holding Alt during a drag temporarily pauses avoidance.

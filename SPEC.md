@@ -1,5 +1,9 @@
 # Simple Capture Tool Specification
 
+## Capture cancellation064 (2026-11-01)
+
+User reports that Escape cannot dismiss the hotkey-started selector. Existing Escape handling relies solely on focused WM_KEYDOWN delivery although Windows may deny foreground activation. Preserve the focused route and add a selector-owned25ms Escape high-bit watch, latched on initial/held/modal/dropdown input and destroyed with the overlay. No keyboard hook, global hotkey registration, foreground-forcing or persisted setting. A new press cancels rectangle/fixed/window/staged/multi-region and active drags; release mouse capture, stop the timer and destroy before one false/empty-result callback. An open shape/ratio dropdown consumes the first press; owned disabled modal dialogs retain native cancellation and a held Escape cannot leak on return. Preserve frozen output and release-to-edit acceptance. Focused SelectionToolbar native private fixtures plus exact retail Debug/Release Startup only; no desktop/global-input/user-clipboard replay. Physical hotkey/pointer/mixed-DPI acceptance remains distinct. Retire actual current-version test outputs after final reuse and run existing compiler-only safe clean; prior denied identities remain outside this task's cleanup.
+
 ## Current063 approved review improvements
 
 User approves all R1-R7 recommendations. Baseline062 source is clean. Implement incrementally without new dependencies, copied code, public command renumbering, project/clipboard schema changes, production INI/catalog/Home rewrites, recording/WebP/OCR/QR/pin/upload/workflows or publication.

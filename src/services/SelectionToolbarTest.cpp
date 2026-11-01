@@ -14,11 +14,23 @@ public:
     ~ActivationBlock(){UnhookWindowsHookEx(hook_);}
 };
 struct WindowGuard {HWND window;~WindowGuard(){if(::IsWindow(window))::DestroyWindow(window);}};
+struct DropdownProbe {
+    HWND window;bool dropped=true;int closed=0;
+    static LRESULT CALLBACK Proc(HWND h,UINT m,WPARAM w,LPARAM l,UINT_PTR,DWORD_PTR data){
+        auto* probe=reinterpret_cast<DropdownProbe*>(data);
+        if(m==CB_GETDROPPEDSTATE)return probe->dropped;
+        if(m==CB_SHOWDROPDOWN){probe->dropped=w!=0;if(!w)++probe->closed;return 0;}
+        return DefSubclassProc(h,m,w,l);
+    }
+    explicit DropdownProbe(HWND h):window(h){if(!SetWindowSubclass(h,Proc,64,reinterpret_cast<DWORD_PTR>(this)))throw std::runtime_error("Cannot isolate dropdown state");}
+    ~DropdownProbe(){if(::IsWindow(window))RemoveWindowSubclass(window,Proc,64);}
+};
 void Alt(bool down){BYTE keys[256]{};keys[VK_MENU]=down?0x80:0;if(!SetKeyboardState(keys))throw std::runtime_error("Cannot isolate Alt state");}
 }
 namespace sct::ui {
 class SelectionToolbarAccess {
     static SelectionWindow* Create(int width=1280,int height=900){
+        services::NeutralTestKeys();
         auto* s=new SelectionWindow;auto image=std::make_shared<core::Image>();image->Create(width,height);
         for(int y=0;y<height;++y)for(int x=0;x<width;++x){auto* pixel=image->Row(y)+x*4;pixel[0]=BYTE(x%251);pixel[1]=BYTE(y%241);pixel[2]=37;pixel[3]=255;}
         s->image_=image;s->desktop_={-400,-180,width-400,height-180};s->options_={false,false,false,false};
@@ -27,6 +39,7 @@ class SelectionToolbarAccess {
     }
     static CRect Rect(CWnd& child,SelectionWindow& parent){CRect rect;child.GetWindowRect(rect);parent.ScreenToClient(rect);return rect;}
     static bool ChildEvent(SelectionWindow& s,CWnd& child,UINT message){
+        services::NeutralTestKeys();
         CRect rect;child.GetClientRect(rect);MSG event{};event.hwnd=child.m_hWnd;event.message=message;event.lParam=MAKELPARAM(rect.CenterPoint().x,rect.CenterPoint().y);event.pt=rect.CenterPoint();child.ClientToScreen(&event.pt);return s.PreTranslateMessage(&event)!=FALSE;
     }
     static bool Inside(SelectionWindow& s){const auto box=s.ToolbarBounds();CRect clipped;clipped.IntersectRect(box,s.toolbarWork_);return box==clipped;}
@@ -119,7 +132,7 @@ class SelectionToolbarAccess {
         if(mode==SelectionMode::Window){s->windows_={{reinterpret_cast<HWND>(UINT_PTR(123)),CRect(-380,-170,-100,240)}};}
         if(mode==SelectionMode::Region){s->SendMessage(WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(start.x,start.y));s->SendMessage(WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(end.x,end.y));
             check(s->ToolbarBounds()!=old&&!s->ToolbarBounds().PtInRect(end)&&s->dragging_,"active selection drag moves the toolbar without interrupting the gesture");
-            s->SendMessage(WM_LBUTTONUP,0,MAKELPARAM(end.x,end.y));if(shape==3){check(!accepted&&s->locked_,"multiple regions retain explicit confirmation after toolbar movement");s->SendMessage(WM_COMMAND,SelectConfirm);}
+            services::NeutralTestKeys();s->SendMessage(WM_LBUTTONUP,0,MAKELPARAM(end.x,end.y));if(shape==3){check(!accepted&&s->locked_,"multiple regions retain explicit confirmation after toolbar movement");s->SendMessage(WM_COMMAND,SelectConfirm);}
         }else{s->SendMessage(WM_MOUSEMOVE,0,MAKELPARAM(end.x,end.y));s->SendMessage(WM_LBUTTONDOWN,0,MAKELPARAM(end.x,end.y));check(s->ToolbarBounds()==old,"fixed/window aiming keeps the toolbar stationary for direct use");s->SendMessage(WM_COMMAND,SelectConfirm);}
         check(accepted&&result.frozen==frozen&&frozen->pixels==pixels&&result.regions.size()==1,"selection returns the exact immutable frozen allocation after avoidance");
         if(!accepted||result.regions.empty())return;
@@ -128,13 +141,72 @@ class SelectionToolbarAccess {
         if(mode==SelectionMode::Fixed)check(region.Width()==120&&region.Height()==80,"fixed-region geometry is unchanged by avoidance");
         if(mode==SelectionMode::Window)check(result.target.window==reinterpret_cast<HWND>(UINT_PTR(123)),"window target identity survives toolbar movement");
     }
+    static void Escape(Check check){
+        auto timer=[](SelectionWindow* s){s->SendMessage(WM_TIMER,SelectionWindow::EscapeTimer,0);};
+        auto key=[](HWND target,UINT message=WM_KEYDOWN,LPARAM flags=0){MSG event{};event.hwnd=target;event.message=message;event.wParam=VK_ESCAPE;event.lParam=flags;return CWnd::WalkPreTranslateTree(nullptr,&event)!=FALSE;};
+        for(auto mode:{SelectionMode::Region,SelectionMode::Fixed,SelectionMode::Window}){
+            auto* s=Create();const HWND host=s->m_hWnd;WindowGuard guard{host};s->mode_=mode;
+            bool down=false;int cancelled=0;bool empty=false;const auto frozen=s->image_;const auto pixels=frozen->pixels;
+            s->escapeKeyAudit_=[&]{return down;};check(s->StartEscapeWatch(),"selector owns its bounded native Escape timer");
+            s->done_=[&](bool ok,SelectionResult result){if(!ok)++cancelled;empty=!result.frozen&&result.regions.empty()&&!result.target.window;};
+            timer(s);check(::IsWindow(host)&&!s->escapeDown_&&GetForegroundWindow()!=host,"unfocused selector stays open until Escape without taking foreground");
+            s->SendMessage(WM_TIMER,SelectionWindow::EscapeTimer+1,0);down=true;timer(s);
+            check(cancelled==1&&empty&&!::IsWindow(host)&&frozen->pixels==pixels,"timer cancels unfocused rectangle/fixed/window capture exactly once without output or pixel mutation");
+            ::SendMessage(host,WM_TIMER,SelectionWindow::EscapeTimer,0);check(cancelled==1,"destroyed selector cannot repeat cancellation on a queued timer");
+        }
+        for(int child:{0,1,2,3}){
+            auto* s=Create();const HWND host=s->m_hWnd;WindowGuard guard{host};int cancelled=0;
+            s->done_=[&](bool ok,SelectionResult){if(!ok)++cancelled;};
+            const HWND target=child==0?host:child==1?s->shape_.m_hWnd:child==2?s->ratio_.m_hWnd:s->buttons_[0]->m_hWnd;
+            check(key(target)&&cancelled==1&&!::IsWindow(host),"native pretranslation cancels Escape from overlay/shape/ratio/button input");
+        }
+        auto* s=Create();HWND host=s->m_hWnd;WindowGuard dragGuard{host};int cancelled=0;
+        s->done_=[&](bool ok,SelectionResult){if(!ok)++cancelled;};s->options_.finishOnRelease=true;
+        s->SendMessage(WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(50,500));s->SendMessage(WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(250,650));
+        check(s->dragging_&&::GetCapture()==host,"Escape fixture owns an actual unfinished capture drag");
+        check(key(host)&&cancelled==1&&!::IsWindow(host)&&::GetCapture()!=host,"Escape releases native mouse capture before destroying the drag");
+        ::SendMessage(host,WM_LBUTTONUP,0,MAKELPARAM(250,650));check(cancelled==1,"late button release after Escape cannot auto-accept an image");
+        s=Create();host=s->m_hWnd;WindowGuard multiGuard{host};cancelled=0;s->shape_.SetCurSel(3);s->selected_={10,300,100,400};s->AddCurrent();s->selected_={200,400,300,500};
+        s->done_=[&](bool ok,SelectionResult result){if(!ok&&result.regions.empty())++cancelled;};
+        check(key(host,WM_SYSKEYDOWN)&&cancelled==1&&!::IsWindow(host),"system Escape cancels staged multiple regions without publishing them");
+        s=Create();host=s->m_hWnd;WindowGuard modalGuard{host};bool down=true;cancelled=0;s->escapeKeyAudit_=[&]{return down;};
+        s->done_=[&](bool ok,SelectionResult){if(!ok)++cancelled;};check(s->StartEscapeWatch(),"held-key fixture starts Escape watch");timer(s);
+        check(::IsWindow(host)&&cancelled==0,"Escape already held at selector creation does not cancel a new capture");
+        down=false;timer(s);s->EnableWindow(FALSE);down=true;timer(s);key(host);s->EnableWindow(TRUE);timer(s);key(host,WM_KEYDOWN,LPARAM(1)<<30);
+        check(::IsWindow(host)&&cancelled==0,"owned modal Escape and its auto-repeat cannot leak into capture cancellation");
+        down=false;timer(s);down=true;timer(s);check(cancelled==1&&!::IsWindow(host),"new Escape after modal release cancels capture normally");
+        for(bool ratio:{false,true}){
+            s=Create();host=s->m_hWnd;WindowGuard dropdownGuard{host};down=false;cancelled=0;s->escapeKeyAudit_=[&]{return down;};s->StartEscapeWatch();
+            s->done_=[&](bool ok,SelectionResult){if(!ok)++cancelled;};
+            DropdownProbe probe(ratio?s->ratio_.m_hWnd:s->shape_.m_hWnd);down=true;timer(s);
+            check(::IsWindow(host)&&!probe.dropped&&probe.closed==1&&cancelled==0,"unfocused Escape first closes the isolated native dropdown protocol without cancelling capture");
+            key(host);check(::IsWindow(host)&&cancelled==0,"late first-down delivery of the same polled Escape cannot dismiss capture after its dropdown");
+            key(host,WM_KEYDOWN,LPARAM(1)<<30);timer(s);check(::IsWindow(host)&&cancelled==0,"held Escape after closing dropdown does not dismiss the selector");
+            down=false;timer(s);down=true;timer(s);check(cancelled==1&&!::IsWindow(host),"second separate Escape cancels capture after dropdown dismissal");
+        }
+        s=Create();host=s->m_hWnd;WindowGuard nativeDropGuard{host};down=false;cancelled=0;s->escapeKeyAudit_=[&]{return down;};s->StartEscapeWatch();
+        s->done_=[&](bool ok,SelectionResult){if(!ok)++cancelled;};DropdownProbe probe(s->shape_.m_hWnd);
+        key(s->shape_.m_hWnd);probe.dropped=false;down=true;timer(s);
+        check(::IsWindow(host)&&cancelled==0,"pretranslated dropdown Escape is latched before native dismissal and timer sampling");
+        key(host,WM_KEYUP);check(key(host)&&cancelled==1&&!::IsWindow(host),"key release rearms normal Escape after native dropdown dismissal");
+        for(auto answer:{IDCANCEL,IDOK}){
+            s=Create();host=s->m_hWnd;WindowGuard quickModalGuard{host};down=false;cancelled=0;s->escapeKeyAudit_=[&]{return down;};s->StartEscapeWatch();
+            s->done_=[&](bool ok,SelectionResult){if(!ok)++cancelled;};
+            s->ratioAudit_=[&](FormDialog& form){form.Fields()[0].value=L"3";form.Fields()[1].value=L"2";down=true;return INT_PTR(answer);};
+            s->ratio_.SetCurSel(4);s->OnRatio();timer(s);key(host,WM_KEYDOWN,LPARAM(1)<<30);
+            check(::IsWindow(host)&&cancelled==0&&s->escapeDown_,"rapid owned modal return latches held Escape even without an intervening timer tick");
+            check(answer==IDCANCEL?s->ratioX_==0:s->ratioX_==3,"rapid modal Escape isolation preserves ratio cancel/apply semantics");
+            down=false;timer(s);down=true;timer(s);check(cancelled==1&&!::IsWindow(host),"fresh Escape after rapid modal dismissal cancels exactly once");
+        }
+    }
 public:
     static void Run(Check check,std::ofstream& log){
+        const auto report=check;check=[&](bool ok,const char* name){if(!ok)log<<"INPUT_STATE alt="<<GetKeyState(VK_MENU)<<" shift="<<GetKeyState(VK_SHIFT)<<" ctrl="<<GetKeyState(VK_CONTROL)<<" capture="<<::GetCapture()<<"\n";report(ok,name);};
         ActivationBlock activation;const auto language=services::CurrentLanguage();const HWND foreground=GetForegroundWindow();const auto clipboard=GetClipboardSequenceNumber();
         auto cleanup=[&]{Alt(false);layoutTestDpi=0;CString error;services::ActivateLanguage(language,error);};
         try{for(auto file:{L"lang_tw.ini",L"lang_en.ini"})for(int dpi:{96,120,144}){
             CString error;check(services::ActivateLanguage(file,error),"private capture toolbar language activated");layoutTestDpi=dpi;
-            check(!CString(Tr(Text::CaptureToolbarDragOnly)).IsEmpty(),"localized idle-click/drag-only avoidance help is available");Geometry(check);Directional(check);NativeControls(check);
+            check(!CString(Tr(Text::CaptureToolbarDragOnly)).IsEmpty(),"localized idle-click/drag-only avoidance help is available");Geometry(check);Directional(check);NativeControls(check);Escape(check);
             for(int shape:{0,1,2,3})Output(check,shape);Output(check,0,SelectionMode::Fixed);Output(check,0,SelectionMode::Window);
             log<<"CAPTURE_TOOLBAR language="<<CStringA(file).GetString()<<" simulated_dpi="<<dpi<<" private_noactivate_native_controls/frozen_output\n";
         }
