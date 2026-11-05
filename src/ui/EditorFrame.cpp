@@ -94,7 +94,8 @@ int EditorFrame::OnCreate(LPCREATESTRUCT cs)
     zoomSlider_.Create(WS_CHILD|WS_VISIBLE|TBS_NOTICKS,CRect(),this,ZoomSlider);zoomSlider_.SetRange(5,800);zoomSlider_.SetPos(100);
     horizontal_.Create(WS_CHILD|WS_VISIBLE|SBS_HORZ,CRect(),this,HorizontalScroll);vertical_.Create(WS_CHILD|WS_VISIBLE|SBS_VERT,CRect(),this,VerticalScroll);
     status_.Create(Tr(Text::EditorHelp),WS_CHILD|WS_VISIBLE|SS_LEFTNOWORDWRAP|SS_ENDELLIPSIS|SS_NOTIFY,CRect(),this);
-    tips_.Create(this,TTS_ALWAYSTIP);tips_.SetMaxTipWidth(Px(m_hWnd,700));tips_.AddTool(&status_,LPSTR_TEXTCALLBACK);tips_.SetDelayTime(TTDT_AUTOPOP,20000);
+    if(!copyNotice_.Create(L"",WS_CHILD|SS_LEFTNOWORDWRAP|SS_ENDELLIPSIS|SS_NOTIFY,CRect(),this))return -1;
+    tips_.Create(this,TTS_ALWAYSTIP);tips_.SetMaxTipWidth(Px(m_hWnd,700));tips_.AddTool(&status_,LPSTR_TEXTCALLBACK);tips_.AddTool(&copyNotice_,LPSTR_TEXTCALLBACK);tips_.SetDelayTime(TTDT_AUTOPOP,20000);
     ApplyFont(*this,font_);
     for(auto* combo:{&tools_,&fontSize_,&lineStyle_,&opacity_,&zoomChoice_})combo->SetRedraw(TRUE);
     ReloadEditorShortcuts();SyncStyle();Layout();DragAcceptFiles(TRUE);EditorPolling(true);RequestRender();return 0;
@@ -106,7 +107,7 @@ LRESULT EditorFrame::OnLanguageChanged(WPARAM,LPARAM)
 {
     SetWindowText(Caption()+L" - "+Tr(Text::Editor));RefreshBoundText(m_hWnd);const int selected=tools_.GetCurSel();tools_.ResetContent();
     for(auto key:ToolLabels())tools_.AddString(Tr(key));tools_.SetCurSel(selected);const int dash=lineStyle_.GetCurSel();lineStyle_.ResetContent();for(auto key:{Text::SolidLine,Text::DashedLine,Text::DottedLine})lineStyle_.AddString(Tr(key));lineStyle_.SetCurSel(dash);
-    ReloadEditorShortcuts();ribbon_.Refresh();ApplyFont(*this,font_);sidebar_.RefreshLanguage();SyncStyle();Layout();NotifyWorkspace();return 0;
+    ReloadEditorShortcuts();ribbon_.Refresh();ApplyFont(*this,font_);sidebar_.RefreshLanguage();SyncStyle();Layout();RefreshCopyNotice();NotifyWorkspace();return 0;
 }
 void EditorFrame::AutomaticOutput(const std::shared_ptr<const core::Image>& source,const CString& path,const CString& error)
 {
@@ -154,7 +155,8 @@ void EditorFrame::OnTimer(UINT_PTR)
         DestroyWindow();return;
     }
     if(screenColorModal_)return;
-    auto r=job_.Take();try{if(r){if(!r->error.IsEmpty()){if(r->action==WorkCanvas||(canvasPending_&&activeAction_==WorkCanvas)){canvasPending_=false;InvalidateRect(canvas_,FALSE);}status_.SetWindowText(r->error);pendingAction_=0;CompleteClipboardCopy(false);}
+    RefreshCopyNotice();
+    auto r=job_.Take();try{if(r){if(!r->error.IsEmpty()){if(r->action==WorkCanvas||(canvasPending_&&activeAction_==WorkCanvas)){canvasPending_=false;InvalidateRect(canvas_,FALSE);}const bool copying=copyTicket_!=0;status_.SetWindowText(r->error);pendingAction_=0;CompleteClipboardCopy(false);if(copying)SetCopyNotice(CopyNotice::Failed,r->error);}
         else if(r->action==WorkRender){if(r->revision==revision_&&r->preview==previewGeneration_){image_=std::move(r->image);if(!r->thumbnail.Empty()){thumbnail_=std::move(r->thumbnail);rendered_=r->revision;NotifyWorkspace();}InvalidateRect(canvas_,FALSE);}}
         else if(r->action==WorkImageSave||r->action==WorkProjectSave){if(r->action==WorkImageSave)path_=r->path;else projectPath_=r->path;projectPrimary_=r->action==WorkProjectSave;dirty_=r->revision!=revision_;status_.SetWindowText(CString(Tr(Text::Saved))+r->path);if(r->action==WorkImageSave)ImageSaved(r->path);NotifyWorkspace(false);}
         else if(r->action==WorkTransform){if(r->command==Effects&&(r->revision!=revision_||r->maskEpoch!=maskEpoch_||r->preview!=cropGeneration_||r->expected!=Selection()||CRect(r->screen)!=pixelSelection_||r->colorCrop!=cropRegion_||r->colorTool!=style_.tool||textEditing_||sidebar_.Dirty())){status_.SetWindowText(Tr(Text::Busy));}else if(r->command==Effects&&!r->colorChanged){status_.SetWindowText(Tr(Text::RefinementUnchanged));}else{document_.Commit(std::move(r->state));selected_=-1;pixelSelection_.SetRectEmpty();offsetX_=offsetY_=0;SyncStyle();Layout();Changed();if(r->recipe)RememberRecipe(*r->recipe);}}
@@ -200,5 +202,5 @@ void EditorFrame::OnClose(){
     DestroyWindow();
 }
 void EditorFrame::OnDestroy(){widthClosing_=true;CancelSweep();KillTimer(1);editorPollMs_=0;CompleteClipboardCopy(false);pasteTicket_=0;if(auto* w=dynamic_cast<EditorWorkspace*>(workspace_))w->ChildClosed(m_hWnd);CFrameWnd::OnDestroy();}
-BOOL EditorFrame::OnNotify(WPARAM wp,LPARAM lp,LRESULT* result){auto* header=reinterpret_cast<NMHDR*>(lp);if(header&&header->hwndFrom==text_.GetSafeHwnd()&&header->code==EN_REQUESTRESIZE&&textEditing_&&textDraft_.textAutoHeight&&!richSync_&&!textResizing_){const auto* resize=reinterpret_cast<REQRESIZE*>(lp);const int extra=2*(textDraft_.textPadding+(textDraft_.tool==core::Tool::Callout?textDraft_.width+4:0)),height=static_cast<int>(std::ceil(double(resize->rc.bottom-resize->rc.top)/zoom_))+extra;if(height>0&&height<=32768&&textDraft_.rect.top+height<=1000000&&textDraft_.rect.bottom!=textDraft_.rect.top+height){textResizing_=true;textDraft_.rect.bottom=textDraft_.rect.top+height;TextPosition();textResizing_=false;}*result=0;return TRUE;}if(header&&header->hwndFrom==tips_.GetSafeHwnd()&&header->code==TTN_GETDISPINFOW){status_.GetWindowText(tipText_);reinterpret_cast<NMTTDISPINFOW*>(lp)->lpszText=const_cast<LPWSTR>(tipText_.GetString());*result=0;return TRUE;}return CFrameWnd::OnNotify(wp,lp,result);}
+BOOL EditorFrame::OnNotify(WPARAM wp,LPARAM lp,LRESULT* result){auto* header=reinterpret_cast<NMHDR*>(lp);if(header&&header->hwndFrom==text_.GetSafeHwnd()&&header->code==EN_REQUESTRESIZE&&textEditing_&&textDraft_.textAutoHeight&&!richSync_&&!textResizing_){const auto* resize=reinterpret_cast<REQRESIZE*>(lp);const int extra=2*(textDraft_.textPadding+(textDraft_.tool==core::Tool::Callout?textDraft_.width+4:0)),height=static_cast<int>(std::ceil(double(resize->rc.bottom-resize->rc.top)/zoom_))+extra;if(height>0&&height<=32768&&textDraft_.rect.top+height<=1000000&&textDraft_.rect.bottom!=textDraft_.rect.top+height){textResizing_=true;textDraft_.rect.bottom=textDraft_.rect.top+height;TextPosition();textResizing_=false;}*result=0;return TRUE;}if(header&&header->hwndFrom==tips_.GetSafeHwnd()&&header->code==TTN_GETDISPINFOW){if(header->idFrom==reinterpret_cast<UINT_PTR>(copyNotice_.GetSafeHwnd())){tipText_=copyNoticeText_;if(!copyNoticeDetail_.IsEmpty())tipText_+=L"\n"+copyNoticeDetail_;tipText_+=L"\n"+CString(Tr(Text::ImageCopyHelp));}else status_.GetWindowText(tipText_);reinterpret_cast<NMTTDISPINFOW*>(lp)->lpszText=const_cast<LPWSTR>(tipText_.GetString());*result=0;return TRUE;}return CFrameWnd::OnNotify(wp,lp,result);}
 }

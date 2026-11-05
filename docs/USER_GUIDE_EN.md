@@ -243,6 +243,8 @@ The limit is 64 images per guide, 128 MiB per base image, 64 MiB per encoded PNG
 
 Ctrl+A followed by Ctrl+C copies the full composed image without permanently merging objects on the source page. Pasting into another image creates one movable, resizable Picture. Inside text input, Ctrl+A selects text only.
 
+After Ctrl+C, the right side of the property row shows that the image is being copied. It confirms “Image copied to clipboard” with the image dimensions only after publication succeeds; wait for that confirmation before pasting into another application. Temporary clipboard contention is retried briefly. Failed or blocked copies are reported explicitly. If the image or clipboard contents later change, the notice asks you to copy again. In narrow windows, use the bottom status bar; hover over a notice for the full explanation. Ctrl+C inside a text field copies text only.
+
 Single-file Insert image and ordinary image paste with Ctrl+V retain original pixels and transparency and switch to a 100% view. The canvas expands right/down with white space when needed. Scroll when the image exceeds the viewport. Insertion/paste and expansion form one Undo step. To keep the existing canvas size, choose **Clipboard > Insert image (fit canvas)**; it fits the object display box while retaining the original image asset.
 
 With the pointer inside the canvas, the wheel scrolls vertically, Shift+wheel scrolls horizontally, and Ctrl+wheel zooms around the image position under the pointer. Zoom follows wheel movement and ranges from 1–800%; canvas edges still limit scrolling. Wheel navigation is suspended during drawing, dragging, selection adjustment, or canvas resizing, and resumes when the gesture finishes.

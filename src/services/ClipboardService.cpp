@@ -30,10 +30,11 @@ std::shared_ptr<ClipboardPacket> PrepareClipboardImage(const core::Image& image,
     BITMAPINFOHEADER header{};header.biSize=sizeof(header);header.biWidth=image.width;header.biHeight=-image.height;header.biPlanes=1;header.biBitCount=32;
     memcpy(dib,&header,sizeof(header));memcpy(static_cast<BYTE*>(dib)+sizeof(header),flat.pixels.data(),flat.pixels.size());memcpy(encoded,png.data(),png.size());GlobalUnlock(packet->dib);GlobalUnlock(packet->png);return packet;
 }
-bool PublishClipboardImage(ClipboardPacket& packet,HWND owner,CString& error)
+bool PublishClipboardImage(ClipboardPacket& packet,HWND owner,CString& error,bool* busy)
 {
+    if(busy)*busy=false;
     if(!packet.dib||!packet.png){error=L"Clipboard packet is empty";return false;}
-    if(!OpenClipboard(owner)){error=L"Clipboard is busy";return false;}
+    if(!OpenClipboard(owner)){if(busy)*busy=true;error=L"Clipboard is busy";return false;}
     bool ok=EmptyClipboard()!=FALSE;if(ok){ok=SetClipboardData(CF_DIB,packet.dib)!=nullptr;if(ok)packet.dib=nullptr;}
     if(ok){ok=SetClipboardData(RegisterClipboardFormat(L"PNG"),packet.png)!=nullptr;if(ok)packet.png=nullptr;}
     if(ok&&packet.objects){ok=SetClipboardData(RegisterClipboardFormat(EditableClipboardFormat),packet.objects)!=nullptr;if(ok)packet.objects=nullptr;}CloseClipboard();

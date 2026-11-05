@@ -18,6 +18,7 @@ void EditorFrame::ShowMore()
 }
 void EditorFrame::OnAction(UINT id)
 {
+    if((id==Copy||id==Cut)&&!copyTicket_)SetCopyNotice(CopyNotice::Blocked);
     if(CommandMenuFlags(id)&MF_GRAYED){status_.SetWindowText(Tr(job_.Busy()?Text::Busy:Text::CommandUnavailable));return;}
     const bool viewportCommand=id>=ZoomFit&&id<=ToggleFullScreen;
     if(!viewportCommand&&id!=ChooseDocument)status_.ClearOperation();

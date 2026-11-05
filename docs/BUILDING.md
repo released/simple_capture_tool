@@ -44,6 +44,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_local.ps1 -Sc
 
 驗證後只需保留命令、版本、結果、必要失敗片段與少量代表畫面；已確認由測試產生的一次性資料應在成功、失敗或取消後清除。最後完成建置與驗證後，使用安全清理入口移除編譯中間檔，保留 EXE、INI、使用者資料及必要證據。
 
+測試 EXE 也屬於驗證後應移除的輸出。完成整批驗證及所有預定的 `-SkipBuild` 重用後，以 `artifacts/audits/test-retirement-current.json` 記錄 `VerificationComplete: true` 與 `Targets`（各項的完整 `Path`、`Producer`、`Version`、`Bytes`、`Hash`）。`scripts\retire_test_binaries.ps1` 預設只檢查；加上 `-Apply` 才會刪除已核對的兩個標準測試 EXE。它拒絕其他路徑、過期雜湊、未完成批次、重解析點及仍執行中的測試／建置程序，保留正式 EXE、INI 與其他資料。執行器若拒絕操作，須保留原始原因並透過正式權限設定處理，不可換工具繞過。
+
 ## 使用與散布
 
 正式執行檔直接使用 `build\SimpleCaptureTool.exe`，不需額外封裝。也可將 EXE 複製到可寫入的資料夾使用；首次啟動會在 EXE 旁產生設定與語系 INI。分享程式時，請勿包含自己的 INI、截圖或其他私人資料。

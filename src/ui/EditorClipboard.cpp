@@ -13,7 +13,7 @@ bool EditorFrame::PrepareClipboardAction(UINT id)
         if(pasteTicket_||pendingAction_==SelectPixels){status_.SetWindowText(Tr(Text::Busy));return false;}
         if(job_.Busy()&&activeAction_!=WorkRender)return true;
         if(id==Cut&&pixelSelection_.IsRectEmpty()&&cropRegion_.IsRectEmpty()&&selected_<0)return true;
-        CompleteClipboardCopy(false);copyTicket_=services::BeginClipboardTransfer();
+        CompleteClipboardCopy(false);copyTicket_=services::BeginClipboardTransfer();SetCopyNotice(CopyNotice::Pending);status_.SetWindowText(copyNoticeText_);
     }
     if(id==PasteImage){
         if(pasteTicket_)return false;
@@ -22,7 +22,7 @@ bool EditorFrame::PrepareClipboardAction(UINT id)
     }
     return true;
 }
-void EditorFrame::CompleteClipboardCopy(bool success){services::CompleteClipboardTransfer(copyTicket_,success);copyTicket_=0;}
+void EditorFrame::CompleteClipboardCopy(bool success){const bool pending=copyTicket_!=0;services::CompleteClipboardTransfer(copyTicket_,success);copyTicket_=0;if(pending&&!success)SetCopyNotice(CopyNotice::Failed);}
 void EditorFrame::QueueAction(UINT id){if(id!=Copy&&id!=Cut&&(pendingAction_==Copy||pendingAction_==Cut))CompleteClipboardCopy(false);pendingAction_=id;pendingRevision_=revision_;pendingMaskEpoch_=maskEpoch_;pendingSelected_=selected_;pendingRegion_=pixelSelection_;pendingObjects_=Selection();pendingCrop_=cropGeneration_;}
 void EditorFrame::RunPendingAction()
 {
@@ -40,10 +40,23 @@ void EditorFrame::PollClipboardPaste()
 }
 void EditorFrame::PublishClipboardResult(WorkResult& result)
 {
-    CString error;const bool current=services::CanPublishClipboardTransfer(copyTicket_);
-    const bool copied=current&&result.clipboard&&(result.command==CopyScaled&&scaledPublishAudit_?scaledPublishAudit_(*result.clipboard,error):services::PublishClipboardImage(*result.clipboard,m_hWnd,error));CompleteClipboardCopy(copied);
-    if(!copied){status_.SetWindowText(!current?Tr(Text::ClipboardSuperseded):error.IsEmpty()?Tr(Text::ClipboardCopyFailed):error);return;}
-    status_.SetWindowText(Tr(Text::Copy));if(result.cut&&result.revision==revision_&&(!result.mask||result.maskEpoch==maskEpoch_)&&result.state.base){document_.Commit(std::move(result.state));selected_=-1;pixelSelection_.SetRectEmpty();Changed();}
+    CString error;bool busy=false;const bool current=services::CanPublishClipboardTransfer(copyTicket_);const auto now=std::chrono::steady_clock::now();
+    if(result.clipboardDeadline==std::chrono::steady_clock::time_point{})result.clipboardDeadline=now+std::chrono::milliseconds(300);
+    const bool expired=now>=result.clipboardDeadline||result.clipboardAttempts>=20;
+    if(expired)error=Tr(Text::ImageCopyTimeout);else ++result.clipboardAttempts;
+    const bool copied=!expired&&current&&result.clipboard&&(clipboardPublishAudit_?clipboardPublishAudit_(*result.clipboard,error,busy):result.command==CopyScaled&&scaledPublishAudit_?scaledPublishAudit_(*result.clipboard,error):services::PublishClipboardImage(*result.clipboard,m_hWnd,error,&busy));
+    if(!copied&&current&&busy){
+        if(result.clipboardAttempts<20&&std::chrono::steady_clock::now()<result.clipboardDeadline){
+            result.error.Empty();auto retry=std::make_shared<WorkResult>(std::move(result));activeAction_=WorkClipboard;
+            // Reuse prebuilt handles on the existing poll; never wait or encode on the UI thread.
+            if(StartWork([retry]{return std::move(*retry);})){SetCopyNotice(CopyNotice::Pending);status_.SetWindowText(copyNoticeText_);return;}
+        }
+    }
+    CompleteClipboardCopy(copied);
+    if(!copied){const CString reason=!current?Tr(Text::ClipboardSuperseded):error.IsEmpty()?Tr(Text::ClipboardCopyFailed):error;SetCopyNotice(CopyNotice::Failed,reason);status_.SetWindowText(copyNoticeText_+L"  "+reason);return;}
+    const CSize size(result.image.width,result.image.height);const auto copiedRevision=result.revision;
+    if(result.cut&&result.revision==revision_&&(!result.mask||result.maskEpoch==maskEpoch_)&&result.state.base){document_.Commit(std::move(result.state));selected_=-1;pixelSelection_.SetRectEmpty();Changed();}
+    copiedSize_=size;copiedRevision_=result.cut?revision_:copiedRevision;copiedSequence_=services::ClipboardSequenceNumber();SetCopyNotice(CopyNotice::Ready);status_.SetWindowText(copyNoticeText_);
 }
 void EditorFrame::CompleteImagePaste(WorkResult& result)
 {

@@ -9,7 +9,7 @@ struct ClipboardPacket {
     ClipboardPacket()=default;ClipboardPacket(const ClipboardPacket&)=delete;ClipboardPacket& operator=(const ClipboardPacket&)=delete;
 };
 std::shared_ptr<ClipboardPacket> PrepareClipboardImage(const core::Image& image,CString& error);
-bool PublishClipboardImage(ClipboardPacket& packet,HWND owner,CString& error);
+bool PublishClipboardImage(ClipboardPacket& packet,HWND owner,CString& error,bool* busy=nullptr);
 bool ReadClipboardImage(HWND owner,core::Image& image,CString& error);
 bool DecodeClipboardDib(const std::vector<BYTE>& bytes,core::Image& image,CString& error);
 bool AddClipboardObjects(ClipboardPacket&,const core::DocumentState&,CString& error);
