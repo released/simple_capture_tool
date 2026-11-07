@@ -9,6 +9,7 @@ bool CanvasExpansionSize(int oldWidth,int oldHeight,int width,int height);
 bool ExpandCanvas(const DocumentState& source,int width,int height,DocumentState& output);
 bool CanvasResizeSize(int width,int height);
 bool ResizeCanvas(const DocumentState& source,int width,int height,DocumentState& output);
+bool ResizeCanvas(const DocumentState& source,RECT bounds,DocumentState& output);
 bool PasteImageOriginalSize(const DocumentState& source,Image image,DocumentState& output);
 Image Combine(const Image& first,const Image& second,bool vertical,int gap,COLORREF background);
 Image RemoveStrip(const Image& image,int start,int length,bool horizontal);

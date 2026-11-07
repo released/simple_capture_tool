@@ -12,7 +12,7 @@ LPCTSTR ResizeCursor(int handle){
 LPCTSTR EditorFrame::CanvasCursor(CPoint point)const{
     if(!canvas_.PtInRect(point))return IDC_ARROW;
     const int grip=canvasHandle_>=0?canvasHandle_:CanvasGrip(point);
-    if(grip>=0)return grip==1?IDC_SIZEWE:grip==2?IDC_SIZENS:IDC_SIZENWSE;
+    if(grip>=0)return grip==1||grip==4?IDC_SIZEWE:grip==2||grip==8?IDC_SIZENS:grip==6||grip==9?IDC_SIZENESW:IDC_SIZENWSE;
     if(flowGesture_||flowPaletteDrag_||flowPlacement_)return IDC_CROSS;
     if(flowPanel_.Open()&&(FlowPort(flowHover_,point)||FlowPort(selected_,point)))return IDC_CROSS;
     if(panning_)return IDC_HAND;

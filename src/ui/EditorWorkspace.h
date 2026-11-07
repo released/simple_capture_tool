@@ -9,7 +9,7 @@ constexpr UINT WorkspaceRefresh=WM_APP+31;
 inline constexpr wchar_t EditorTrayHidden[]=L"SCT.EditorTrayHidden";
 class EditorWorkspace final:public CFrameWnd {
 public:
-    static EditorFrame* Open(core::DocumentState state,CString path,bool captured=false);
+    static EditorFrame* Open(core::DocumentState state,CString path,bool captured=false,bool blankCanvas=false);
     static EditorWorkspace* Current();static bool CloseCurrent();
     void RefreshDocuments(bool resources=true);void ChildClosed(HWND);void Activate(EditorFrame*);
     void Action(UINT);const std::vector<EditorFrame*>& Pages()const{return pages_;}
@@ -53,15 +53,16 @@ private:
     std::function<void(size_t)> batchCreateAudit_;
     friend class EditorFrame;
     class TabStrip final:public CTabCtrl {
-    public:EditorWorkspace* owner=nullptr;
-    protected:afx_msg void OnLButtonDown(UINT,CPoint);afx_msg void OnMouseMove(UINT,CPoint);afx_msg void OnLButtonUp(UINT,CPoint);afx_msg void OnCaptureChanged(CWnd*);afx_msg void OnKeyDown(UINT,UINT,UINT);DECLARE_MESSAGE_MAP()
-    private:EditorFrame* dragged_=nullptr;CPoint pressed_;bool moving_=false;void Cancel();
+    public:EditorWorkspace* owner=nullptr;void RefreshMetrics();CRect CloseRect(int)const;CRect LabelRect(int)const;
+    protected:void DrawItem(LPDRAWITEMSTRUCT)override;
+        afx_msg void OnLButtonDown(UINT,CPoint);afx_msg void OnMouseMove(UINT,CPoint);afx_msg void OnLButtonUp(UINT,CPoint);afx_msg void OnCaptureChanged(CWnd*);afx_msg void OnKeyDown(UINT,UINT,UINT);afx_msg void OnMouseLeave();DECLARE_MESSAGE_MAP()
+    private:EditorFrame* dragged_=nullptr;EditorFrame* pressedClose_=nullptr;HWND closeWindow_=nullptr;CPoint pressed_;bool moving_=false,tracking_=false;int hotClose_=-1,dpi_=0;void Cancel();int CloseHit(CPoint)const;
     };
     bool Reorder(EditorFrame*,int);void ResumePage(EditorFrame*);void UpdateResources(bool reclaim=true,size_t limit=512ULL*1024*1024);void ReclaimInactive();CString ResourceSummary()const;
     size_t resourceBytes_=0,cacheBytes_=0;core::DocumentResources resources_;
     class ThumbnailView final:public CWnd {public:EditorWorkspace* owner=nullptr;protected:afx_msg void OnPaint();afx_msg BOOL OnEraseBkgnd(CDC*){return TRUE;}afx_msg void OnLButtonDown(UINT,CPoint);afx_msg BOOL OnMouseWheel(UINT,short,CPoint);DECLARE_MESSAGE_MAP() private:int scroll_=0;PaintSurface surface_;};
     void BuildAppMenu();CMenu appMenu_;
-    void Layout();TabStrip tabs_;CButton close_,choose_;CFont font_;ThumbnailView thumbs_;std::vector<EditorFrame*> pages_;int active_=0;bool closing_=false,showThumbs_=false,owned_=false;static HWND current_;
+    void Layout();TabStrip tabs_;CButton choose_;CFont font_;ThumbnailView thumbs_;std::vector<EditorFrame*> pages_;int active_=0;bool closing_=false,showThumbs_=false,owned_=false;static HWND current_;
     bool fullScreen_=false;CRect restoreRect_;DWORD restoreStyle_=0;
 };
 }

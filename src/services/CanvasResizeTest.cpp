@@ -6,6 +6,7 @@
 #include "LanguageService.h"
 #include "ProjectService.h"
 #include "../core/ImageOperations.h"
+#include "../core/AnnotationTools.h"
 #include "../ui/EditorFrame.h"
 #include "../ui/EditorViewportVisuals.h"
 #include <future>
@@ -17,7 +18,7 @@ class CanvasResizeAccess {
     using Check=std::function<void(bool,const char*)>;
     static bool Wait(EditorFrame* page){const auto end=std::chrono::steady_clock::now()+std::chrono::seconds(5);do{services::PumpNativeTestMessages();if(!page->WorkingForBuild())return true;Sleep(2);}while(std::chrono::steady_clock::now()<end);return false;}
     static void Mouse(EditorFrame* page,UINT message,CPoint p){services::NeutralTestKeys();page->SendMessage(message,message==WM_LBUTTONUP?0:MK_LBUTTON,MAKELPARAM(p.x,p.y));}
-    static CPoint Grip(EditorFrame* page,int grip){const auto r=page->ScreenRect({0,0,page->document_.Width(),page->document_.Height()});const int extra=Px(page->m_hWnd,8);return {grip&1?r.right+extra:r.CenterPoint().x,grip&2?r.bottom+extra:r.CenterPoint().y};}
+    static CPoint Grip(EditorFrame* page,int grip){return page->CanvasGripPoint(grip);}
     static void Drag(EditorFrame* page,CPoint from,CPoint to){Mouse(page,WM_LBUTTONDOWN,from);Mouse(page,WM_MOUSEMOVE,to);Mouse(page,WM_LBUTTONUP,to);}
     static void Escape(EditorFrame* page){services::NeutralTestKeys();MSG m{};m.hwnd=page->m_hWnd;m.message=WM_KEYDOWN;m.wParam=VK_ESCAPE;page->PreTranslateMessage(&m);}
     static core::Image Paint(EditorFrame* page){
@@ -96,6 +97,16 @@ class CanvasResizeAccess {
         }
         output=state;for(auto size:{CSize(0,220),CSize(320,-1),CSize(32769,220),CSize(32768,32768)})check(!core::ResizeCanvas(state,size.cx,size.cy,output)&&output.base==state.base,"invalid resize targets preserve output transactionally without excessive allocation");
         check(core::ResizeCanvas(state,320,220,output)&&output.base==state.base,"no-op bidirectional resize retains source identity");
+        auto connected=core::ConnectObjects(state,0,1);core::Annotation callout;callout.tool=core::Tool::Callout;callout.rect={30,30,130,110};callout.anchored=true;callout.focus={170,140};callout.text=L"Keep tail";connected.objects.push_back(callout);connected.objects[0].locked=true;
+        for(RECT bounds:{RECT{40,0,320,220},RECT{0,30,320,220},RECT{40,30,320,220},RECT{-40,-30,320,220},RECT{40,-30,320,220},RECT{-40,30,320,220},RECT{10,20,330,240},RECT{319,219,320,220}}){
+            core::DocumentState shifted;const bool ok=core::ResizeCanvas(connected,bounds,shifted);check(ok,"offset canvas resize accepts inward/outward left/top and mixed axes");if(!ok)continue;bool exact=true;const BYTE white[4]={255,255,255,255};
+            for(int y=0;y<shifted.base->height;++y)for(int x=0;x<shifted.base->width;++x){const int sx=x+bounds.left,sy=y+bounds.top;const BYTE* expected=sx>=0&&sy>=0&&sx<320&&sy<220?source.Row(sy)+sx*4:white;exact=exact&&!memcmp(shifted.base->Row(y)+x*4,expected,4);}
+            check(exact&&connected.base->pixels==source.pixels,"left/top resize retains exact overlap alpha/hidden RGB and only fills new pixels white");bool positioned=shifted.objects.size()==connected.objects.size();
+            for(size_t i=0;i<shifted.objects.size()&&positioned;++i){const auto& before=connected.objects[i];const auto& after=shifted.objects[i];positioned=after.rect.left==before.rect.left-bounds.left&&after.rect.top==before.rect.top-bounds.top&&after.asset==before.asset&&after.id==before.id&&after.sourceId==before.sourceId&&after.targetId==before.targetId&&after.locked==before.locked;for(size_t j=0;j<after.points.size();++j)positioned=positioned&&after.points[j].x==before.points[j].x-bounds.left&&after.points[j].y==before.points[j].y-bounds.top;if(before.anchored)positioned=positioned&&after.focus.x==before.focus.x-bounds.left&&after.focus.y==before.focus.y-bounds.top;}
+            check(positioned,"offset resize translates locked objects, callout/magnifier anchors and attached paths exactly once without asset or link loss");core::Document undo;undo.Reset(connected);undo.Commit(shifted);check(undo.Undo()&&undo.State().base==connected.base&&undo.Redo()&&undo.State().base==shifted.base,"offset pixel/annotation transform is one reversible document commit");
+        }
+        for(RECT invalid:{RECT{0,0,32769,20},RECT{LONG_MIN,0,LONG_MAX,20},RECT{32769,0,32770,20},RECT{10,20,10,20}}){output=state;check(!core::ResizeCanvas(state,invalid,output)&&output.base==state.base,"invalid rectangle dimensions/origins preserve output before allocation");}
+        auto extreme=connected;extreme.objects[0].rect={999980,20,1000000,90};output=state;check(!core::ResizeCanvas(extreme,RECT{-40,0,320,220},output)&&output.base==state.base,"origin translation that exceeds object coordinate limits fails transactionally");
         core::Document history;history.Reset(state);core::DocumentState larger,restored;core::ResizeCanvas(state,400,300,larger);history.Commit(larger);core::ResizeCanvas(history.State(),320,220,restored);history.Commit(restored);
         check(history.State().base->pixels==source.pixels&&history.UndoCount()==2&&history.Undo()&&history.State().base==larger.base&&history.Redo()&&history.State().base->pixels==source.pixels,"expand then shrink restores original pixels and each gesture has one reversible history entry");
         auto malformed=std::make_shared<core::Image>(source);malformed->pixels.pop_back();auto bad=state;bad.base=malformed;output=state;check(!core::ResizeCanvas(bad,100,100,output)&&output.base==state.base,"malformed source pixel storage is rejected before copying");
@@ -111,6 +122,15 @@ public:static void Run(Check check,std::ofstream& log,const std::filesystem::pat
         check(!owner->IsWindowVisible()&&!page->IsWindowVisible(),"native fixture remains hidden instead of maximizing or interrupting the user's desktop");
         if(frameOnly)Frame(page,check,dir);
         if(positionOnly)Position(page,check,frameOnly?dir/L"canvas-frame-022":dir);else{
+        for(double scale:{.5,1.,1.5})for(int grip:{4,8,12,9,6}){
+            reset();page->ZoomTo(scale);const auto before=page->document_.State().base;const auto from=Grip(page,grip);const auto origin=page->ImageOrigin();check(page->canvas_.PtInRect(from)&&page->CanvasGrip(from)==grip&&origin==page->canvas_.TopLeft(),"new left/top/corner grips stay visible without adding a canvas gutter");
+            const CPoint delta(int((grip&4?60:grip&1?-60:0)*scale),int((grip&8?40:grip&2?-40:0)*scale));const CPoint to=from+delta;const CRect bounds(grip&4?60:0,grip&8?40:0,grip&1?260:320,grip&2?180:220);
+            Mouse(page,WM_LBUTTONDOWN,from);Mouse(page,WM_MOUSEMOVE,to);check(page->canvasBounds_==bounds&&page->document_.State().base==before&&page->document_.UndoCount()==0,"new grips preview crop bounds at stable zoom without changing pixels or Undo");const auto preview=Paint(page);check(ColorAt(preview,page->ScreenRect({10,10,10,10}).TopLeft(),viewport::SurroundColor),"left/top removed bands preview in DFDFDF");if(grip==12&&scale==1)SaveEvidence(page,dir/L"canvas-left-top-preview.png",check);
+            Mouse(page,WM_LBUTTONUP,to);check(Wait(page)&&page->document_.State().base->pixels==source.Crop(bounds).pixels&&page->document_.UndoCount()==1&&page->ImageOrigin()==page->canvas_.TopLeft(),"left/top/corner release crops the intended pixels without scaling and commits one Undo");page->OnAction(Undo);check(Wait(page)&&page->document_.State().base==before,"new grip Undo restores the exact original source");page->OnAction(Redo);check(Wait(page)&&page->document_.Width()==bounds.Width()&&page->document_.Height()==bounds.Height(),"new grip Redo restores its crop dimensions");
+        }
+        for(int grip:{4,8,12,9,6}){reset();const auto before=page->document_.State().base;const auto from=Grip(page,grip);const CPoint delta(grip&4?-40:grip&1?40:0,grip&8?-30:grip&2?30:0);Drag(page,from,from+delta);check(Wait(page)&&page->document_.Width()==320+((grip&5)?40:0)&&page->document_.Height()==220+((grip&10)?30:0)&&page->document_.UndoCount()==1,"all new grips can expand outward with one Undo");page->OnAction(Undo);check(Wait(page)&&page->document_.State().base==before,"outward left/top expansion remains reversible");
+            reset();const auto revision=page->revision_;const auto start=Grip(page,grip);Mouse(page,WM_LBUTTONDOWN,start);Mouse(page,WM_MOUSEMOVE,start+delta);Escape(page);Mouse(page,WM_LBUTTONUP,start+delta);check(Wait(page)&&page->revision_==revision&&page->document_.UndoCount()==0,"Escape cancels every new edge/corner without committing");}
+        reset();auto topLeft=Grip(page,12);Mouse(page,WM_LBUTTONDOWN,topLeft);Mouse(page,WM_MOUSEMOVE,topLeft+CPoint(30,20));page->SendMessage(WM_CAPTURECHANGED,0,0);if(page->GetCapture()==page)::ReleaseCapture();check(Wait(page)&&page->document_.UndoCount()==0,"capture loss cancels a new top-left crop");
         for(int grip:{1,2,3}){reset();const auto from=Grip(page,grip),to=from+CPoint(grip&1?60:0,grip&2?40:0);const auto base=page->document_.State().base;const auto revision=page->revision_;Mouse(page,WM_LBUTTONDOWN,from);Mouse(page,WM_MOUSEMOVE,to);
             check(page->canvasHandle_==grip&&page->WorkingForBuild()&&!page->job_.Busy()&&page->document_.State().base==base&&page->revision_==revision,"native canvas drag previews without committing, allocating pixels or starting background transforms");
             if(grip==3)SaveEvidence(page,dir/L"canvas-drag-preview.png",check);Mouse(page,WM_LBUTTONUP,to);check(Wait(page)&&page->document_.Width()==320+(grip&1?60:0)&&page->document_.Height()==220+(grip&2?40:0)&&page->revision_==revision+1,"native right/bottom/corner release creates exactly one canvas change");

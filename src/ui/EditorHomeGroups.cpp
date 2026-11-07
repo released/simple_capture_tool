@@ -53,7 +53,10 @@ std::vector<HomeButton> GroupedHomeCommands(const services::Settings& settings){
     const auto all=AllEditorFamilies();std::vector<HomeButton> result;std::set<size_t> included;std::set<UINT> enabled;
     if(settings.editorHomeChildrenConfigured){services::Settings children;children.editorHomeConfigured=true;children.editorHome=settings.editorHomeChildren;for(const auto& c:EditorHomeCommands(children))enabled.insert(c.id);}
     for(const auto& c:EditorHomeCommands(settings)){size_t index=0;for(;index<all.size();++index)if(std::any_of(all[index].choices.begin(),all[index].choices.end(),[&](const auto& item){return item.id==c.id;}))break;if(index==all.size()||!included.insert(index).second)continue;
-        auto family=all[index];if(settings.editorHomeChildrenConfigured)family.choices.erase(std::remove_if(family.choices.begin(),family.choices.end(),[&](const auto& item){return !enabled.count(item.id);}),family.choices.end());if(family.choices.empty())continue;auto primary=std::find_if(family.choices.begin(),family.choices.end(),[&](const auto& item){return item.id==c.id;});family.primary=primary==family.choices.end()?family.choices.front():*primary;result.push_back(std::move(family));
+        auto family=all[index];if(settings.editorHomeChildrenConfigured)family.choices.erase(std::remove_if(family.choices.begin(),family.choices.end(),[&](const auto& item){return !enabled.count(item.id);}),family.choices.end());if(family.choices.empty())continue;auto primary=std::find_if(family.choices.begin(),family.choices.end(),[&](const auto& item){return item.id==c.id;});family.primary=primary==family.choices.end()?family.choices.front():*primary;
+        // Legacy Home keys used SaveAs as the save-family primary.
+        if(family.primary.id==SaveAs){const auto save=std::find_if(family.choices.begin(),family.choices.end(),[](const auto& item){return item.id==Save;});if(save!=family.choices.end())family.primary=*save;}
+        result.push_back(std::move(family));
     }return result;
 }
 }

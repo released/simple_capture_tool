@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "ImageOperations.h"
+#include "ObjectComposition.h"
 #include <gdiplus.h>
 namespace sct::core {
 Image Resize(const Image& image,int width,int height,int sampling)
@@ -45,13 +46,34 @@ bool CanvasResizeSize(int width,int height)
 }
 bool ResizeCanvas(const DocumentState& source,int width,int height,DocumentState& output)
 {
+    return ResizeCanvas(source,RECT{0,0,width,height},output);
+}
+bool ResizeCanvas(const DocumentState& source,RECT bounds,DocumentState& output)
+{
+    const int64_t w=int64_t(bounds.right)-bounds.left,h=int64_t(bounds.bottom)-bounds.top;
+    if(w<1||w>32768||h<1||h>32768||bounds.left<-32768||bounds.left>32768||bounds.top<-32768||bounds.top>32768)return false;
+    const int width=int(w),height=int(h);
     if(!source.base||source.base->Empty()||!CanvasResizeSize(width,height)||
         static_cast<uint64_t>(source.base->width)*source.base->height*4!=source.base->pixels.size())return false;
-    if(width==source.base->width&&height==source.base->height){output=source;return true;}
+    if(!bounds.left&&!bounds.top&&width==source.base->width&&height==source.base->height){output=source;return true;}
+    auto state=source;
+    if(bounds.left||bounds.top){
+        try{
+            composition::Validate(state);
+            auto fits=[](LONG value,LONG shift){return std::abs(int64_t(value))<=1000000&&std::abs(int64_t(value)-shift)<=1000000;};
+            for(auto& a:state.objects){
+                if(!fits(a.rect.left,bounds.left)||!fits(a.rect.right,bounds.left)||!fits(a.rect.top,bounds.top)||!fits(a.rect.bottom,bounds.top))return false;
+                for(auto p:a.points)if(!fits(p.x,bounds.left)||!fits(p.y,bounds.top))return false;
+                if(a.anchored&&(!fits(a.focus.x,bounds.left)||!fits(a.focus.y,bounds.top)))return false;
+                Document::Translate(a,-bounds.left,-bounds.top);if(a.anchored&&a.tool!=Tool::Callout){a.focus.x-=bounds.left;a.focus.y-=bounds.top;}
+            }
+            composition::Validate(state);
+        }catch(const std::exception&){return false;}
+    }
     Image image;if(!image.Create(width,height))return false;
-    const int rows=std::min(height,source.base->height),columns=std::min(width,source.base->width);
-    for(int y=0;y<rows;++y)memcpy(image.Row(y),source.base->Row(y),static_cast<size_t>(columns)*4);
-    auto state=source;state.base=std::make_shared<Image>(std::move(image));output=std::move(state);return true;
+    const int left=std::max<LONG>(0,bounds.left),top=std::max<LONG>(0,bounds.top),right=std::min<LONG>(source.base->width,bounds.right),bottom=std::min<LONG>(source.base->height,bounds.bottom);
+    if(right>left&&bottom>top)for(int y=top;y<bottom;++y)memcpy(image.Row(y-bounds.top)+(left-bounds.left)*4,source.base->Row(y)+left*4,static_cast<size_t>(right-left)*4);
+    state.base=std::make_shared<Image>(std::move(image));output=std::move(state);return true;
 }
 bool ExpandCanvas(const DocumentState& source,int width,int height,DocumentState& output)
 {

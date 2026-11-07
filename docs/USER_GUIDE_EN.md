@@ -9,7 +9,7 @@ The application starts in **Traditional Chinese by default**. To use the English
 1. Use Windows 10 1903 or later, x64. Put the tool in a writable folder and run [SimpleCaptureTool.exe](../build/SimpleCaptureTool.exe).
 2. The tool starts in the system tray. Press `Ctrl+Shift+X` to capture a rectangular region, or right-click the tray icon to choose a capture mode.
 3. Release the mouse to open the capture in the maximized editor. Add text, arrows, shapes, or highlights.
-4. Press `Ctrl+A`, then `Ctrl+C`, to copy the composed canvas. Press `Ctrl+S` to choose a folder and filename. Images are not saved automatically.
+4. Press `Ctrl+A`, then `Ctrl+C`, to copy the composed canvas. Press `Ctrl+S` to save; new images require a folder and filename. Images are not saved automatically.
 
 - The first save dialog opens in Windows Downloads, with JPG as the default format.
 - After a successful image save, later dialogs prefer the last save folder.
@@ -666,6 +666,8 @@ Ctrl+A followed by Ctrl+C copies the full composed image without permanently mer
 - Wheel navigation is suspended during drawing, dragging, selection adjustment, or canvas resizing, and resumes when the gesture finishes.
 
 - **New image** prefills dimensions from a clipboard image, or uses the default dimensions when none is available. It creates a blank image rather than pasting pixels automatically.
+- Dropping one image file from File Explorer onto a new, unedited, unsaved blank canvas opens it in the same tab. The canvas matches the image dimensions at 100% view, without retaining the placeholder margins. A failed load preserves the blank canvas.
+- Images with existing content or an editing or save history retain the insertion/layout workflow. Explicit insert commands also retain their existing behavior.
 - Drop multiple image files, or use **Image layout → Insert images / layout**, to set columns, gaps, and the insertion origin. Images remain separate editable objects, and the batch supports one-step Undo.
 - Collage of open images creates a new page of editable Picture objects, preserving source pages.
 
@@ -676,8 +678,12 @@ Ctrl+A followed by Ctrl+C copies the full composed image without permanently mer
 - Pages are raster copies of the current composition at 100%; the source image and its objects stay editable, and nothing is saved automatically.
 - Combined input-composition and output-pixel buffers are bounded to 512 MiB; other objects, history, and process overhead are additional.
 
-- Drag the blue right, bottom, or bottom-right canvas handles outward to add white space or inward to shrink the canvas and remove excess margins. Images and objects are not scaled. Shrinking clips base pixels outside the right/bottom edges; a gray preview marks removed areas. Release to apply, Esc to cancel, and Ctrl+Z to restore. Editable object assets and coordinates are retained; parts outside the new canvas are not displayed or included in raster output. Each drag is one Undo step. Use canvas expansion settings for left/top margins or other background colors.
+- Drag a blue handle on any canvas edge or corner inward to crop that side, or outward to add white space. Image pixels and objects are not scaled.
+- Top and left handles remain accessible when the image is aligned to the viewport top-left. Resizing those sides rebases retained pixels and annotations together, preserving their relative positions and assets.
+- A gray preview marks removed areas. Release applies one change; Esc cancels. Ctrl+Z and Ctrl+Y undo and redo it.
+- Editable object assets remain retained. Content outside the new canvas is excluded from display and raster output. Canvas expansion settings also provide other background colors.
 - Reorder tabs by dragging, rename them, or switch through the list at the right. Tab names are session-only metadata.
+- Each image tab has an X to the right of its filename. It closes that image; closing an inactive tab leaves the current image active. Unsaved RAM images follow the existing discard-on-close behavior.
 
 ## Cropping, image processing, and comparison
 
@@ -772,8 +778,11 @@ Effect preview offers original-image and split-comparison views. Drag the divide
 
 ## Saving, output, and sharing
 
-- **Save / Save as / Save all** always opens a file dialog and requires an explicit filename.
-- Save all asks separately for each image and stops after a canceled filename dialog.
+- **Save / Ctrl+S** writes an image with an existing file path back to its current filename and extension. Later saves also reuse the filename selected on the first save.
+- New captures and blank images require a filename on their first save. **Save as / Ctrl+Shift+S** always opens the filename dialog.
+- Choosing **Save as** from the regular Save button's dropdown leaves the main button assigned to ordinary Save.
+- A write failure displays an error and retains the unsaved state. **Save as** can select another location or a supported output format.
+- Save all saves each page, reusing existing image paths and asking for unnamed images. It stops after a canceled filename dialog.
 - Outputs already started are not withdrawn by that cancellation.
 - The first dialog uses Windows Downloads.
 - After a successful image, image-PDF, or annotation-SVG save, the folder becomes the preference for other images and subsequent launches.

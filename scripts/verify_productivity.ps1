@@ -1,18 +1,22 @@
 param(
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Both',
-    [ValidateSet('ReviewRefinements','RichSyncBaseline','FlowDiagram','ClipboardFeedback','ReviewOptimization','SaveDirectory','CaptureMagnifier','Canvas','SelectionToolbar','RibbonClarity','MaskEditing','SelectionTools','ColorFilters','EditorTransitions','EditableLayout','EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','Composition','ToolStyles','EditorMenus','ImagePrecision','PictureCrop','TextRuns','ObjectAlignment','DefaultCursor','Freehand','WorkspaceTools','CanvasFrame','TextViewport','ObjectPayload','PasteOriginal','EditorPerformance','CropWorkflow','PolygonShapes','ImageReuse','OpenParity','CaptureLatency','Startup')][string[]]$Scope=@('Productivity'),
-    [switch]$SkipBuild
+    [ValidateSet('ImageHome','ReviewRefinements','RichSyncBaseline','FlowDiagram','ClipboardFeedback','ReviewOptimization','SaveDirectory','CaptureMagnifier','Canvas','SelectionToolbar','RibbonClarity','MaskEditing','SelectionTools','ColorFilters','EditorTransitions','EditableLayout','EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','Composition','ToolStyles','EditorMenus','ImagePrecision','PictureCrop','TextRuns','ObjectAlignment','DefaultCursor','Freehand','WorkspaceTools','CanvasFrame','TextViewport','ObjectPayload','PasteOriginal','EditorPerformance','CropWorkflow','PolygonShapes','ImageReuse','OpenParity','CaptureLatency','Startup')][string[]]$Scope=@('Productivity'),
+    [switch]$SkipBuild,
+    [string]$ArtifactLifecycle=''
 )
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot)).TrimEnd('\')
 $token=[Guid]::NewGuid().ToString('N')
-$owned=[IO.Path]::Combine($project,'artifacts','verify051',$token.Substring(0,12))
-$auditRoot=Join-Path $project 'artifacts\audits\review-refinements-067'
+$hubRun=$null
+if($ArtifactLifecycle){. $ArtifactLifecycle;$hubRun=New-HubTestRun -ProjectRoot $project -Purpose 'Scoped native capture-editor fixtures; copied binary and own synthetic output' -MaxBytes 536870912}
+$owned=if($hubRun){$hubRun.Work}else{[IO.Path]::Combine($project,'artifacts','verify051',$token.Substring(0,12))}
+$auditRoot=Join-Path $project 'artifacts\audits\save-original-071'
 $audit=Join-Path $auditRoot ("verification-$token.json")
 $results=New-Object 'System.Collections.Generic.List[object]'
-$generated=0L;$removed=0L;$active=$null
+$generated=0L;$removed=0L;$active=$null;$batchPassed=$false
 function Assert-Local([string]$Path,[string]$Boundary){
     $full=[IO.Path]::GetFullPath($Path)
+    if($hubRun -and $Boundary -eq $owned){return (Assert-HubPath $hubRun.Work $full -AllowBoundary)}
     if(-not $full.StartsWith($project+'\',[StringComparison]::OrdinalIgnoreCase) -or
        ($full -ne $Boundary -and -not $full.StartsWith($Boundary+'\',[StringComparison]::OrdinalIgnoreCase))){throw "Outside owned project/run boundary: $full"}
     $ancestor=$full
@@ -27,13 +31,12 @@ function Owned-Entries {
     };return $entries
 }
 Assert-Local $owned $owned | Out-Null
-if(Test-Path -LiteralPath $owned){throw 'Fresh owned run already exists'}
-New-Item -ItemType Directory -Path $owned | Out-Null
+if(!$hubRun){if(Test-Path -LiteralPath $owned){throw 'Fresh owned run already exists'};New-Item -ItemType Directory -Path $owned | Out-Null}
 $protected=@{}
 foreach($relative in 'build\SimpleCaptureTool.ini','build\lang_en.ini','build\lang_tw.ini','runtime\capture_sequence.dat'){
     $file=Join-Path $project $relative;if(Test-Path -LiteralPath $file){$protected[$file]=(Get-FileHash -LiteralPath $file).Hash}
 }
-$arguments=@{ReviewRefinements='review-refinements';RichSyncBaseline='rich-sync-baseline';FlowDiagram='flow-diagram';ClipboardFeedback='clipboard-feedback';ReviewOptimization='review-optimization';SaveDirectory='save-directory';CaptureMagnifier='capture-magnifier';Canvas='canvas';SelectionToolbar='selection-toolbar';RibbonClarity='ribbon-clarity';EditorTransitions='editor-transitions';EditableLayout='editable-layout';MaskEditing='mask-editing';SelectionTools='selection-tools';ColorFilters='color-filters';EditorRefinements='editor-refinements';AssetSelection='asset-selection';DocumentationTools='documentation-tools';AdvancedEditing='advanced-editing';Productivity='productivity';Composition='composition';ToolStyles='tool-styles';EditorMenus='editor-menus';ImagePrecision='image-precision';PictureCrop='picture-crop';TextRuns='text-runs';ObjectAlignment='object-alignment';DefaultCursor='default-cursor';Freehand='freehand';WorkspaceTools='workspace-tools';CanvasFrame='canvas-frame';TextViewport='text-viewport';ObjectPayload='object-payload';PasteOriginal='paste-original';EditorPerformance='editor-performance';CropWorkflow='crop-workflow';PolygonShapes='polygon-shapes';ImageReuse='image-reuse';OpenParity='open-parity';CaptureLatency='capture-latency'}
+$arguments=@{ImageHome='image-home';ReviewRefinements='review-refinements';RichSyncBaseline='rich-sync-baseline';FlowDiagram='flow-diagram';ClipboardFeedback='clipboard-feedback';ReviewOptimization='review-optimization';SaveDirectory='save-directory';CaptureMagnifier='capture-magnifier';Canvas='canvas';SelectionToolbar='selection-toolbar';RibbonClarity='ribbon-clarity';EditorTransitions='editor-transitions';EditableLayout='editable-layout';MaskEditing='mask-editing';SelectionTools='selection-tools';ColorFilters='color-filters';EditorRefinements='editor-refinements';AssetSelection='asset-selection';DocumentationTools='documentation-tools';AdvancedEditing='advanced-editing';Productivity='productivity';Composition='composition';ToolStyles='tool-styles';EditorMenus='editor-menus';ImagePrecision='image-precision';PictureCrop='picture-crop';TextRuns='text-runs';ObjectAlignment='object-alignment';DefaultCursor='default-cursor';Freehand='freehand';WorkspaceTools='workspace-tools';CanvasFrame='canvas-frame';TextViewport='text-viewport';ObjectPayload='object-payload';PasteOriginal='paste-original';EditorPerformance='editor-performance';CropWorkflow='crop-workflow';PolygonShapes='polygon-shapes';ImageReuse='image-reuse';OpenParity='open-parity';CaptureLatency='capture-latency'}
 if($Scope -contains 'Startup' -and -not('SctProductivityProbe.Native' -as [type])){Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
@@ -56,13 +59,15 @@ try{
     foreach($config in $configurations){
         if(-not $SkipBuild){$locator=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe';$builder=& $locator -latest -products '*' -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1;if(-not $builder){throw 'MSBuild not found'};& $builder (Join-Path $project 'SimpleCaptureTool.vcxproj') /m /p:Configuration=$config /p:Platform=x64 /p:SctIncludeTests=true;if($LASTEXITCODE -ne 0){throw "$config test build failed"}}
         $version=[regex]::Match((Get-Content (Join-Path $project 'src\version.h') -Raw),'#define SCT_VERSION "([^"]+)"').Groups[1].Value
+        $scopeIndex=0
         foreach($name in ($Scope | Select-Object -Unique)){
             $source=if($name -eq 'Startup'){Join-Path $project $(if($config -eq 'Release'){'build\SimpleCaptureTool.exe'}else{'artifacts\debug\SimpleCaptureTool.exe'})}else{Join-Path $project "artifacts\tests\$config\SimpleCaptureTool.Tests.exe"}
             if(-not(Test-Path -LiteralPath $source) -or (Get-Item -LiteralPath $source).VersionInfo.FileVersion -ne $version){throw 'Missing/stale verification binary'}
-            $mirror=Join-Path $owned ($config.Substring(0,1)+'-'+$name);$binary=Join-Path $mirror "artifacts\tests\$config\SimpleCaptureTool.Tests.exe"
+            $mirror=Join-Path $owned ($config.Substring(0,1)+[string]$scopeIndex);$scopeIndex++;$binary=Join-Path $mirror "artifacts\tests\$config\SimpleCaptureTool.Tests.exe"
             Assert-Local $binary $owned | Out-Null;New-Item -ItemType Directory -Path (Split-Path -Parent $binary) | Out-Null;Copy-Item -LiteralPath $source -Destination $binary
             $command=if($name -eq 'Startup'){'--startup-probe'}else{"--alignment-test --test-$($arguments[$name])-only"}
             $active=Start-Process -FilePath $binary -ArgumentList $command -WorkingDirectory $mirror -WindowStyle Hidden -PassThru
+            if($hubRun -and !$active.HasExited){try{Register-HubTestProcess -Run $hubRun -ProcessId $active.Id}catch{if(!$active.HasExited){throw}}}
             if($name -eq 'Startup'){
                 $window=[IntPtr]::Zero;$probePass=$false;$probeDeadline=[DateTime]::UtcNow.AddSeconds(10)
                 try{do{$window=[SctProductivityProbe.Native]::Find($active.Id);if($window -ne [IntPtr]::Zero){break};Start-Sleep -Milliseconds 25}while(-not $active.HasExited -and [DateTime]::UtcNow -lt $probeDeadline)
@@ -90,12 +95,21 @@ try{
                 Copy-Item -LiteralPath $preview -Destination $destination -Force
                 [pscustomobject]@{Path=$destination;SHA256=(Get-FileHash -LiteralPath $destination).Hash;Bytes=(Get-Item -LiteralPath $destination).Length;SourceRun=$owned;Purpose='Own actual ribbon DrawItem/GDI glyph and caption visual acceptance; no user pixels'} | ConvertTo-Json | Set-Content -LiteralPath $receipt -Encoding UTF8
             }
+            if($name -eq 'WorkspaceTools' -and $config -eq 'Release' -and $code -eq 0 -and ($lines -match '^TOTAL \d+ FAIL 0$')){
+                $preview=Join-Path (Split-Path -Parent $log) 'tabs.png';Assert-Local $preview $owned | Out-Null
+                if(-not(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1048576){throw 'Missing/over-limit native tab close preview'}
+                $destination=Join-Path $auditRoot 'tabs.png';$receipt=$destination+'.json'
+                Assert-Local $destination $auditRoot | Out-Null;Assert-Local $receipt $auditRoot | Out-Null
+                if(Test-Path -LiteralPath $destination){if(-not(Test-Path -LiteralPath $receipt)){throw 'Unknown tab preview target'};$prior=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json;if((Get-FileHash -LiteralPath $destination).Hash -ne $prior.SHA256){throw 'Tab preview ownership changed'}}
+                Copy-Item -LiteralPath $preview -Destination $destination -Force
+                [pscustomobject]@{Path=$destination;SHA256=(Get-FileHash -LiteralPath $destination).Hash;Bytes=(Get-Item -LiteralPath $destination).Length;SourceRun=$owned;Purpose='Own hidden native tab captions, per-tab close glyphs and chooser; no desktop pixels'} | ConvertTo-Json | Set-Content -LiteralPath $receipt -Encoding UTF8
+            }
             if($name -eq 'Canvas' -and $config -eq 'Release' -and $code -eq 0 -and ($lines -match '^TOTAL \d+ FAIL 0$')){
-                foreach($nameOfImage in 'canvas-shrink-preview.png','canvas-shrunk-composition.png'){
+                foreach($nameOfImage in 'canvas-shrink-preview.png','canvas-shrunk-composition.png','canvas-left-top-preview.png'){
                     $preview=Join-Path (Split-Path -Parent $log) $nameOfImage;Assert-Local $preview $owned | Out-Null
                     if(-not(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1048576){throw 'Missing/over-limit synthetic canvas preview'}
-                    $destination=Join-Path $project ('artifacts\audits\canvas-resize-061\'+$nameOfImage);$receipt=$destination+'.json'
-                    Assert-Local $destination (Join-Path $project 'artifacts\audits\canvas-resize-061') | Out-Null;Assert-Local $receipt (Join-Path $project 'artifacts\audits\canvas-resize-061') | Out-Null
+                    $destination=Join-Path $auditRoot $nameOfImage;$receipt=$destination+'.json'
+                    Assert-Local $destination $auditRoot | Out-Null;Assert-Local $receipt $auditRoot | Out-Null
                     if(Test-Path -LiteralPath $destination){if(-not(Test-Path -LiteralPath $receipt)){throw 'Unknown canvas preview target'};$prior=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json;if((Get-FileHash -LiteralPath $destination).Hash -ne $prior.SHA256){throw 'Canvas preview ownership changed'}}
                     Copy-Item -LiteralPath $preview -Destination $destination -Force
                     [pscustomobject]@{Path=$destination;SHA256=(Get-FileHash -LiteralPath $destination).Hash;Bytes=(Get-Item -LiteralPath $destination).Length;SourceRun=$owned;Purpose='Own hidden native synthetic canvas paint evidence; no user pixels/desktop capture'} | ConvertTo-Json | Set-Content -LiteralPath $receipt -Encoding UTF8
@@ -133,20 +147,31 @@ try{
             if($code -ne 0 -or -not($lines -match '^TOTAL \d+ FAIL 0$')){throw "$config $name failed"}
         }
     }
+    $batchPassed=$true
 }finally{
     $cleanupError='';$retained=0L
     try{
         if($active -and -not $active.HasExited){throw 'Owned verification process is still active; cleanup deferred'}
+        if($hubRun){
+            Register-HubArtifactTree -Run $hubRun -Producer 'Fresh isolated native scope executable/INI/synthetic pixels/private result logs'
+            Complete-HubTestRun -Run $hubRun -Outcome $(if($batchPassed){'PASS'}else{'FAIL'})
+            $preview=Remove-HubTestRun -RunRoot $hubRun.Root
+            $generated=$preview.Bytes
+            $receipt=Remove-HubTestRun -RunRoot $hubRun.Root -Apply
+            if(!$receipt.Removed){throw 'Central run retirement did not confirm absence'}
+            $removed=$receipt.Bytes
+        }else{
         $entries=@(Owned-Entries);$files=@($entries | Where-Object {-not $_.PSIsContainer})
         $manifest=@($files | ForEach-Object {[pscustomobject]@{Path=$_.FullName;Bytes=$_.Length;Hash=(Get-FileHash -LiteralPath $_.FullName).Hash}})
         foreach($file in $manifest){$generated+=$file.Bytes;Assert-Local $file.Path $owned | Out-Null;if((Get-FileHash -LiteralPath $file.Path).Hash -ne $file.Hash){throw "Owned file changed during cleanup: $($file.Path)"}}
         foreach($file in $manifest){Remove-Item -LiteralPath $file.Path -Force;$removed+=$file.Bytes}
         foreach($directory in ($entries | Where-Object {$_.PSIsContainer} | Sort-Object {$_.FullName.Length} -Descending)){Assert-Local $directory.FullName $owned | Out-Null;if(@(Get-ChildItem -LiteralPath $directory.FullName -Force).Count -eq 0){Remove-Item -LiteralPath $directory.FullName}}
         Assert-Local $owned $owned | Out-Null;if(@(Get-ChildItem -LiteralPath $owned -Force).Count -eq 0){Remove-Item -LiteralPath $owned}
+        }
     }catch{$cleanupError=$_.Exception.Message;if(Test-Path -LiteralPath $owned){$retained=(@(Owned-Entries | Where-Object {-not $_.PSIsContainer}) | Measure-Object Length -Sum).Sum}}
     $hashesUnchanged=$true;foreach($file in $protected.Keys){if(-not(Test-Path -LiteralPath $file) -or (Get-FileHash -LiteralPath $file).Hash -ne $protected[$file]){$hashesUnchanged=$false}}
     Assert-Local $audit $auditRoot | Out-Null
-    [pscustomobject]@{Results=@($results.ToArray());GeneratedBytes=$generated;RemovedBytes=$removed;RetainedBytes=$retained;CleanupError=$cleanupError;ProtectedUnchanged=$hashesUnchanged;OwnedRun=$owned} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $audit -Encoding UTF8
+    [pscustomobject]@{Results=@($results.ToArray());GeneratedBytes=$generated;RemovedBytes=$removed;RetainedBytes=$retained;CleanupError=$cleanupError;ProtectedUnchanged=$hashesUnchanged;OwnedRun=$owned;CentralRun=$(if($hubRun){$hubRun.Root}else{''});BatchPassed=$batchPassed} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $audit -Encoding UTF8
     Write-Output "RETENTION generated=$generated removed=$removed retained=$retained protected=$hashesUnchanged audit=$audit"
     if($cleanupError){throw $cleanupError};if(-not $hashesUnchanged){throw 'Protected production files changed'}
 }

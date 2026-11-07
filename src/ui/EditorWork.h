@@ -9,6 +9,6 @@ enum EditorWorkKind:int {
     WorkComparison=19,WorkPrecision=20,WorkAutoCrop=21,WorkReuse=22,
     WorkReusePages=23,WorkColorFilter=24,WorkDiscovery=25,WorkDiscoveryPages=27,
     WorkMask=28,WorkEnhancement=29,WorkProductivity=30,WorkAdvanced=31,
-    WorkWorkflow=32,WorkAsset=33,WorkRefinement=34
+    WorkWorkflow=32,WorkAsset=33,WorkRefinement=34,WorkDropOpen=35
 };
 }

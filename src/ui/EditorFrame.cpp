@@ -138,7 +138,7 @@ void EditorFrame::PaintContent(CDC& dc)
         const int size=Px(m_hWnd,4);for(int yy=0;yy<3;++yy)for(int xx=0;xx<3;++xx)if(xx!=1||yy!=1){int x=r.left+r.Width()*xx/2,y=r.top+r.Height()*yy/2;selection::Handle(dc,{x,y},size);}}
     PaintSnapGuides(dc);PaintCanvasControls(dc);PaintFlow(dc);dc.RestoreDC(saved);
 }
-void EditorFrame::Changed(){if(!cropRegion_.IsRectEmpty())CancelCrop();CancelMask();dirty_=true;++revision_;ribbon_.RefreshEnabled();renderPending_=true;RequestRender();ClampViewport();sidebar_.Refresh();NotifyWorkspace();InvalidateRect(canvas_,FALSE);}
+void EditorFrame::Changed(){blankCanvas_=false;if(!cropRegion_.IsRectEmpty())CancelCrop();CancelMask();dirty_=true;++revision_;ribbon_.RefreshEnabled();renderPending_=true;RequestRender();ClampViewport();sidebar_.Refresh();NotifyWorkspace();InvalidateRect(canvas_,FALSE);}
 void EditorFrame::RequestRender()
 {
     if(closing_||!renderPending_||renderSuspended_)return;EditorPolling(true);if(job_.Busy())return;renderPending_=false;auto state=document_.State();const auto revision=revision_,preview=previewGeneration_;const auto cache=previewCache_;size_t prefix=state.objects.size();
@@ -164,7 +164,8 @@ void EditorFrame::OnTimer(UINT_PTR)
         else if(r->action==WorkTransform){if(r->command==Effects&&(r->revision!=revision_||r->maskEpoch!=maskEpoch_||r->preview!=cropGeneration_||r->expected!=Selection()||CRect(r->screen)!=pixelSelection_||r->colorCrop!=cropRegion_||r->colorTool!=style_.tool||textEditing_||sidebar_.Dirty())){status_.SetWindowText(Tr(Text::Busy));}else if(r->command==Effects&&!r->colorChanged){status_.SetWindowText(Tr(Text::RefinementUnchanged));}else{document_.Commit(std::move(r->state));selected_=-1;pixelSelection_.SetRectEmpty();offsetX_=offsetY_=0;SyncStyle();Layout();Changed();if(r->recipe)RememberRecipe(*r->recipe);}}
         else if(r->action==WorkInsertFit){Insert(std::move(r->image));}
         else if(r->action==WorkClipboard){PublishClipboardResult(*r);}
-        else if(r->action==WorkOpenPage){if(!r->state.base)r->state.base=std::make_shared<const core::Image>(std::move(r->image));EditorWorkspace::Open(std::move(r->state),r->path,r->path.IsEmpty());}
+        else if(r->action==WorkOpenPage){if(!r->state.base)r->state.base=std::make_shared<const core::Image>(std::move(r->image));EditorWorkspace::Open(std::move(r->state),r->path,r->path.IsEmpty(),r->command==NewDocument);}
+        else if(r->action==WorkDropOpen)CompleteDroppedImage(*r);
         else if(r->action==WorkComposition){if(r->revision&&r->revision!=revision_||r->mask&&r->maskEpoch!=maskEpoch_){status_.SetWindowText(Tr(Text::Busy));}else{document_.Commit(std::move(r->state));style_.tool=core::Tool::Select;selected_=-1;Changed();if(!r->selected.empty())SetSelection(std::move(r->selected));else Select(document_.State().objects.empty()?-1:static_cast<int>(document_.State().objects.size())-1);}}
         else if(r->action==WorkOutput){if(r->path.IsEmpty())status_.SetWindowText(Tr(Text::Saved));else ImageSaved(r->path);}
         else if(r->action==WorkPreset){if(!LoadEffectPreset(r->path))status_.SetWindowText(Tr(Text::InvalidValue));}

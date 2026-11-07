@@ -35,6 +35,7 @@ protected:
     afx_msg void OnPaint();afx_msg void OnTab(NMHDR*,LRESULT*);BOOL OnCommand(WPARAM,LPARAM)override;DECLARE_MESSAGE_MAP()
     BOOL OnNotify(WPARAM,LPARAM,LRESULT*)override;BOOL PreTranslateMessage(MSG*)override;
 private:
+    friend class SaveDirectoryAccess;
     friend class ReviewOptimizationAccess;
     friend class RibbonClarityAccess;
     friend class AlignmentAccess;

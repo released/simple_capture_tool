@@ -15,7 +15,7 @@ void MainFrame::ShowNewImage(CSize size,HWND ownerWindow,CWnd* ownerIdentity)
     const auto audit=newImageFormAudit_;INT_PTR choice=IDCANCEL;try{choice=audit?audit(dlg):dlg.Run();}catch(...){if(::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)commandOwner_=previous;throw;}
     if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;commandOwner_=previous;
     if(choice!=IDOK){status_.SetWindowText(Tr(Text::Ready));return;}
-    try{int w=Range(dlg.Fields()[0],1,32768),h=Range(dlg.Fields()[1],1,32768);job_.Start([w,h]{WorkResult r;r.action=1;if(!r.image.Create(w,h))r.error=L"New image exceeds memory limit";return r;});}catch(...){AfxMessageBox(Tr(Text::InvalidValue));}
+    try{int w=Range(dlg.Fields()[0],1,32768),h=Range(dlg.Fields()[1],1,32768);job_.Start([w,h]{WorkResult r;r.action=1;r.blankCanvas=true;if(!r.image.Create(w,h))r.error=L"New image exceeds memory limit";return r;});}catch(...){AfxMessageBox(Tr(Text::InvalidValue));}
 }
 void MainFrame::OnAction(UINT id)
 {

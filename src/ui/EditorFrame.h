@@ -200,8 +200,9 @@ private:
     int cropRatioX_=0,cropRatioY_=0;
     void EditorPolling(bool active);bool EditorWorkPending()const;bool StartWork(std::function<WorkResult()>);UINT editorPollMs_=0;
     bool renderSuspended_=false;
-    void LayoutCommand(UINT);void InsertImages(std::vector<CString>,CPoint);void CompleteLayout(WorkResult&);void LayerCommand(UINT);void RunQueuedLayout();
-    std::vector<CString> pendingLayoutPaths_;CPoint pendingLayoutOrigin_;uint64_t pendingLayoutRevision_=0;bool pendingLayoutVisible_=false;
+    void LayoutCommand(UINT);void InsertImages(std::vector<CString>,CPoint,bool dropped=false);void CompleteLayout(WorkResult&);void LayerCommand(UINT);void RunQueuedLayout();
+    bool BlankCanvas()const;void OpenDroppedImage(CString);void CompleteDroppedImage(WorkResult&);
+    std::vector<CString> pendingLayoutPaths_;CPoint pendingLayoutOrigin_;uint64_t pendingLayoutRevision_=0;bool pendingLayoutVisible_=false,pendingLayoutDrop_=false,blankCanvas_=false;
     bool VisibleSelection()const{const auto ids=Selection();return std::all_of(ids.begin(),ids.end(),[&](int i){return !document_.State().objects[i].hidden;});}
     std::function<INT_PTR(FormDialog&)> layoutFormAudit_;
     void WorkspaceCommand(UINT);void PaletteCommand(UINT);bool SetCurrentColor(COLORREF,bool remember=true);
@@ -210,7 +211,7 @@ private:
     std::function<bool(const CString&,CString&)> paletteSaveAudit_;
     std::function<bool(const CString&,CString&)> hexCopyAudit_;
     std::function<bool()> historyConfirmAudit_;
-    void Export(bool project);void OutputCommand(UINT);void InsertFile(const CString&,bool fit=false);void Insert(core::Image);
+    void Export(bool project,bool useImagePath=false);void OutputCommand(UINT);void InsertFile(const CString&,bool fit=false);void Insert(core::Image);
     int JpegPreview();std::shared_ptr<const core::Image> modalImage_;
     CPoint ImagePoint(CPoint) const;CRect ScreenRect(RECT) const;
     LPCTSTR CanvasCursor(CPoint)const;void ApplyCanvasCursor(CPoint);void RefreshCanvasCursor();
@@ -250,7 +251,7 @@ private:
     void EffectCommand(UINT);bool LoadEffectPreset(const CString&);core::ColorAdjust lastEffect_;
     void SyncStyle();void MosaicScroll(UINT);
     int CanvasGrip(CPoint)const;CPoint CanvasGripPoint(int)const;bool BeginCanvasResize(CPoint);void UpdateCanvasResize(CPoint);void EndCanvasResize(CPoint);void CancelCanvasResize();void ApplyCanvasResize();void CompleteCanvasResize(WorkResult&);void PaintCanvasControls(CDC&);
-    int canvasHandle_=-1;bool canvasPending_=false;CSize canvasTarget_;CPoint canvasPress_;double canvasZoom_=1;
+    int canvasHandle_=-1;bool canvasPending_=false;CSize canvasTarget_;CRect canvasBounds_;CPoint canvasPress_;double canvasZoom_=1;
     core::Document document_;
     core::Image image_,thumbnail_;
     PaintSurface surface_;

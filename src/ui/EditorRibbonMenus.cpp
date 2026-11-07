@@ -27,7 +27,7 @@ void EditorRibbon::RefreshEnabled(){
 }
 void EditorRibbon::Dispatch(UINT id){
     if(const auto* page=dynamic_cast<EditorFrame*>(GetParent());page&&(page->CommandMenuFlags(id)&MF_GRAYED))return;
-    bool allowed=false;for(auto& e:entries_)if(e.tab==tab_){const bool member=std::any_of(e.button->choices.begin(),e.button->choices.end(),[&](const auto& c){return c.id==id;});if(e.id==id||member){allowed=true;if(member){e.button->command=id;e.button->Invalidate(FALSE);}break;}}
+    bool allowed=false;for(auto& e:entries_)if(e.tab==tab_){const bool member=std::any_of(e.button->choices.begin(),e.button->choices.end(),[&](const auto& c){return c.id==id;});if(e.id==id||member){allowed=true;if(member){e.button->command=e.id==Save?Save:id;e.button->Invalidate(FALSE);}break;}}
     if(allowed)GetParent()->SendMessage(WM_COMMAND,id);
 }
 void EditorRibbon::ShowDropdown(RibbonButton& button){

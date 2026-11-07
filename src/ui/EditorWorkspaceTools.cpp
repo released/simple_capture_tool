@@ -50,11 +50,60 @@ BEGIN_MESSAGE_MAP(EditorWorkspace::TabStrip,CTabCtrl)
  ON_WM_LBUTTONUP()
  ON_WM_CAPTURECHANGED()
  ON_WM_KEYDOWN()
+ ON_WM_MOUSELEAVE()
 END_MESSAGE_MAP()
-void EditorWorkspace::TabStrip::Cancel(){dragged_=nullptr;moving_=false;if(GetCapture()==this)ReleaseCapture();}
-void EditorWorkspace::TabStrip::OnLButtonDown(UINT flags,CPoint point){Cancel();CTabCtrl::OnLButtonDown(flags,point);TCHITTESTINFO hit{};hit.pt=point;const int index=HitTest(&hit);if(owner&&index>=0&&index<static_cast<int>(owner->pages_.size())&&owner->active_==index){dragged_=owner->pages_[index];pressed_=point;}}
-void EditorWorkspace::TabStrip::OnMouseMove(UINT flags,CPoint point){if(dragged_&&(flags&MK_LBUTTON)){if(!moving_&&(abs(point.x-pressed_.x)>=Px(m_hWnd,4)||abs(point.y-pressed_.y)>=Px(m_hWnd,4))){moving_=true;SetCapture();}return;}CTabCtrl::OnMouseMove(flags,point);}
-void EditorWorkspace::TabStrip::OnLButtonUp(UINT flags,CPoint point){auto* page=dragged_;const bool move=moving_;TCHITTESTINFO hit{};hit.pt=point;const int target=HitTest(&hit);Cancel();if(move&&owner){owner->Reorder(page,target);return;}CTabCtrl::OnLButtonUp(flags,point);}
-void EditorWorkspace::TabStrip::OnCaptureChanged(CWnd* window){dragged_=nullptr;moving_=false;CTabCtrl::OnCaptureChanged(window);}
+void EditorWorkspace::TabStrip::RefreshMetrics(){const int dpi=LayoutDpi(m_hWnd);if(dpi_!=dpi){dpi_=dpi;SetPadding(CSize(Px(m_hWnd,22),Px(m_hWnd,3)));}}
+CRect EditorWorkspace::TabStrip::LabelRect(int index)const{
+    CRect label;if(!GetItemRect(index,&label))return {};label.left+=Px(m_hWnd,8);label.right-=Px(m_hWnd,28);return label;
+}
+CRect EditorWorkspace::TabStrip::CloseRect(int index)const{
+    CRect item,client,clipped;if(index<0||index>=GetItemCount()||!GetItemRect(index,&item))return {};
+    const int side=std::min(Px(m_hWnd,20),item.Height()-Px(m_hWnd,4));if(side<Px(m_hWnd,12))return {};
+    CRect box(item.right-Px(m_hWnd,4)-side,item.CenterPoint().y-side/2,item.right-Px(m_hWnd,4),item.CenterPoint().y-side/2+side);
+    GetClientRect(client);clipped.IntersectRect(box,client);if(clipped!=box||box.left<item.left+Px(m_hWnd,6))return {};
+    for(CWnd* child=GetWindow(GW_CHILD);child;child=child->GetNextWindow())if(child->GetStyle()&WS_VISIBLE){CRect rect;child->GetWindowRect(rect);ScreenToClient(rect);if(clipped.IntersectRect(box,rect))return {};}
+    return box;
+}
+int EditorWorkspace::TabStrip::CloseHit(CPoint point)const{
+    TCHITTESTINFO hit{};hit.pt=point;const int index=HitTest(&hit);return index>=0&&CloseRect(index).PtInRect(point)?index:-1;
+}
+void EditorWorkspace::TabStrip::DrawItem(LPDRAWITEMSTRUCT item){
+    if(!item||!owner||item->itemID>=static_cast<UINT>(GetItemCount()))return;
+    CDC& dc=*CDC::FromHandle(item->hDC);const int saved=dc.SaveDC();const CRect bounds(item->rcItem);dc.IntersectClipRect(bounds);
+    dc.FillSolidRect(bounds,GetSysColor(item->itemState&ODS_SELECTED?COLOR_WINDOW:COLOR_3DFACE));
+    if(auto* font=GetFont())dc.SelectObject(font);dc.SetBkMode(TRANSPARENT);dc.SetTextColor(GetSysColor(COLOR_WINDOWTEXT));
+    wchar_t text[32768]{};TCITEM tab{};tab.mask=TCIF_TEXT;tab.pszText=text;tab.cchTextMax=_countof(text);GetItem(static_cast<int>(item->itemID),&tab);
+    const auto box=CloseRect(static_cast<int>(item->itemID));auto label=LabelRect(static_cast<int>(item->itemID));
+    dc.DrawText(text,label,DT_SINGLELINE|DT_VCENTER|DT_END_ELLIPSIS|DT_NOPREFIX);
+    const bool enabled=!owner->closing_&&item->itemID<owner->pages_.size()&&!owner->pages_[item->itemID]->Closing();
+    if(!box.IsRectEmpty()){
+        if(enabled&&hotClose_==static_cast<int>(item->itemID))dc.FillSolidRect(box,pressedClose_==owner->pages_[item->itemID]?RGB(219,224,228):RGB(234,238,241));
+        CPen pen;if(pen.CreatePen(PS_SOLID,std::max(1,Px(m_hWnd,1)),GetSysColor(enabled?COLOR_BTNTEXT:COLOR_GRAYTEXT))){auto* old=dc.SelectObject(&pen);const auto center=box.CenterPoint();const int radius=Px(m_hWnd,4);dc.MoveTo(center.x-radius,center.y-radius);dc.LineTo(center.x+radius+1,center.y+radius+1);dc.MoveTo(center.x-radius,center.y+radius);dc.LineTo(center.x+radius+1,center.y-radius-1);dc.SelectObject(old);}
+    }
+    if((item->itemState&ODS_FOCUS)&&!(SendMessage(WM_QUERYUISTATE)&UISF_HIDEFOCUS)){CRect focus=bounds;focus.DeflateRect(2,2);dc.DrawFocusRect(focus);}
+    dc.RestoreDC(saved);
+}
+void EditorWorkspace::TabStrip::Cancel(){const bool pressed=pressedClose_!=nullptr;dragged_=pressedClose_=nullptr;closeWindow_=nullptr;moving_=false;if(GetCapture()==this)ReleaseCapture();if(pressed)Invalidate(FALSE);}
+void EditorWorkspace::TabStrip::OnLButtonDown(UINT flags,CPoint point){
+    Cancel();const int close=CloseHit(point);
+    if(close>=0&&owner&&!owner->closing_&&close<static_cast<int>(owner->pages_.size())){
+        auto* page=owner->pages_[close];if(page->Closing())return;pressedClose_=page;closeWindow_=page->GetSafeHwnd();hotClose_=close;SetCapture();Invalidate(FALSE);return;
+    }
+    CTabCtrl::OnLButtonDown(flags,point);TCHITTESTINFO hit{};hit.pt=point;const int index=HitTest(&hit);if(owner&&index>=0&&index<static_cast<int>(owner->pages_.size())&&owner->active_==index){dragged_=owner->pages_[index];pressed_=point;}
+}
+void EditorWorkspace::TabStrip::OnMouseMove(UINT flags,CPoint point){
+    if(!tracking_){TRACKMOUSEEVENT track{sizeof(track),TME_LEAVE,m_hWnd,0};tracking_=TrackMouseEvent(&track)!=FALSE;}
+    const int hot=moving_?-1:CloseHit(point);if(hot!=hotClose_){hotClose_=hot;Invalidate(FALSE);}
+    if(pressedClose_)return;
+    if(dragged_&&(flags&MK_LBUTTON)){if(!moving_&&(abs(point.x-pressed_.x)>=Px(m_hWnd,4)||abs(point.y-pressed_.y)>=Px(m_hWnd,4))){moving_=true;SetCapture();}return;}CTabCtrl::OnMouseMove(flags,point);
+}
+void EditorWorkspace::TabStrip::OnLButtonUp(UINT flags,CPoint point){
+    auto* close=pressedClose_;const HWND window=closeWindow_;const int index=CloseHit(point);const bool same=owner&&!owner->closing_&&index>=0&&index<static_cast<int>(owner->pages_.size())&&owner->pages_[index]==close;
+    auto* page=dragged_;const bool move=moving_;TCHITTESTINFO hit{};hit.pt=point;const int target=HitTest(&hit);Cancel();
+    if(close){if(same&&::IsWindow(window)&&CWnd::FromHandlePermanent(window)==close)close->SendMessage(WM_CLOSE);return;}
+    if(move&&owner){owner->Reorder(page,target);return;}CTabCtrl::OnLButtonUp(flags,point);
+}
+void EditorWorkspace::TabStrip::OnCaptureChanged(CWnd* window){dragged_=pressedClose_=nullptr;closeWindow_=nullptr;moving_=false;Invalidate(FALSE);CTabCtrl::OnCaptureChanged(window);}
+void EditorWorkspace::TabStrip::OnMouseLeave(){tracking_=false;hotClose_=-1;Invalidate(FALSE);}
 void EditorWorkspace::TabStrip::OnKeyDown(UINT key,UINT repeat,UINT flags){if(key==VK_ESCAPE){Cancel();return;}CTabCtrl::OnKeyDown(key,repeat,flags);}
 }

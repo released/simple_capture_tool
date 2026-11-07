@@ -73,7 +73,7 @@ void EditorFrame::OnAction(UINT id)
         if((id>=Effects&&id<=BackgroundEffect)||id==EffectPresets||id==SaveEffectPreset){EffectCommand(id);return;}
         if(id==Copy||id==Cut||id==SelectPixels||id==SelectAllPixels||id==DeselectPixels||id==PasteImage||(id==DeleteObject&&!pixelSelection_.IsRectEmpty())){ClipboardCommand(id);return;}
         if(id>=NewDocument&&id<=SaveEffectPreset){DocumentCommand(id);return;}
-        if(id==Save||id==SaveProject){Export(id==SaveProject||(id==Save&&projectPrimary_));return;}
+        if(id==Save||id==SaveProject){Export(id==SaveProject||(id==Save&&projectPrimary_),id==Save);return;}
         if(id==Undo||id==Redo){if(id==Undo?document_.Undo():document_.Redo()){selected_=-1;SyncStyle();Layout();Changed();}return;}
         if(id==Properties){EditProperties();return;}if(id==Font){ChooseFont();return;}
         if(id==Color){auto a=selected_>=0?document_.State().objects[selected_]:style_;const HWND host=m_hWnd;const auto revision=revision_;const auto ids=Selection();CColorDialog dlg(a.color,CC_FULLOPEN,this);const auto result=dlg.DoModal();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;if(result!=IDOK||revision!=revision_||ids!=Selection())return;SetCurrentColor(dlg.GetColor());return;}
@@ -86,17 +86,19 @@ void EditorFrame::OnAction(UINT id)
         if(id>=ResizeImage&&id<=RemoveStrip)Transform(id);
     }catch(const std::exception& e){if(!::IsWindow(commandOwner)||CWnd::FromHandlePermanent(commandOwner)!=this)return;if(id==Copy||id==Cut)CompleteClipboardCopy(false);CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());AfxMessageBox(error);}
 }
-void EditorFrame::Export(bool project)
+void EditorFrame::Export(bool project,bool useImagePath)
 {
     const EditorModalFence fence(*this,revision_);const auto confirmAudit=exportConfirmAudit_;const auto crop=cropRegion_;const auto cropVersion=cropGeneration_;auto current=[&]{return fence.Live()&&!closing_&&revision_==fence.revision&&cropRegion_==crop&&cropGeneration_==cropVersion&&!textEditing_&&!(width_.GetSafeHwnd()&&width_.GetModify()&&selected_>=0)&&FlowReady()&&!job_.Busy();};
     if(project&&std::any_of(document_.State().objects.begin(),document_.State().objects.end(),[](const auto& a){return a.tool==core::Tool::Redact||a.tool==core::Tool::Blur||a.tool==core::Tool::Mosaic;})&&(confirmAudit?confirmAudit(Text::ProjectPrivacy):MessageBox(Tr(Text::ProjectPrivacy),Tr(Text::SaveProject),MB_OKCANCEL|MB_ICONWARNING))!=IDOK)return;
     if(!current())return;
-    // Every save needs a fresh explicit filename, including previously saved documents.
     services::Settings settings;CString error;if(!services::ConfigService().Load(settings,error)){AfxMessageBox(error);return;}
-    DWORD index=settings.format==L"png"?2:settings.format==L"bmp"?3:1;const wchar_t* extensions[]={L".jpg",L".png",L".bmp",L".gif",L".pdf"};
-    ImageSaveDialog dlg(this,project,index);const auto choice=dlg.Run();if(!current()||choice!=IDOK)return;CString path=dlg.GetPathName();index=std::clamp<DWORD>(dlg.GetOFN().nFilterIndex,1,5);
-    CString canonical=std::filesystem::path(path.GetString()).replace_extension(project?L".sctproj":extensions[index-1]).c_str();
-    if(canonical.CompareNoCase(path)!=0&&PathFileExists(canonical)&&(confirmAudit?confirmAudit(Text::Save):MessageBox(canonical,Tr(Text::Save),MB_OKCANCEL|MB_ICONQUESTION))!=IDOK)return;path=canonical;
+    CString path=!project&&useImagePath?path_:CString();
+    if(path.IsEmpty()){
+        DWORD index=settings.format==L"png"?2:settings.format==L"bmp"?3:1;const wchar_t* extensions[]={L".jpg",L".png",L".bmp",L".gif",L".pdf"};
+        ImageSaveDialog dlg(this,project,index);const auto choice=dlg.Run();if(!current()||choice!=IDOK)return;path=dlg.GetPathName();index=std::clamp<DWORD>(dlg.GetOFN().nFilterIndex,1,5);
+        CString canonical=std::filesystem::path(path.GetString()).replace_extension(project?L".sctproj":extensions[index-1]).c_str();
+        if(canonical.CompareNoCase(path)!=0&&PathFileExists(canonical)&&(confirmAudit?confirmAudit(Text::Save):MessageBox(canonical,Tr(Text::Save),MB_OKCANCEL|MB_ICONQUESTION))!=IDOK)return;path=canonical;
+    }
     if(!current())return;
     int quality=jpegQuality_?jpegQuality_:settings.jpegQuality;
     const auto state=document_.State();const auto revision=revision_;activeAction_=project?WorkProjectSave:WorkImageSave;StartWork([state,path,project,quality,revision]{WorkResult r;r.action=project?WorkProjectSave:WorkImageSave;r.path=path;r.revision=revision;
@@ -120,8 +122,8 @@ void EditorFrame::Insert(core::Image image)
 }
 void EditorFrame::OnDropFiles(HDROP drop)
 {
-    if(closing_){DragFinish(drop);return;}const UINT count=DragQueryFile(drop,0xFFFFFFFF,nullptr,0);std::vector<CString> paths;POINT point{};DragQueryPoint(drop,&point);
-    try{if(count>64)throw std::runtime_error("Drop image count limit (64)");for(UINT i=0;i<count;++i){const UINT length=DragQueryFile(drop,i,nullptr,0);if(!length||length>=32768)throw std::runtime_error("Invalid dropped path");CString path;DragQueryFile(drop,i,path.GetBuffer(length+1),length+1);path.ReleaseBuffer();paths.push_back(std::move(path));}DragFinish(drop);drop=nullptr;InsertImages(std::move(paths),ImagePoint(point));}
+    if(closing_){DragFinish(drop);return;}const UINT count=DragQueryFile(drop,0xFFFFFFFF,nullptr,0);std::vector<CString> paths;POINT point{};const bool client=DragQueryPoint(drop,&point)!=FALSE;
+    try{if(count>64)throw std::runtime_error("Drop image count limit (64)");for(UINT i=0;i<count;++i){const UINT length=DragQueryFile(drop,i,nullptr,0);if(!length||length>=32768)throw std::runtime_error("Invalid dropped path");CString path;DragQueryFile(drop,i,path.GetBuffer(length+1),length+1);path.ReleaseBuffer();paths.push_back(std::move(path));}DragFinish(drop);drop=nullptr;InsertImages(std::move(paths),ImagePoint(point),client&&canvas_.PtInRect(point));}
     catch(const std::exception& e){if(drop)DragFinish(drop);CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());status_.SetWindowText(error);}
 }
 }

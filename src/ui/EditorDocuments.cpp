@@ -14,7 +14,7 @@ void EditorFrame::ShowNewImage(CSize size)
     if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;
     if(choice!=IDOK){status_.SetWindowText(Tr(Text::Ready));return;}
     const auto& f=dlg.Fields();int w=Range(f[0],1,32768),h=Range(f[1],1,32768);COLORREF color=ParseColor(f[2].value);bool transparent=f[3].Checked();activeAction_=WorkOpenPage;
-    StartWork([w,h,color,transparent]{WorkResult r;r.action=WorkOpenPage;if(!r.image.Create(w,h))throw std::runtime_error("Image allocation limit exceeded");for(size_t p=0;p<r.image.pixels.size();p+=4){r.image.pixels[p]=GetBValue(color);r.image.pixels[p+1]=GetGValue(color);r.image.pixels[p+2]=GetRValue(color);r.image.pixels[p+3]=static_cast<BYTE>(transparent?0:255);}return r;});
+    StartWork([w,h,color,transparent]{WorkResult r;r.action=WorkOpenPage;r.command=NewDocument;if(!r.image.Create(w,h))throw std::runtime_error("Image allocation limit exceeded");for(size_t p=0;p<r.image.pixels.size();p+=4){r.image.pixels[p]=GetBValue(color);r.image.pixels[p+1]=GetGValue(color);r.image.pixels[p+2]=GetRValue(color);r.image.pixels[p+3]=static_cast<BYTE>(transparent?0:255);}return r;});
 }
 void EditorFrame::DocumentCommand(UINT id)
 {

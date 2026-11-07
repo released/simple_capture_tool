@@ -28,20 +28,21 @@ BEGIN_MESSAGE_MAP(EditorWorkspace,CFrameWnd)
  ON_MESSAGE(WM_DPICHANGED,&EditorWorkspace::OnDpiChanged)
 END_MESSAGE_MAP()
 EditorWorkspace* EditorWorkspace::Current(){return dynamic_cast<EditorWorkspace*>(CWnd::FromHandlePermanent(current_));}
-EditorFrame* EditorWorkspace::Open(core::DocumentState state,CString path,bool captured)
+EditorFrame* EditorWorkspace::Open(core::DocumentState state,CString path,bool captured,bool blankCanvas)
 {
     auto* workspace=Current();if(workspace&&workspace->closing_)workspace=nullptr;if(!workspace){workspace=new EditorWorkspace;current_=workspace->GetSafeHwnd();
         if(!workspace->Create(nullptr,Caption(),WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,CRect(60,60,1260,900))){delete workspace;throw std::runtime_error("Cannot create editor workspace");}workspace->owned_=true;current_=workspace->GetSafeHwnd();}
     EditorFrame* editor=nullptr;try{editor=new EditorFrame(std::move(state),std::move(path),workspace);}catch(...){if(workspace->pages_.empty())workspace->DestroyWindow();throw;}if(captured)editor->Captured();workspace->pages_.push_back(editor);workspace->Activate(editor);
+    editor->blankCanvas_=blankCanvas&&editor->path_.IsEmpty()&&editor->projectPath_.IsEmpty()&&editor->document_.State().objects.empty();
     ::RemoveProp(workspace->m_hWnd,EditorTrayHidden);workspace->ShowWindow(captured?SW_MAXIMIZE:workspace->IsIconic()?SW_RESTORE:SW_SHOW);workspace->SetForegroundWindow();editor->SetFocus();return editor;
 }
 int EditorWorkspace::OnCreate(LPCREATESTRUCT cs)
 {
     if(CFrameWnd::OnCreate(cs)==-1)return -1;::SetProp(m_hWnd,L"SCT.LocaleRoot",reinterpret_cast<HANDLE>(1));SetIcon(AfxGetApp()->LoadIcon(IDI_APP_ICON),TRUE);SetIcon(AfxGetApp()->LoadIcon(IDI_APP_ICON),FALSE);
-    tabs_.owner=this;tabs_.Create(WS_CHILD|WS_VISIBLE|WS_TABSTOP|TCS_TOOLTIPS,CRect(),this,WorkspaceTabs);close_.Create(L"×",WS_CHILD|WS_VISIBLE|WS_TABSTOP,CRect(),this,WorkspaceClose);choose_.Create(L"▾",WS_CHILD|WS_VISIBLE|WS_TABSTOP,CRect(),this,WorkspaceChoose);
+    tabs_.owner=this;tabs_.Create(WS_CHILD|WS_VISIBLE|WS_TABSTOP|TCS_TOOLTIPS|TCS_OWNERDRAWFIXED,CRect(),this,WorkspaceTabs);choose_.Create(L"▾",WS_CHILD|WS_VISIBLE|WS_TABSTOP,CRect(),this,WorkspaceChoose);
     thumbs_.owner=this;CString cls=AfxRegisterWndClass(CS_HREDRAW|CS_VREDRAW,LoadCursor(nullptr,IDC_ARROW),reinterpret_cast<HBRUSH>(COLOR_WINDOW+1),nullptr);thumbs_.CreateEx(0,cls,L"",WS_CHILD,CRect(),this,ThumbnailPane);ApplyFont(*this,font_);BuildAppMenu();return 0;
 }
-void EditorWorkspace::Layout(){if(!tabs_.GetSafeHwnd()||!choose_.GetSafeHwnd())return;CRect r;GetClientRect(r);const int top=Px(m_hWnd,34),side=showThumbs_?Px(m_hWnd,164):0;tabs_.MoveWindow(4,2,std::max(1,r.Width()-Px(m_hWnd,76)),top-2);choose_.MoveWindow(r.right-Px(m_hWnd,68),2,Px(m_hWnd,30),top-4);close_.MoveWindow(r.right-Px(m_hWnd,34),2,Px(m_hWnd,30),top-4);thumbs_.ShowWindow(showThumbs_?SW_SHOW:SW_HIDE);thumbs_.MoveWindow(0,top,side,std::max(1,r.Height()-top));for(size_t i=0;i<pages_.size();++i){auto* page=pages_[i];page->MoveWindow(side,top,std::max(1,r.Width()-side),std::max(1,r.Height()-top));page->ShowWindow(static_cast<int>(i)==active_?SW_SHOW:SW_HIDE);}RedrawWindow(nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN);}
+void EditorWorkspace::Layout(){if(!tabs_.GetSafeHwnd()||!choose_.GetSafeHwnd())return;CRect r;GetClientRect(r);const int top=Px(m_hWnd,34),side=showThumbs_?Px(m_hWnd,164):0;tabs_.RefreshMetrics();tabs_.MoveWindow(4,2,std::max(1,r.Width()-Px(m_hWnd,42)),top-2);choose_.MoveWindow(r.right-Px(m_hWnd,34),2,Px(m_hWnd,30),top-4);thumbs_.ShowWindow(showThumbs_?SW_SHOW:SW_HIDE);thumbs_.MoveWindow(0,top,side,std::max(1,r.Height()-top));for(size_t i=0;i<pages_.size();++i){auto* page=pages_[i];page->MoveWindow(side,top,std::max(1,r.Width()-side),std::max(1,r.Height()-top));page->ShowWindow(static_cast<int>(i)==active_?SW_SHOW:SW_HIDE);}RedrawWindow(nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN);}
 void EditorWorkspace::OnSize(UINT type,int w,int h){CFrameWnd::OnSize(type,w,h);Layout();}
 void EditorWorkspace::OnGetMinMaxInfo(MINMAXINFO* info){CFrameWnd::OnGetMinMaxInfo(info);info->ptMinTrackSize={Px(m_hWnd,680),Px(m_hWnd,480)};}
 void EditorWorkspace::QueueRefresh(bool resources){
