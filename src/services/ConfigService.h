@@ -4,7 +4,7 @@ namespace sct::services {
 struct RegionPreset { CString name;RECT rect{}; };
 struct Hotkey { UINT modifiers=MOD_CONTROL|MOD_SHIFT,key=0; };
 inline constexpr wchar_t DefaultEditorHomeKeys[] =
-    L"NewDocument,SaveAs,Undo,Redo,SelectObject,Arrow,RoundRectangle,TextTool,Highlight,Mosaic,Color,Font,Step,"
+    L"NewDocument,SaveAs,Undo,Redo,SelectObject,Arrow,RoundRectangle,TextTool,Highlight,Mosaic,Color,Font,Step,FlowPalette,"
     L"OpenImages,Save,SaveAll,SaveProject,OpenProject,PrintImage,PrintPreview,SaveAllPdf,CloseDocument,Copy,Cut,"
     L"PasteImage,PasteNewDocument,Rectangle,Properties,Pen,Ellipse,Crop,Redact,Blur,Picture,Magnifier,Spotlight,"
     L"Line,Callout,Eraser,SmartEraser,Fill,Eyedropper,PixelSelection,CurvedArrow,StampGallery,CursorGallery,"

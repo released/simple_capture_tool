@@ -50,3 +50,17 @@ build/capture_sequence.dat
 artifacts/
 dist/
 runtime/
+
+# Local engineering records (preserved on disk)
+/AGENTS.md
+/CLAUDE.md
+/WORKSPACE_RULES.md
+/SPEC.md
+/HANDOFF.md
+/CODEX_HANDOFF.md
+/SELF_CHECK.md
+/MANUAL_CLEANUP.md
+
+# Local comparison and historical verification records
+/docs/OPEN_SOURCE_FEATURE_REVIEW.md
+/docs/verification/

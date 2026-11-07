@@ -39,6 +39,7 @@ BEGIN_MESSAGE_MAP(EditorFrame,CFrameWnd)
     ON_MESSAGE(WM_DPICHANGED,&EditorFrame::OnDpiChanged)
     ON_MESSAGE(LanguageChanged,&EditorFrame::OnLanguageChanged)
     ON_COMMAND(InsertImageFit,&EditorFrame::OnInsertFit)
+    ON_COMMAND_RANGE(FlowPanelToggle,FlowShapeLast,&EditorFrame::OnAction)
     ON_COMMAND_RANGE(Command::Save,Command::Color,&EditorFrame::OnAction)
     ON_COMMAND_RANGE(Command::More,Command::JpegQuality,&EditorFrame::OnAction)
     ON_COMMAND_RANGE(Command::NewDocument,Command::ExportSelectedSvg,&EditorFrame::OnAction)
@@ -100,14 +101,14 @@ int EditorFrame::OnCreate(LPCREATESTRUCT cs)
     for(auto* combo:{&tools_,&fontSize_,&lineStyle_,&opacity_,&zoomChoice_})combo->SetRedraw(TRUE);
     ReloadEditorShortcuts();SyncStyle();Layout();DragAcceptFiles(TRUE);EditorPolling(true);RequestRender();return 0;
 }
-void EditorFrame::OnSize(UINT t,int x,int y){CancelCanvasResize();CFrameWnd::OnSize(t,x,y);Layout();}
+void EditorFrame::OnSize(UINT t,int x,int y){CancelFlow();CancelCanvasResize();CFrameWnd::OnSize(t,x,y);Layout();}
 void EditorFrame::OnGetMinMaxInfo(MINMAXINFO* i){CFrameWnd::OnGetMinMaxInfo(i);i->ptMinTrackSize={Px(m_hWnd,680),Px(m_hWnd,480)};}
-LRESULT EditorFrame::OnDpiChanged(WPARAM,LPARAM value){const RECT& r=*reinterpret_cast<RECT*>(value);SetWindowPos(nullptr,r.left,r.top,r.right-r.left,r.bottom-r.top,SWP_NOZORDER);ApplyFont(*this,font_);sidebar_.RefreshLanguage();Layout();return 0;}
+LRESULT EditorFrame::OnDpiChanged(WPARAM,LPARAM value){const RECT& r=*reinterpret_cast<RECT*>(value);SetWindowPos(nullptr,r.left,r.top,r.right-r.left,r.bottom-r.top,SWP_NOZORDER);ApplyFont(*this,font_);sidebar_.RefreshLanguage();flowPanel_.Refresh();Layout();return 0;}
 LRESULT EditorFrame::OnLanguageChanged(WPARAM,LPARAM)
 {
     SetWindowText(Caption()+L" - "+Tr(Text::Editor));RefreshBoundText(m_hWnd);const int selected=tools_.GetCurSel();tools_.ResetContent();
     for(auto key:ToolLabels())tools_.AddString(Tr(key));tools_.SetCurSel(selected);const int dash=lineStyle_.GetCurSel();lineStyle_.ResetContent();for(auto key:{Text::SolidLine,Text::DashedLine,Text::DottedLine})lineStyle_.AddString(Tr(key));lineStyle_.SetCurSel(dash);
-    ReloadEditorShortcuts();ribbon_.Refresh();ApplyFont(*this,font_);sidebar_.RefreshLanguage();SyncStyle();Layout();RefreshCopyNotice();NotifyWorkspace();return 0;
+    ReloadEditorShortcuts();ribbon_.Refresh();ApplyFont(*this,font_);sidebar_.RefreshLanguage();flowPanel_.Refresh();SyncStyle();Layout();RefreshCopyNotice();NotifyWorkspace();return 0;
 }
 void EditorFrame::AutomaticOutput(const std::shared_ptr<const core::Image>& source,const CString& path,const CString& error)
 {
@@ -135,14 +136,15 @@ void EditorFrame::PaintContent(CDC& dc)
     if(!composition&&!pixelSelection_.IsRectEmpty()&&style_.tool==core::Tool::PixelSelect){box=pixelSelection_;show=true;}
     if(show){CRect r=ScreenRect(box);selection::Box(dc,r);
         const int size=Px(m_hWnd,4);for(int yy=0;yy<3;++yy)for(int xx=0;xx<3;++xx)if(xx!=1||yy!=1){int x=r.left+r.Width()*xx/2,y=r.top+r.Height()*yy/2;selection::Handle(dc,{x,y},size);}}
-    PaintSnapGuides(dc);PaintCanvasControls(dc);dc.RestoreDC(saved);
+    PaintSnapGuides(dc);PaintCanvasControls(dc);PaintFlow(dc);dc.RestoreDC(saved);
 }
 void EditorFrame::Changed(){if(!cropRegion_.IsRectEmpty())CancelCrop();CancelMask();dirty_=true;++revision_;ribbon_.RefreshEnabled();renderPending_=true;RequestRender();ClampViewport();sidebar_.Refresh();NotifyWorkspace();InvalidateRect(canvas_,FALSE);}
 void EditorFrame::RequestRender()
 {
     if(closing_||!renderPending_||renderSuspended_)return;EditorPolling(true);if(job_.Busy())return;renderPending_=false;auto state=document_.State();const auto revision=revision_,preview=previewGeneration_;const auto cache=previewCache_;size_t prefix=state.objects.size();
-    const bool pixels=dragging_&&style_.tool==core::Tool::PixelSelect&&pixelMoving_&&!pixelOriginal_.IsRectEmpty();const bool drawing=pathDrawing_||objectGesture_&&!objectMarquee_||dragging_&&clickCandidate_<0&&style_.tool!=core::Tool::Crop&&(style_.tool!=core::Tool::PixelSelect||pixels);const RECT source=pixelOriginal_,destination=pixelSelection_;const auto mask=ActiveMask();
-    if(objectGesture_&&!objectMarquee_){state=objectPreview_;prefix=objectDragIds_.empty()?0:static_cast<size_t>(*std::min_element(objectDragIds_.begin(),objectDragIds_.end()));}
+    const bool pixels=dragging_&&style_.tool==core::Tool::PixelSelect&&pixelMoving_&&!pixelOriginal_.IsRectEmpty();const bool flowText=textEditing_&&core::HasFlowText(textDraft_);const bool drawing=flowText||pathDrawing_||objectGesture_&&!objectMarquee_||dragging_&&clickCandidate_<0&&style_.tool!=core::Tool::Crop&&(style_.tool!=core::Tool::PixelSelect||pixels);const RECT source=pixelOriginal_,destination=pixelSelection_;const auto mask=ActiveMask();
+    if(flowText){auto a=textDraft_;a.text.Empty();a.textRuns.clear();if(textIndex_>=0&&textIndex_<int(state.objects.size())){prefix=size_t(textIndex_);state.objects[textIndex_]=std::move(a);}else state.objects.push_back(std::move(a));}
+    else if(objectGesture_&&!objectMarquee_){state=objectPreview_;prefix=objectDragIds_.empty()?0:static_cast<size_t>(*std::min_element(objectDragIds_.begin(),objectDragIds_.end()));}
     else if(drawing&&!pixels){if(style_.tool==core::Tool::Select&&selected_>=0){prefix=static_cast<size_t>(selected_);state.objects[selected_]=draft_;}else{state.objects.push_back(draft_);if(pathDrawing_&&state.objects.back().tool==core::Tool::Polygon&&state.objects.back().points.size()<3)state.objects.back().tool=core::Tool::Line;}}
     activeAction_=WorkRender;StartWork([state=std::move(state),cache,prefix,revision,preview,drawing,pixels,source,destination,mask]{WorkResult r;r.action=WorkRender;r.revision=revision;r.preview=preview;bool rendered=false;if(drawing)rendered=cache->Render(state,r.image,r.error,revision,prefix);else{cache->Clear();rendered=services::RenderDocument(state,r.image,r.error);}if(rendered){if(pixels){auto asset=std::make_shared<core::Image>(mask?core::ExtractMasked(r.image,*mask):r.image.Crop(source));if(mask)core::ClearMasked(r.image,*mask);else core::ClearRegion(r.image,source);core::Annotation a;a.tool=core::Tool::Picture;a.rect=destination;a.asset=asset;services::RenderObject(r.image,a);}else if(!drawing){double scale=std::min({1.0,144.0/r.image.width,96.0/r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,static_cast<int>(r.image.width*scale)),std::max(1,static_cast<int>(r.image.height*scale)));}}return r;});
 }
@@ -191,7 +193,7 @@ void EditorFrame::OnTimer(UINT_PTR)
     StartCloneCommit();ApplyCanvasResize();StartColorSelection();StartMask();RunPendingAction();
     PollClipboardPaste();
     OpenNext();RequestRender();const HWND host=m_hWnd;RunQueuedLayout();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;
-    EditorPolling(EditorWorkPending());if(r&&r->action!=WorkRender)ribbon_.RefreshEnabled();
+    EditorPolling(EditorWorkPending());if(r&&r->action!=WorkRender){ribbon_.RefreshEnabled();flowPanel_.SyncOptions();}
 }
 void EditorFrame::OnClose(){
     if(closing_)return;closing_=true;widthClosing_=true;renderSuspended_=true;

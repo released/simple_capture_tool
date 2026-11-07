@@ -2,6 +2,7 @@
 #include "AlignmentTest.h"
 #include "NativeTestInput.h"
 #include "ProjectService.h"
+#include "ProjectPacketTest.h"
 #include "DocumentRenderer.h"
 #include "ImageCodec.h"
 #include "LanguageService.h"
@@ -25,9 +26,9 @@ void Core(Check check,const std::filesystem::path& dir){const auto source=Source
     core::Image before,after;check(services::RenderDocument(source,before,error)&&services::RenderDocument(locked,after,error)&&before.pixels==after.pixels,"group/lock/selection metadata never enters exported pixels");
     check(services::EncodeProject(locked,bytes,error)&&services::SaveProject(locked,(dir/L"group-v6.sctproj").c_str(),error),"v6 project writer encodes and saves bounded composition metadata");core::DocumentState decoded;check(services::DecodeProject(bytes,decoded,error)&&decoded.objects[0].group==locked.objects[0].group&&decoded.objects[1].locked&&decoded.objects[0].text==L"keep","v6 project round trip retains editable content/group/lock");
     for(int version=1;version<=5;++version){auto old=Legacy(version);check(services::DecodeProject(old,decoded,error)&&decoded.objects.size()==1&&!decoded.objects[0].group&&!decoded.objects[0].locked&&decoded.objects[0].text==L"old","v1-v5 project readers retain old unlocked ungrouped defaults");}
-    for(int kind=0;kind<4;++kind){auto bad=bytes;if(kind==0){bad[8]=14;Seal(bad);}else if(kind==1)bad.pop_back();else if(kind==2)bad[24]^=1;else {int32_t invalid=10001;memcpy(bad.data()+bad.size()-128,&invalid,4);Seal(bad);}const auto base=decoded.base;check(!services::DecodeProject(bad,decoded,error)&&decoded.base==base,"invalid version/truncation/CRC/group range fails transactionally");}
+    for(int kind=0;kind<4;++kind){auto bad=bytes;if(kind==0){sct::services::testing::MakeUnsupportedVersion(bad);}else if(kind==1)bad.pop_back();else if(kind==2)bad[24]^=1;else {sct::services::testing::PatchLastPacketInt(bad,sct::services::testing::PacketField::Group,10001);}const auto base=decoded.base;check(!services::DecodeProject(bad,decoded,error)&&decoded.base==base,"invalid version/truncation/CRC/group range fails transactionally");}
     auto invalid=locked;invalid.objects[0].locked=false;std::vector<BYTE> preserved{1,2,3};check(!services::EncodeProject(invalid,preserved,error)&&preserved==std::vector<BYTE>({1,2,3}),"inconsistent group locks cannot be serialized over valid output");
-    check(CString(services::EditableClipboardFormat)==L"SimpleCaptureTool.EditableObjects.v13","new private clipboard writer uses v8 instead of mislabeling an older payload");
+    check(CString(services::EditableClipboardFormat)==L"SimpleCaptureTool.EditableObjects.v14","new private clipboard writer uses v8 instead of mislabeling an older payload");
     auto extreme=grouped;extreme.objects[0].points={{1000000,40}};bool rejected=false;try{Transform(extreme,{0},doubled,true);}catch(const std::exception&){rejected=true;}check(rejected&&extreme.objects[0].points[0].x==1000000,"extreme imported points are rejected before scaled floating coordinates convert to integers");
     rejected=false;auto unchanged=grouped;try{Append(unchanged,extreme.objects,1000000,0);}catch(const std::exception&){rejected=true;}check(rejected&&unchanged.objects.size()==grouped.objects.size()&&unchanged.base==grouped.base,"out-of-range paste offsets cannot partially append objects or replace the destination");
     rejected=false;try{Transform(grouped,{0},{0,0,LONG_MAX,LONG_MAX},true);}catch(const std::exception&){rejected=true;}check(rejected,"oversized group destination is rejected before coordinate subtraction or style scaling");

@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "EditorWorkspace.h"
 #include "EditorFrame.h"
+#include "../core/NativeTextLayout.h"
 #include "../resource.h"
 #include <gdiplus.h>
 namespace sct::ui {
@@ -65,10 +66,21 @@ void EditorWorkspace::OnClose(){
     const auto pages=pages_;for(auto* page:pages){const HWND hwnd=page->GetSafeHwnd();if(::IsWindow(hwnd)&&CWnd::FromHandlePermanent(hwnd)==page)page->SendMessage(WM_CLOSE);}
     if(pages_.empty()){DestroyWindow();return;}ShowWindow(SW_HIDE);
 }
-void EditorWorkspace::OnDestroy(){if(current_==m_hWnd)current_=nullptr;closing_=true;SetMenu(nullptr);appMenu_.DestroyMenu();CFrameWnd::OnDestroy();}
+void EditorWorkspace::OnDestroy(){if(current_==m_hWnd){current_=nullptr;core::ClearNativeTextCache();}closing_=true;SetMenu(nullptr);appMenu_.DestroyMenu();CFrameWnd::OnDestroy();}
 void EditorWorkspace::OnAction(UINT id){Action(id==WorkspaceChoose?ChooseDocument:CloseDocument);}
 void EditorWorkspace::RestoreEditorWindow(){if(closing_)return;ShowWindow(IsIconic()?SW_RESTORE:SW_SHOW);SetForegroundWindow();if(active_>=0&&active_<static_cast<int>(pages_.size()))pages_[active_]->SetFocus();}
-void EditorWorkspace::Action(UINT id){if(id==ShowThumbnails){showThumbs_=!showThumbs_;Layout();return;}if(id==CloseAllDocuments){SendMessage(WM_CLOSE);return;}if(pages_.empty())return;if(id==CloseDocument){pages_[active_]->SendMessage(WM_CLOSE);return;}if(id==SaveAll){for(auto* page:pages_)page->SendMessage(WM_COMMAND,Save);return;}pages_[active_]->SendMessage(WM_COMMAND,id);}
+void EditorWorkspace::Action(UINT id){if(id==ShowThumbnails){showThumbs_=!showThumbs_;Layout();return;}if(id==CloseAllDocuments){SendMessage(WM_CLOSE);return;}if(pages_.empty())return;if(id==CloseDocument){pages_[active_]->SendMessage(WM_CLOSE);return;}if(id==SaveAll){
+        OutputSnapshot snapshot;CString error;if(!SnapshotOutput(snapshot,error)){if(active_>=0&&active_<int(pages_.size()))pages_[active_]->status_.SetWindowText(error.IsEmpty()?Tr(Text::Busy):error);return;}
+        const HWND host=m_hWnd;auto* const owner=this;
+        for(size_t i=0;i<snapshot.pages.size();++i){
+            if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=owner)return;
+            if(closing_||pages_!=snapshot.pages)return;auto* page=snapshot.pages[i];const HWND window=snapshot.windows[i];
+            if(!::IsWindow(window)||CWnd::FromHandlePermanent(window)!=page||page->closing_||page->revision_!=snapshot.revisions[i]||page->OutputDraft()||page->WorkingForBuild())return;
+            page->SendMessage(WM_COMMAND,Save);
+            if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=owner||!::IsWindow(window)||CWnd::FromHandlePermanent(window)!=page)return;
+            if(!page->job_.Busy()&&page->pendingAction_!=Save)return;
+        }return;
+    }pages_[active_]->SendMessage(WM_COMMAND,id);}
 LRESULT EditorWorkspace::OnRefresh(WPARAM,LPARAM){const bool resources=refreshResources_;refreshQueued_=refreshResources_=false;RefreshDocuments(resources);return 0;}
 void EditorWorkspace::ToggleFullScreenView(){if(!fullScreen_){GetWindowRect(restoreRect_);restoreStyle_=GetStyle();ModifyStyle(WS_CAPTION|WS_THICKFRAME,0);MONITORINFO info{sizeof(info)};GetMonitorInfo(MonitorFromWindow(m_hWnd,MONITOR_DEFAULTTONEAREST),&info);SetWindowPos(nullptr,info.rcMonitor.left,info.rcMonitor.top,info.rcMonitor.right-info.rcMonitor.left,info.rcMonitor.bottom-info.rcMonitor.top,SWP_FRAMECHANGED|SWP_NOZORDER);}else{ModifyStyle(0,restoreStyle_&(WS_CAPTION|WS_THICKFRAME));SetWindowPos(nullptr,restoreRect_.left,restoreRect_.top,restoreRect_.Width(),restoreRect_.Height(),SWP_FRAMECHANGED|SWP_NOZORDER);}fullScreen_=!fullScreen_;}
 LRESULT EditorWorkspace::OnLanguageChanged(WPARAM,LPARAM){ApplyFont(*this,font_);BuildAppMenu();for(auto* p:pages_)p->SendMessage(LanguageChanged);RefreshDocuments();Layout();return 0;}

@@ -77,13 +77,15 @@ enum Command : UINT {
     EditorToolFirst=43000,EditorToolLast=43255,
     PaletteFirst=43400,PaletteLast=43431,StampFirst=43500,StampLast=43563,
     EffectFirst=43600,EffectLast=43663,ActiveWindow=43700,RestoreEditor,ToolStyleFirst=43800,ToolStyleLast=43831,
-    EditorMenuFirst=44000,EditorMenuLast=44255,EditorHomeChildrenList=44300,
+    EditorMenuFirst=44000,EditorMenuLast=44299,EditorHomeChildrenList=44300,
     SidebarTabs=44400,SidebarList,SidebarClose,SidebarApply,SidebarValueFirst=44420,SidebarValueLast=44427,
     SearchQuery=44500,SearchList,CompareMode,CompareDivider,
     GuideList=44600,GuideUp,GuideDown,GuideTitleEdit,GuideCaptionEdit,HistogramBlack,HistogramWhite,HistogramSelection,
     PreviewOriginal=44700,PreviewSplit,PreviewDivider,ManualHorizontal=44800,
     InsertImageFit=44820,
-    BatchList=44900,BatchNameEdit,BatchFolderEdit,BatchBrowse,BatchFormatChoice,BatchQualityEdit,SelectRatio=44920,StickerList=44950,StickerAdd,StickerRename,StickerRemove,StickerSave
+    BatchList=44900,BatchNameEdit,BatchFolderEdit,BatchBrowse,BatchFormatChoice,BatchQualityEdit,SelectRatio=44920,StickerList=44950,StickerAdd,StickerRename,StickerRemove,StickerSave,
+    FlowPanelToggle=45000,FlowStraight,FlowElbow,FlowBlue,FlowGreen,FlowAmber,FlowPurple,FlowArrangeHorizontal,FlowArrangeVertical,FlowEditLabel,FlowLineMode,FlowArrowMode,
+    FlowShapeFirst=45040,FlowShapeLast=45048,FlowPaneControl=45060
 };
 constexpr UINT TrayMessage = WM_APP + 21;
 }

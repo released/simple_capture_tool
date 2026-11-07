@@ -11,8 +11,6 @@
 
 ## 編譯
 
-本批圖片編輯功能可使用 `scripts\verify_productivity.ps1 -Scope Productivity -Configuration Both` 驗證。此入口建立專案內獨立的短路徑測試工作區，保留精簡結果並在結束時刪除本次產生的副本與測試資料；若仍有測試程序執行或清理失敗，會明確回報保留位置與大小。其他受影響範圍需明確選取，不會自動執行全套測試。
-
 在專案根目錄執行：
 
 ```bat
@@ -22,7 +20,7 @@ scripts\build_debug.bat
 
 Release 輸出至 `build\SimpleCaptureTool.exe`，Debug 輸出至 `artifacts\debug\SimpleCaptureTool.exe`。相容入口 `scripts\build_release_mfc.bat` 使用相同 Release 流程。
 
-建置前會要求既有目標程式安全退出；有未儲存圖片、草稿或對話框時會停止，不強制丟棄內容。請先保存需要的資料。一般建置不會執行功能測試。
+建置前會要求既有目標程式安全退出；有未儲存圖片、草稿或對話框時會停止，不強制丟棄內容。需保留的圖片須先儲存。一般建置不會執行功能測試。
 
 ## 驗證
 
@@ -42,13 +40,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify_local.ps1 -Sc
 
 驗證預設不跑全套。部分既有測試會使用桌面或系統剪貼簿，執行前應檢查所選範圍，避免干擾使用中的環境。
 
-驗證後只需保留命令、版本、結果、必要失敗片段與少量代表畫面；已確認由測試產生的一次性資料應在成功、失敗或取消後清除。最後完成建置與驗證後，使用安全清理入口移除編譯中間檔，保留 EXE、INI、使用者資料及必要證據。
-
-測試 EXE 也屬於驗證後應移除的輸出。完成整批驗證及所有預定的 `-SkipBuild` 重用後，以 `artifacts/audits/test-retirement-current.json` 記錄 `VerificationComplete: true` 與 `Targets`（各項的完整 `Path`、`Producer`、`Version`、`Bytes`、`Hash`）。`scripts\retire_test_binaries.ps1` 預設只檢查；加上 `-Apply` 才會刪除已核對的兩個標準測試 EXE。它拒絕其他路徑、過期雜湊、未完成批次、重解析點及仍執行中的測試／建置程序，保留正式 EXE、INI 與其他資料。執行器若拒絕操作，須保留原始原因並透過正式權限設定處理，不可換工具繞過。
+測試產物可由原始碼重建；各次執行的資料與結果位於忽略的 `artifacts` 目錄，不屬於正式執行檔。
 
 ## 使用與散布
 
-正式執行檔直接使用 `build\SimpleCaptureTool.exe`，不需額外封裝。也可將 EXE 複製到可寫入的資料夾使用；首次啟動會在 EXE 旁產生設定與語系 INI。分享程式時，請勿包含自己的 INI、截圖或其他私人資料。
+正式執行檔直接使用 `build\SimpleCaptureTool.exe`，不需額外封裝。也可將 EXE 複製到可寫入的資料夾使用；首次啟動會在 EXE 旁產生設定與語系 INI。散布內容不包含個人 INI、截圖或其他私人資料。
 
 ## 目錄與清理
 

@@ -9,7 +9,7 @@ void EditorFrame::SetCopyNotice(CopyNotice state,const CString& detail)
 }
 void EditorFrame::RefreshCopyNotice()
 {
-    const auto before=copyNoticeState_;if(copyNoticeState_==CopyNotice::Ready){
+    const auto before=copyNoticeState_;if(copyNoticeState_==CopyNotice::Ready||copyNoticeState_==CopyNotice::Partial){
         if(copiedSequence_!=services::ClipboardSequenceNumber())copyNoticeState_=CopyNotice::ClipboardChanged;
         else if(copiedRevision_!=revision_)copyNoticeState_=CopyNotice::ImageChanged;
     }
@@ -18,6 +18,7 @@ void EditorFrame::RefreshCopyNotice()
     case CopyNotice::Idle:break;
     case CopyNotice::Pending:text=Tr(Text::ImageCopyPending);break;
     case CopyNotice::Ready:text.Format(Tr(Text::ImageCopyReady),copiedSize_.cx,copiedSize_.cy);break;
+    case CopyNotice::Partial:text.Format(Tr(Text::ImageCopyPartial),copiedSize_.cx,copiedSize_.cy);break;
     case CopyNotice::Failed:text=Tr(Text::ImageCopyFailed);break;
     case CopyNotice::Blocked:text=Tr(Text::ImageCopyBlocked);break;
     case CopyNotice::ClipboardChanged:text=Tr(Text::ImageClipboardChanged);break;

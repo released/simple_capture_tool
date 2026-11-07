@@ -29,6 +29,7 @@ struct Annotation {
     int highlightBlend=0;bool effectBrush=false;
     int strokeOpacity=255,fillOpacity=255,sourceAnchor=0,targetAnchor=0;
     uint32_t id=0,sourceId=0,targetId=0;
+    int flowKind=0;bool connectorLabel=false;
 };
 int MosaicBlockSize(const Annotation&);
 int MosaicStrengthPercent(const Annotation&);

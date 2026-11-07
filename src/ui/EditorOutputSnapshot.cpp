@@ -4,6 +4,7 @@
 namespace sct::ui {
 bool EditorFrame::OutputDraft()const
 {
+    if(flowGesture_||flowPaletteDrag_)return true;
     return closing_||textEditing_||sidebar_.Dirty()||(width_.GetSafeHwnd()&&width_.GetModify()&&(selected_>=0||textEditing_))||
         sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||cropGesture_||dragging_||objectGesture_||
         sidebar_.Dragging()||canvasHandle_>=0||canvasPending_||!cropRegion_.IsRectEmpty();

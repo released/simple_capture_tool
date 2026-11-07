@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "FlowDiagram.h"
 #include "DiscoveryTools.h"
 #include "AnnotationExtensions.h"
 #include "ObjectComposition.h"
@@ -12,7 +13,7 @@ DocumentState TransformPicture(const DocumentState& source,int index,int operati
     auto asset=operation==0?Rotate(*original.asset,1):Flip(*original.asset,operation==1);if(asset.Empty())throw std::runtime_error("Cannot transform picture");DocumentState result;if(!ExpandCanvas(source,w,h,result))throw std::runtime_error("Picture expansion limit");if(!IsRectEmpty(&original.sourceCrop)){const auto c=PictureSource(original);const int aw=original.asset->width,ah=original.asset->height;result.objects[index].sourceCrop=operation==0?CRect(ah-c.bottom,c.left,ah-c.top,c.right):operation==1?CRect(aw-c.right,c.top,aw-c.left,c.bottom):CRect(c.left,ah-c.bottom,c.right,ah-c.top);}result.objects[index].asset=std::make_shared<Image>(std::move(asset));result.objects[index].rect={original.rect.left,original.rect.top,right,bottom};composition::Validate(result);return result;
 }
 DocumentState ReplaceAnnotationText(const DocumentState& source,const CString& find,const CString& replacement,bool matchCase,bool& changed){
-    if(find.IsEmpty()||find.GetLength()>4096||replacement.GetLength()>4096)throw std::runtime_error("Invalid find/replace text length");auto result=source;bool any=false;for(auto& a:result.objects){if(a.hidden||(a.tool!=Tool::Text&&a.tool!=Tool::Callout))continue;bool one=false;a=ReplaceStyledText(a,find,replacement,matchCase,one);any=any||one;}changed=any;return result;
+    if(find.IsEmpty()||find.GetLength()>4096||replacement.GetLength()>4096)throw std::runtime_error("Invalid find/replace text length");auto result=source;bool any=false;for(auto& a:result.objects){if(a.hidden||!HasEditableText(a))continue;bool one=false;a=ReplaceStyledText(a,find,replacement,matchCase,one);any=any||one;}changed=any;return result;
 }
 std::vector<int> ObjectsAt(const DocumentState& state,POINT p,int tolerance){std::vector<int> result;for(int i=static_cast<int>(state.objects.size())-1;i>=0;--i)if(!state.objects[i].hidden&&HitAnnotation(state.objects[i],p,tolerance,false))result.push_back(i);return result;}
 Image CorrectPerspective(const Image& source,const std::array<POINT,4>& points,int width,int height){

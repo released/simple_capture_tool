@@ -1,12 +1,13 @@
 #include "pch.h"
 #include "EditorFrame.h"
+#include "../core/NativeTextLayout.h"
 namespace sct::ui {
 void EditorFrame::TextPosition()
 {
     if(!textEditing_||!text_.GetSafeHwnd())return;
-    if(!richSync_&&!ReadRichText(textDraft_)){status_.SetWindowText(Tr(Text::InvalidValue));return;}
-    const bool custom=textDraft_.textPadding||textDraft_.textLineSpacing!=100||textDraft_.textAutoHeight;const DWORD border=custom?0:WS_BORDER|WS_VSCROLL;if((text_.GetStyle()&(WS_BORDER|WS_VSCROLL))!=border){text_.ModifyStyle(WS_BORDER|WS_VSCROLL,border,SWP_FRAMECHANGED);inlineClipValid_=false;}
-    CRect bounds=ScreenRect(textDraft_.rect);
+    if(!richSync_&&richContentDirty_&&!ReadRichText(textDraft_)){status_.SetWindowText(Tr(Text::InvalidValue));return;}
+    const bool flow=core::HasFlowText(textDraft_);const bool custom=flow||textDraft_.textPadding||textDraft_.textLineSpacing!=100||textDraft_.textAutoHeight;const DWORD border=custom?0:WS_BORDER|WS_VSCROLL;if((text_.GetStyle()&(WS_BORDER|WS_VSCROLL))!=border){text_.ModifyStyle(WS_BORDER|WS_VSCROLL,border,SWP_FRAMECHANGED);inlineClipValid_=false;}
+    CRect bounds=ScreenRect(core::HasFlowText(textDraft_)?core::FlowTextBounds(textDraft_):CRect(textDraft_.rect));
     bounds.right=std::max(bounds.right,bounds.left+40);
     bounds.bottom=std::max(bounds.bottom,bounds.top+32);
     CRect clip;
@@ -45,15 +46,14 @@ void EditorFrame::TextPosition()
     }
     const DWORD align=textDraft_.alignment%3==1?ES_CENTER:textDraft_.alignment%3==2?ES_RIGHT:ES_LEFT;
     if((text_.GetStyle()&(ES_CENTER|ES_RIGHT))!=align)text_.ModifyStyle(ES_CENTER|ES_RIGHT,align);
-    CRect content;text_.GetClientRect(content);if(custom){const int x=textDraft_.textPadding+(textDraft_.tool==core::Tool::Callout?textDraft_.width+8:0),y=textDraft_.textPadding+(textDraft_.tool==core::Tool::Callout?textDraft_.width+4:0);content.DeflateRect(static_cast<int>(std::lround(x*zoom_)),static_cast<int>(std::lround(y*zoom_)));}else content.DeflateRect(Px(m_hWnd,3),Px(m_hWnd,2));
+    CRect content;text_.GetClientRect(content);if(custom){const int x=(flow?0:textDraft_.textPadding)+(textDraft_.tool==core::Tool::Callout?textDraft_.width+8:0),y=(flow?0:textDraft_.textPadding)+(textDraft_.tool==core::Tool::Callout?textDraft_.width+4:0);content.DeflateRect(static_cast<int>(std::lround(x*zoom_)),static_cast<int>(std::lround(y*zoom_)));}else content.DeflateRect(Px(m_hWnd,3),Px(m_hWnd,2));
     if(textDraft_.alignment>=3){
-        CString value;text_.GetWindowText(value);CClientDC dc(&text_);auto* previous=dc.SelectObject(&inlineFont_);
-        CRect measured(0,0,std::max(1,content.Width()),0);
-        dc.DrawText(value.IsEmpty()?CString(L" "):value,measured,DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX);
-        if(previous)dc.SelectObject(previous);
-        content.top+=std::max(0,(content.Height()-measured.Height())/2);
+        const int width=std::clamp(int(std::lround(content.Width()/zoom_)),1,32768),limit=std::clamp(int(std::ceil(content.Height()/zoom_)),1,32768);
+        const int measured=int(std::ceil(core::NativeTextHeight(textDraft_,width,limit)*zoom_));
+        content.top+=std::max(0,(content.Height()-measured)/2);
     }
     SyncRichText();text_.SetRectNP(&content);
+    if(flow){text_.SendMessage(EM_SETBKGNDCOLOR,0,textDraft_.background);bool overflow=false;const auto box=core::FlowTextBounds(textDraft_);core::NativeTextHeight(textDraft_,box.Width(),std::clamp<int>(box.Height(),1,32768),&overflow);if(overflow)status_.SetWindowText(Tr(Text::FlowTextOverflow));}
     if(!(text_.GetStyle()&WS_VISIBLE))text_.ShowWindow(SW_SHOWNOACTIVATE);
     text_.Invalidate(FALSE);if(textDraft_.textAutoHeight&&!textResizing_)text_.SendMessage(EM_REQUESTRESIZE);
 }

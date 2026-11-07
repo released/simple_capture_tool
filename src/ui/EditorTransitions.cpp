@@ -22,9 +22,9 @@ void EditorFrame::ChangeTool(int requested)
     // Finishing properties can synchronize the combo; keep the requested tool separately.
     if(!FinishPropertyDraft()||!FinishText(true)){restore();return;}
     status_.ClearOperation();
-    if(requested!=static_cast<int>(core::Tool::Select))stampMode_=false;CancelSweep();clonePicking_=false;CancelPath();CancelCrop();CancelComposition();pictureCropMode_=false;colorSelectionMode_=0;
+    if(requested!=static_cast<int>(core::Tool::Select))stampMode_=false;CancelFlow();CancelSweep();clonePicking_=false;CancelPath();CancelCrop();CancelComposition();pictureCropMode_=false;colorSelectionMode_=0;
     if(style_.tool==core::Tool::Highlight){highlightColor_=style_.color;highlightOpacity_=style_.opacity;highlightBlend_=style_.highlightBlend;}
-    style_.id=style_.sourceId=style_.targetId=0;style_.tool=static_cast<core::Tool>(requested);style_.group=0;style_.locked=false;style_.sourceCrop={};style_.textRuns.clear();selected_=-1;
+    style_.flowKind=0;style_.connectorLabel=false;style_.id=style_.sourceId=style_.targetId=0;style_.tool=static_cast<core::Tool>(requested);style_.group=0;style_.locked=false;style_.sourceCrop={};style_.textRuns.clear();selected_=-1;
     if(style_.tool==core::Tool::Highlight){style_.color=highlightColor_;style_.opacity=highlightOpacity_;style_.highlightBlend=highlightBlend_;}
     tools_.SetCurSel(requested);LoadToolStyle();style_.effectBrush=false;if(style_.tool==core::Tool::Polygon)style_.number=3;
     if(style_.tool!=core::Tool::PixelSelect)pixelSelection_.SetRectEmpty();

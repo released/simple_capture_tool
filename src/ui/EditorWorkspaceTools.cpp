@@ -1,12 +1,14 @@
 #include "pch.h"
 #include "EditorWorkspace.h"
 #include "EditorFrame.h"
+#include "../core/NativeTextLayout.h"
 #include "FormDialog.h"
 #include "../services/ProcessResources.h"
 namespace sct::ui {
-void EditorFrame::AccountAuxiliary(core::DocumentResources& usage)const{usage.Add(modalImage_.get());usage.annotationBytes+=galleryBytes_+sweepPoints_.capacity()*sizeof(POINT)+sweepExpected_.capacity()*sizeof(int);usage.annotationBytes+=tintRects_*sizeof(RECT);usage.annotationBytes+=pathVertices_.capacity()*sizeof(POINT);if(clonePending_)core::AccountAnnotation(*clonePending_,usage);usage.imageBytes+=dragModalBytes_;if(pixelMask_)usage.annotationBytes+=sizeof(core::SelectionMask)+pixelMask_->spans.capacity()*sizeof(core::MaskSpan)+pixelMask_->outline.capacity()*sizeof(core::MaskLine);usage.annotationBytes+=maskDraft_.points.capacity()*sizeof(POINT);if(colorModalResult_){core::AccountState(colorModalResult_->sourceState,usage);core::AccountState(colorModalResult_->state,usage);usage.Add(&colorModalResult_->image);usage.Add(&colorModalResult_->thumbnail);usage.Add(&colorModalResult_->colorOriginal);usage.imageBytes+=colorModalPreviewBytes_;}core::AccountState(objectOriginal_,usage);core::AccountState(objectPreview_,usage);for(const auto* a:{&style_,&draft_,&original_,&textDraft_}){usage.annotationBytes+=sizeof(core::Annotation);core::AccountAnnotation(*a,usage);}usage.annotationBytes+=(selectedObjects_.capacity()+objectDragIds_.capacity()+pendingObjects_.capacity())*sizeof(int);for(const auto& path:pendingLayoutPaths_)usage.annotationBytes+=(static_cast<size_t>(path.GetLength())+1)*sizeof(wchar_t);for(const auto& path:openQueue_)usage.annotationBytes+=(static_cast<size_t>(path.GetLength())+1)*sizeof(wchar_t);}
+void EditorFrame::AccountAuxiliary(core::DocumentResources& usage)const{usage.Add(modalImage_.get());usage.annotationBytes+=galleryBytes_+sweepPoints_.capacity()*sizeof(POINT)+sweepExpected_.capacity()*sizeof(int);usage.annotationBytes+=tintRects_*sizeof(RECT);usage.annotationBytes+=pathVertices_.capacity()*sizeof(POINT);if(clonePending_)core::AccountAnnotation(*clonePending_,usage);usage.imageBytes+=dragModalBytes_;if(pixelMask_)usage.annotationBytes+=sizeof(core::SelectionMask)+pixelMask_->spans.capacity()*sizeof(core::MaskSpan)+pixelMask_->outline.capacity()*sizeof(core::MaskLine);usage.annotationBytes+=maskDraft_.points.capacity()*sizeof(POINT);if(colorModalResult_){core::AccountState(colorModalResult_->sourceState,usage);core::AccountState(colorModalResult_->state,usage);usage.Add(&colorModalResult_->image);usage.Add(&colorModalResult_->thumbnail);usage.Add(&colorModalResult_->colorOriginal);usage.imageBytes+=colorModalPreviewBytes_;}core::AccountState(objectOriginal_,usage);core::AccountState(objectPreview_,usage);for(const auto* a:{&style_,&draft_,&original_,&textDraft_,&richApplied_}){usage.annotationBytes+=sizeof(core::Annotation);core::AccountAnnotation(*a,usage);}usage.annotationBytes+=(selectedObjects_.capacity()+objectDragIds_.capacity()+pendingObjects_.capacity())*sizeof(int);for(const auto& path:pendingLayoutPaths_)usage.annotationBytes+=(static_cast<size_t>(path.GetLength())+1)*sizeof(wchar_t);for(const auto& path:openQueue_)usage.annotationBytes+=(static_cast<size_t>(path.GetLength())+1)*sizeof(wchar_t);}
 void EditorWorkspace::ResumePage(EditorFrame* page){if(page->renderSuspended_){page->renderSuspended_=false;page->EditorPolling(true);page->RequestRender();}}
 void EditorWorkspace::ReclaimInactive(){
+    core::ClearNativeTextCache();
     for(size_t i=0;i<pages_.size();++i){auto* p=pages_[i];if(p->job_.Busy()||p->WorkingForBuild()||p->textEditing_||p->dragging_||p->panning_)continue;
         p->previewCache_->Clear();if(static_cast<int>(i)==active_)continue;
         p->image_={};p->maskTintRegion_.DeleteObject();p->tintMask_=nullptr;p->tintRects_=0;p->surface_.Release();p->rendered_=0;p->renderPending_=true;p->renderSuspended_=true;p->EditorPolling(false);
@@ -14,7 +16,7 @@ void EditorWorkspace::ReclaimInactive(){
 }
 void EditorWorkspace::UpdateResources(bool reclaim,size_t limit){
     try{
-    core::DocumentResources usage;size_t caches=0;for(auto* p:pages_){p->document_.Account(usage);p->AccountAuxiliary(usage);usage.Add(&p->image_);usage.Add(&p->thumbnail_);caches+=p->surface_.Bytes()+p->previewCache_->Bytes();}
+    core::DocumentResources usage;size_t caches=core::NativeTextCacheBytes();for(auto* p:pages_){p->document_.Account(usage);p->AccountAuxiliary(usage);usage.Add(&p->image_);usage.Add(&p->thumbnail_);caches+=p->surface_.Bytes()+p->previewCache_->Bytes();}
     ++resourceCount_;resources_=std::move(usage);cacheBytes_=caches;resourceBytes_=resources_.Bytes()+caches;
     if(reclaim&&resourceBytes_>limit){ReclaimInactive();UpdateResources(false);return;}
     if(active_>=0&&active_<static_cast<int>(pages_.size()))pages_[active_]->ViewStatus();

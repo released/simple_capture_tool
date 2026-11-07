@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "LanguageService.h"
+#include "FormatValidation.h"
 #include <set>
 #include <map>
 namespace sct::services {
@@ -95,6 +96,7 @@ bool PrepareLanguage(const CString& file,PreparedLanguage& prepared,CString& err
         std::lock_guard<std::mutex> lock(catalogMutex);
         for(size_t i=0;i<Count;++i){auto key=static_cast<Text>(i);const auto it=parsed.strings.find(TextKey(key));std::wstring value=it==parsed.strings.end()||it->second.empty()?DefaultText(key,parsed.english):it->second;
             if(key==Text::ProjectFilter||key==Text::ImageFilter){const std::wstring expected=DefaultText(key,true);const auto at=value.find(L'|');if(at==std::wstring::npos||value.substr(at)!=expected.substr(expected.find(L'|')))throw std::runtime_error("Do not translate file-filter patterns");}
+            if(!CompatibleTranslationFormat(DefaultText(key,parsed.english),value)){error.Format(DefaultText(Text::LanguageFormatInvalid,false),CString(TextKey(key)).GetString());return false;}
             (*next)[i]=interned.insert(std::move(value)).first->c_str();
         }
         prepared.file=file;prepared.catalog=std::move(next);return true;

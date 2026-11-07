@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "EditorHome.h"
 #include "EditorRibbon.h"
+#include "FlowPanel.h"
 #include "../core/Document.h"
 namespace sct::ui {
 const std::vector<RibbonCommand>& RibbonCommands()
@@ -39,6 +40,8 @@ const std::vector<RibbonCommand>& RibbonCommands()
         for(auto e:{std::pair<UINT,Text>{CalloutTailPosition,Text::CalloutTailPosition},{HighlightBlend,Text::HighlightBlend},{ExportScaled,Text::ExportScaled},{CopyScaled,Text::CopyScaled},{StampCopies,Text::StampCopies},{BatchExport,Text::BatchExport},{PictureAngle,Text::PictureAngle},{StrokePixels,Text::StrokePixels}})add(-1,0,e.first,e.second);
         for(auto e:{std::pair<UINT,Text>{ExportSelectedPng,Text::ExportSelectedPng},{StickerLibrary,Text::StickerLibrary},{MaskOverlay,Text::MaskOverlay},{MaskOverlaySettings,Text::MaskOverlaySettings},{ConnectorAnchors,Text::ConnectorAnchors},{SeparateOpacity,Text::SeparateOpacity},{PictureFilters,Text::PictureFilters},{PixelIntersect,Text::PixelIntersect},{PictureAlphaSelection,Text::PictureAlphaSelection}})add(-1,0,e.first,e.second);
         for(auto e:{std::pair<UINT,Text>{ReflowObjects,Text::ReflowObjects},{PictureOriginalSize,Text::PictureOriginalSize},{StyleGallery,Text::StyleGallery},{RepeatLastEffect,Text::RepeatLastEffect},{ReshowLastEffect,Text::ReshowLastEffect},{SweepObjects,Text::SweepObjects},{BlurBrush,Text::BlurBrush},{MosaicBrush,Text::MosaicBrush},{BrushSettings,Text::BrushSettings},{PictureCard,Text::PictureCard},{ExportSelectedSvg,Text::ExportSelectedSvg}})add(-1,0,e.first,e.second);
+        for(auto e:{std::pair<UINT,Text>{FlowPanelToggle,Text::FlowPalette},{FlowStraight,Text::FlowStraight},{FlowElbow,Text::FlowElbow},{FlowBlue,Text::FlowBlue},{FlowGreen,Text::FlowGreen},{FlowAmber,Text::FlowAmber},{FlowPurple,Text::FlowPurple},{FlowArrangeHorizontal,Text::FlowArrangeHorizontal},{FlowArrangeVertical,Text::FlowArrangeVertical},{FlowEditLabel,Text::FlowEditLabel},{FlowLineMode,Text::FlowLineMode},{FlowArrowMode,Text::FlowArrowMode}})add(-1,0,e.first,e.second);
+        for(int kind=1;kind<=9;++kind)add(-1,0,FlowShapeFirst+kind-1,FlowShapeText(kind));
         return result;
     }();return commands;
 }

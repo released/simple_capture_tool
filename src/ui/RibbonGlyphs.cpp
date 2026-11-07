@@ -113,6 +113,7 @@ void DrawRibbonGlyph(CDC& dc,CRect rect,UINT command,bool enabled)
     else if(id==EditorShortcutSettings){box(-1.3f,-.8f,2.6f,1.6f);for(int row=0;row<2;++row)for(int col=0;col<4;++col)g.FillRectangle(&fill,x+s*(-1+col*.55f),y+s*(-.5f+row*.55f),s*.25f,s*.25f);}
     else if(id==FrameEffect){box(-1,-1,2,2);box(-.6f,-.6f,1.2f,1.2f);}
     else if(id==ShadowEffect){SolidBrush shadow(Gdiplus::Color(90,color.GetR(),color.GetG(),color.GetB()));g.FillRectangle(&shadow,x-s*.5f,y-s*.5f,s*1.6f,s*1.6f);box(-1,-1,1.6f,1.6f);}
+    else if(id==FlowPanelToggle){box(-1.1f,-1,1,.6f);box(.2f,.4f,1,.6f);line(-.6f,-.4f,-.6f,.7f);line(-.6f,.7f,.2f,.7f);line(-.05f,.45f,.2f,.7f);}
     else if(id==More){for(int n=-1;n<=1;++n)g.FillEllipse(&fill,x+s*n-w*.6f,y-w*.6f,w*1.2f,w*1.2f);}
     else{box(-.7f,-1,1.4f,2);line(-.4f,-.3f,.4f,-.3f);line(-.4f,.2f,.4f,.2f);}
 }

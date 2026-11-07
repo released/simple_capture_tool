@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "ObjectSelectionTools.h"
 #include "AnnotationTools.h"
+#include "FlowDiagram.h"
 #include "AnnotationGeometry.h"
 #include <map>
 #include <set>
@@ -22,8 +23,8 @@ bool Linkable(const Annotation& a){return !a.hidden&&(a.tool==Tool::Picture||a.t
 void RefreshConnections(DocumentState& state){
     std::map<uint32_t,size_t> lookup;for(size_t i=0;i<state.objects.size();++i)if(state.objects[i].id&&!lookup.emplace(state.objects[i].id,i).second)throw std::runtime_error("Duplicate object identity");
     auto target=[&](uint32_t id)->const Annotation*{const auto i=lookup.find(id);return i!=lookup.end()&&Linkable(state.objects[i->second])?&state.objects[i->second]:nullptr;};
-    for(auto& a:state.objects){if(!a.sourceId&&!a.targetId)continue;if(a.tool!=Tool::Arrow||a.points.size()!=2)throw std::runtime_error("Invalid linked arrow");auto points=a.points;const auto* first=target(a.sourceId);const auto* second=target(a.targetId);if(a.sourceId&&!first){a.sourceId=0;a.sourceAnchor=0;}if(a.targetId&&!second){a.targetId=0;a.targetAnchor=0;}
-        const POINT sourceCenter=first?BoxAnchor(first->rect,{},0,true):points.front(),targetCenter=second?BoxAnchor(second->rect,{},0,false):points.back();if(first)points.front()=BoxAnchor(first->rect,targetCenter,a.sourceAnchor,true);if(second)points.back()=BoxAnchor(second->rect,sourceCenter,a.targetAnchor,false);
+    for(auto& a:state.objects){if(!a.sourceId&&!a.targetId)continue;if((a.tool!=Tool::Arrow&&a.tool!=Tool::ElbowArrow)||a.points.size()<2)throw std::runtime_error("Invalid linked arrow");auto before=a.points;const auto* first=target(a.sourceId);const auto* second=target(a.targetId);if(a.sourceId&&!first){a.sourceId=0;a.sourceAnchor=0;}if(a.targetId&&!second){a.targetId=0;a.targetAnchor=0;}
+        const POINT sourceCenter=first?FlowAnchor(*first,{},0,true):before.front(),targetCenter=second?FlowAnchor(*second,{},0,false):before.back();const auto start=first?FlowAnchor(*first,targetCenter,a.sourceAnchor,true):before.front(),end=second?FlowAnchor(*second,sourceCenter,a.targetAnchor,false):before.back();auto routed=a;RouteFlowConnector(routed,start,end);auto points=std::move(routed.points);
         if(a.locked&&!std::equal(points.begin(),points.end(),a.points.begin(),[](POINT x,POINT y){return x.x==y.x&&x.y==y.y;}))throw std::runtime_error("Unlock the connected arrow first");a.points=std::move(points);BoundPoints(a);
     }
 }

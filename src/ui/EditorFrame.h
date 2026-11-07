@@ -4,6 +4,7 @@
 #include "../core/BackgroundJob.h"
 #include "../services/ClipboardService.h"
 #include "EditorRibbon.h"
+#include "FlowPanel.h"
 #include "EditorStatus.h"
 #include "EditorWork.h"
 #include "../core/ImageEffects.h"
@@ -33,8 +34,8 @@ public:
     EditorFrame(core::DocumentState state,CString path,CWnd* workspace=nullptr,bool deferred=false);
     void Captured(){dirty_=true;NotifyWorkspace();}
     CString DocumentName()const;const core::Image& Thumbnail()const{return thumbnail_;}
-    bool HasUnsavedChanges()const{return !closing_&&((width_.GetSafeHwnd()&&width_.GetModify()&&(selected_>=0||textEditing_))||sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||dirty_||textEditing_||dragging_||objectGesture_||sidebar_.Dirty()||!cropRegion_.IsRectEmpty()||canvasHandle_>=0||canvasPending_);}
-    bool WorkingForBuild()const{return closing_||sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||maskPending_||job_.Busy()||(renderPending_&&!renderSuspended_)||!pendingLayoutPaths_.empty()||pendingAction_!=0||copyTicket_||pasteTicket_||objectGesture_||sidebar_.Dragging()||cropGesture_||canvasHandle_>=0||canvasPending_||screenColorModal_;}
+    bool HasUnsavedChanges()const{return !closing_&&(flowGesture_||flowPaletteDrag_||(width_.GetSafeHwnd()&&width_.GetModify()&&(selected_>=0||textEditing_))||sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||dirty_||textEditing_||dragging_||objectGesture_||sidebar_.Dirty()||!cropRegion_.IsRectEmpty()||canvasHandle_>=0||canvasPending_);}
+    bool WorkingForBuild()const{return closing_||flowGesture_||flowPaletteDrag_||sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||maskPending_||job_.Busy()||(renderPending_&&!renderSuspended_)||!pendingLayoutPaths_.empty()||pendingAction_!=0||copyTicket_||pasteTicket_||objectGesture_||sidebar_.Dragging()||cropGesture_||canvasHandle_>=0||canvasPending_||screenColorModal_;}
     void AutomaticOutput(const std::shared_ptr<const core::Image>&,const CString& path,const CString& error);
 protected:
     BOOL PreTranslateMessage(MSG*) override;
@@ -63,8 +64,16 @@ protected:
     afx_msg LRESULT OnLanguageChanged(WPARAM,LPARAM);
     DECLARE_MESSAGE_MAP()
 private:
+    friend class ReviewRefinementsAccess;std::function<INT_PTR(CPrintDialog&)> printDialogAudit_;std::function<bool(CString&)> printOutputAudit_;std::function<int(Text)> exportConfirmAudit_;
+    friend class FlowDiagramAccess;friend class FlowShapeButton;friend class FlowPanel;
+    bool FlowReady()const;void FlowCommand(UINT);void BeginFlowPlacement(int,CPoint);void PlaceFlowNode(CPoint);
+    bool FlowDown(CPoint);bool FlowMove(CPoint);bool FlowUp(CPoint);void CancelFlow(bool placement=true);void PaintFlow(CDC&);
+    int FlowTarget(CPoint,int excluded=-1)const;int FlowPort(int,CPoint)const;CPoint FlowPortPoint(int,int)const;
+    FlowPanel flowPanel_;int flowKind_=1,flowPreset_=0,flowPlacement_=0,flowHover_=-1,flowSource_=-1,flowAnchor_=1,flowEditingArrow_=-1;
+    bool flowElbow_=true,flowArrow_=true,flowGesture_=false,flowPaletteDrag_=false,flowMoved_=false,flowStartEndpoint_=false;
+    CPoint flowPress_,flowPoint_;uint64_t flowRevision_=0;core::composition::Indices flowExpected_;
     friend class ClipboardFeedbackAccess;
-    enum class CopyNotice {Idle,Pending,Ready,Failed,Blocked,ClipboardChanged,ImageChanged};
+    enum class CopyNotice {Idle,Pending,Ready,Failed,Blocked,ClipboardChanged,ImageChanged,Partial};
     void SetCopyNotice(CopyNotice,const CString& detail=L"");void RefreshCopyNotice();
     CopyNotice copyNoticeState_=CopyNotice::Idle;
     CString copyNoticeText_,copyNoticeDetail_;CStatic copyNotice_;bool copyNoticeFits_=false;
@@ -152,6 +161,7 @@ private:
     bool colorSeedPending_=false;CPoint colorSeed_;uint64_t colorSeedRevision_=0,colorSeedEpoch_=0;int colorSeedMode_=0;size_t dragModalBytes_=0;
     std::function<INT_PTR(FormDialog&)> enhancementFormAudit_;
     std::function<INT_PTR(ImageDragDialog&)> dragDialogAudit_;
+    uint64_t richReads_=0,richApplies_=0;bool richContentDirty_=true,richAppliedValid_=false;core::Annotation richApplied_;void RememberRichFormat(const core::Annotation&);
     bool richSync_=false;double richScale_=1;int richDpi_=96;void FormatTextRun(UINT);void SyncRichText();bool ReadRichText(core::Annotation&);
     void DiscoveryCommand(UINT);void CompleteDiscovery(WorkResult&);void ExportGuideCommand();void ChooseOverlap();
     bool ReceiveCaptured(core::DocumentState,uint64_t,uint64_t,const core::composition::Indices&);

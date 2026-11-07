@@ -1,5 +1,5 @@
 param(
-[ValidateSet('ClipboardFeedback','ReviewOptimization','CaptureMagnifier','SelectionToolbar','RibbonClarity','EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','ScreenshotOnly','SaveDirectory','PictureCrop','SelectionTools','EditorPreview','PolygonShapes','DragImage','ImportNormalization','TextRuns','Discovery','MaskEditing','CaptureInsert','ColorFilters','ImageReuse','OpenParity','WheelNavigation','TextViewport','EditorTransitions','ImagePrecision','CommandTools','ObjectPayload','EditableLayout','Sidebar','WorkspaceTools','EditorPerformance','ObjectAlignment','DefaultCursor','CropWorkflow','EditorMenus','Composition','ToolStyles','RibbonFont','ColorPicker','ToolTabs','Instance','CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
+[ValidateSet('ReviewRefinements','RichSyncBaseline','FlowDiagram','ClipboardFeedback','ReviewOptimization','CaptureMagnifier','SelectionToolbar','RibbonClarity','EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','ScreenshotOnly','SaveDirectory','PictureCrop','SelectionTools','EditorPreview','PolygonShapes','DragImage','ImportNormalization','TextRuns','Discovery','MaskEditing','CaptureInsert','ColorFilters','ImageReuse','OpenParity','WheelNavigation','TextViewport','EditorTransitions','ImagePrecision','CommandTools','ObjectPayload','EditableLayout','Sidebar','WorkspaceTools','EditorPerformance','ObjectAlignment','DefaultCursor','CropWorkflow','EditorMenus','Composition','ToolStyles','RibbonFont','ColorPicker','ToolTabs','Instance','CanvasFrame','ImageHome','PasteOriginal','CaptureLatency','AppMenu','Shell','Freehand','RibbonMenu','EditorHome','CanvasPosition','Canvas','Editor','Objects','Ram','Save','Self','Ui','Enhancement','EnhancementUi','Preferences')][string[]]$Scope=@(),
     [switch]$Full,
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Release',
     [switch]$SkipBuild,
@@ -11,6 +11,9 @@ if($Full -and $Scope.Count){throw 'Use affected -Scope or explicit -Full, not bo
 $projectRoot=Split-Path -Parent $PSScriptRoot
 $configurations=if($Configuration -eq 'Both'){@('Release','Debug')}else{@($Configuration)}
 $testArguments=@{
+    ReviewRefinements='--alignment-test --test-review-refinements-only';
+    RichSyncBaseline='--alignment-test --test-rich-sync-baseline-only';
+    FlowDiagram='--alignment-test --test-flow-diagram-only';
     ClipboardFeedback='--alignment-test --test-clipboard-feedback-only';
     ReviewOptimization='--alignment-test --test-review-optimization-only';
     CaptureMagnifier='--alignment-test --test-capture-magnifier-only';

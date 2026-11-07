@@ -3,6 +3,7 @@
 #include "EditorWorkspace.h"
 #include "ImagePreviewDialog.h"
 #include "ImageSaveDialog.h"
+#include "EditorModalFence.h"
 #include "MainFrame.h"
 #include "../services/PrintService.h"
 #include "../services/PdfService.h"
@@ -28,6 +29,6 @@ void EditorFrame::OutputCommand(UINT id){
         activeAction_=WorkOutput;StartWork([states=std::move(snapshot.states),path]{WorkResult r;r.action=WorkOutput;r.path=path;std::vector<BYTE> bytes;if(services::EncodePdfDocuments(states,bytes,r.error))services::WriteBytes(path,bytes,r.error);return r;});return;
     }
     const auto state=document_.State();if(id==PrintPreview){activeAction_=WorkPrintPreview;StartWork([state]{WorkResult r;r.action=WorkPrintPreview;r.image=services::PrintPagePreview(state,r.error);return r;});return;}
-    if(id==PrintImage){CPrintDialog dlg(FALSE,PD_ALLPAGES|PD_NOPAGENUMS|PD_NOSELECTION|PD_HIDEPRINTTOFILE,this);if(dlg.DoModal()!=IDOK)return;services::PrinterSettings settings;settings.driver=dlg.GetDriverName();settings.device=dlg.GetDeviceName();settings.port=dlg.GetPortName();settings.copies=dlg.GetCopies();if(HGLOBAL mode=dlg.m_pd.hDevMode){const auto* p=static_cast<const BYTE*>(GlobalLock(mode));size_t size=GlobalSize(mode);if(p&&size>=sizeof(DEVMODE)&&size<=1024*1024)settings.mode.assign(p,p+size);if(p)GlobalUnlock(mode);}if(dlg.m_pd.hDC)DeleteDC(dlg.m_pd.hDC);dlg.m_pd.hDC=nullptr;activeAction_=WorkOutput;StartWork([state,settings]{WorkResult r;r.action=WorkOutput;services::PrintDocument(state,settings,r.error);return r;});}
+    if(id==PrintImage){const EditorModalFence fence(*this,revision_);const auto crop=cropRegion_;const auto cropVersion=cropGeneration_;const auto printOutput=printOutputAudit_;CPrintDialog dlg(FALSE,PD_ALLPAGES|PD_NOPAGENUMS|PD_NOSELECTION|PD_HIDEPRINTTOFILE,this);struct PrintDC {CPrintDialog& dialog;~PrintDC(){if(dialog.m_pd.hDC)DeleteDC(dialog.m_pd.hDC);dialog.m_pd.hDC=nullptr;}} releaseDC{dlg};const auto audit=printDialogAudit_;const auto choice=audit?audit(dlg):dlg.DoModal();if(!fence.Live())return;if(choice!=IDOK||closing_||revision_!=fence.revision||cropRegion_!=crop||cropGeneration_!=cropVersion||textEditing_||(width_.GetSafeHwnd()&&width_.GetModify()&&selected_>=0)||!FlowReady()||job_.Busy())return;services::PrinterSettings settings;settings.driver=dlg.GetDriverName();settings.device=dlg.GetDeviceName();settings.port=dlg.GetPortName();settings.copies=dlg.GetCopies();if(HGLOBAL mode=dlg.m_pd.hDevMode){const auto* p=static_cast<const BYTE*>(GlobalLock(mode));size_t size=GlobalSize(mode);if(p&&size>=sizeof(DEVMODE)&&size<=1024*1024)settings.mode.assign(p,p+size);if(p)GlobalUnlock(mode);}if(dlg.m_pd.hDC)DeleteDC(dlg.m_pd.hDC);dlg.m_pd.hDC=nullptr;activeAction_=WorkOutput;StartWork([state,settings,printOutput]{WorkResult r;r.action=WorkOutput;if(printOutput)printOutput(r.error);else services::PrintDocument(state,settings,r.error);return r;});}
 }
 }

@@ -34,6 +34,7 @@ void EditorFrame::OnLButtonDown(UINT flags,CPoint p)
     if(finishText){selected_=-1;SyncStyle();Layout();InvalidateRect(canvas_,FALSE);return;}
     if(!canvas_.PtInRect(p)||canvasPending_||(job_.Busy()&&activeAction_!=WorkRender)||pendingAction_==SelectPixels)return;
     if(BeginCanvasResize(p))return;
+    if(FlowDown(p))return;
     if(SweepDown(p))return;
     if(PictureCropDown(p))return;
     if(colorSelectionMode_){ColorSelectionDown(p);return;}
@@ -62,6 +63,7 @@ if(draft_.tool==core::Tool::Step){int next=1;for(const auto& a:document_.State()
 }
 void EditorFrame::OnMouseMove(UINT,CPoint p)
 {if(closing_)return;
+    if(FlowMove(p))return;
     if(GetCapture()==this)ApplyCanvasCursor(p);
     if(SweepMove(p))return;
     if(PathMove(p))return;
@@ -84,6 +86,7 @@ void EditorFrame::OnMouseMove(UINT,CPoint p)
 }
 void EditorFrame::OnLButtonUp(UINT f,CPoint p)
 {if(closing_)return;
+    if(FlowUp(p))return;
     if(SweepUp(p))return;
     if(pathMode_)return;
     if(PictureCropUp(p))return;
@@ -124,12 +127,13 @@ void EditorFrame::EditProperties()
 void EditorFrame::ChooseFont()
 {
     auto a=selected_>=0?document_.State().objects[selected_]:style_;LOGFONT lf{};lf.lfHeight=-a.fontSize;lf.lfWeight=a.bold?FW_BOLD:FW_NORMAL;lf.lfItalic=a.italic;lf.lfUnderline=a.underline;wcscpy_s(lf.lfFaceName,a.font);
-    CFontDialog dlg(&lf,CF_SCREENFONTS|CF_INITTOLOGFONTSTRUCT|CF_EFFECTS,nullptr,this);dlg.m_cf.rgbColors=a.color;if(dlg.DoModal()!=IDOK)return;dlg.GetCurrentFont(&lf);a.font=lf.lfFaceName;a.fontSize=std::clamp<int>(abs(lf.lfHeight),6,512);a.bold=lf.lfWeight>=FW_BOLD;a.italic=lf.lfItalic!=0;a.underline=lf.lfUnderline!=0;a.color=dlg.GetColor();a.textRuns.clear();
+    CFontDialog dlg(&lf,CF_SCREENFONTS|CF_INITTOLOGFONTSTRUCT|CF_EFFECTS,nullptr,this);dlg.m_cf.rgbColors=core::HasFlowText(a)?a.outline:a.color;if(dlg.DoModal()!=IDOK)return;dlg.GetCurrentFont(&lf);a.font=lf.lfFaceName;a.fontSize=std::clamp<int>(abs(lf.lfHeight),6,512);a.bold=lf.lfWeight>=FW_BOLD;a.italic=lf.lfItalic!=0;a.underline=lf.lfUnderline!=0;if(core::HasFlowText(a))a.outline=dlg.GetColor();else a.color=dlg.GetColor();a.textRuns.clear();
     if(selected_>=0){document_.Replace(selected_,a);Changed();}style_=a;style_.tool=static_cast<core::Tool>(tools_.GetCurSel());
 }
 BOOL EditorFrame::PreTranslateMessage(MSG* m)
 {
     if(closing_)return TRUE;
+    if((flowGesture_||flowPaletteDrag_||flowPlacement_)&&m->message==WM_KEYDOWN){if(m->wParam==VK_ESCAPE){CancelFlow();return TRUE;}if(flowGesture_||flowPaletteDrag_)return TRUE;}
     if((m->hwnd==width_.GetSafeHwnd()||::GetFocus()==width_.GetSafeHwnd())&&width_.GetSafeHwnd()){
         if(m->message==WM_KEYDOWN&&(m->wParam==VK_RETURN||m->wParam==VK_ESCAPE)){
             if(m->wParam==VK_ESCAPE){SyncWidth();SetFocus();}

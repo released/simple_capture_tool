@@ -7,6 +7,8 @@
 #include "../core/AnnotationTools.h"
 #include "../core/DocumentationTools.h"
 #include "DocumentRenderer.h"
+#include "FlowRenderer.h"
+#include "../core/FlowDiagram.h"
 #include "EditorRefinementService.h"
 #include "../core/PixelTools.h"
 #include <gdiplus.h>
@@ -41,9 +43,9 @@ void Blur(sct::core::Image& image,RECT region,int radius)
 }
 namespace sct::services {
 CSize MeasureAnnotationText(const core::Annotation& a){const int style=(a.bold?FontStyleBold:0)|(a.italic?FontStyleItalic:0)|(a.underline?FontStyleUnderline:0);FontFamily family(a.font),fallback(L"Arial");const auto* chosen=family.GetLastStatus()==Ok?&family:&fallback;StringFormat format;format.SetFormatFlags(StringFormatFlagsNoClip);GraphicsPath path;path.AddString(a.text,a.text.GetLength(),chosen,style,static_cast<REAL>(a.fontSize),PointF(0,0),&format);RectF bounds;path.GetBounds(&bounds);return {std::max(1,static_cast<int>(ceil(bounds.GetRight()))+2),std::max(1,static_cast<int>(ceil(bounds.GetBottom()))+2)};}
-bool RenderObject(core::Image& image,const core::Annotation& a)
+bool RenderObject(core::Image& image,const core::Annotation& a,bool nativeText)
 {
-    using core::Tool; if(image.Empty()) return false;if(a.hidden)return true;
+    using core::Tool; if(image.Empty()) return false;if(a.hidden)return true;if(core::IsFlowNode(a))return RenderFlowNode(image,a);
     if(a.tool==Tool::Crop) { auto crop=image.Crop(a.rect); if(crop.Empty()) return false; image=std::move(crop); return true; }
     if(a.effectBrush)return RenderEffectBrush(image,a);
     if(a.tool==Tool::Mosaic) { if(a.mosaicMode)core::PrivacyMosaic(image,a);else image.Pixelate(a.rect,core::MosaicBlockSize(a)); return true; }
@@ -94,7 +96,7 @@ bool RenderObject(core::Image& image,const core::Annotation& a)
         if(a.alignment>=3)format.SetLineAlignment(StringAlignmentCenter);
         if(a.tool==Tool::Step) { format.SetAlignment(StringAlignmentCenter); format.SetLineAlignment(StringAlignmentCenter); }
         if(a.textBackground && a.tool==Tool::Text) { SolidBrush bg(Ink(a.background)); g.FillRectangle(&bg,r); }
-        if(a.tool==Tool::Text&&(!a.textRuns.empty()||a.textPadding||a.textLineSpacing!=100||a.textAutoHeight)){auto formatted=RenderRichText(a);Bitmap rendered(formatted.width,formatted.height,formatted.width*4,PixelFormat32bppARGB,formatted.pixels.data());if(a.textOutline){const int radius=std::clamp(a.width/2,1,16);core::Image outline=formatted;for(size_t i=0;i<outline.pixels.size();i+=4){outline.pixels[i]=GetBValue(a.outline);outline.pixels[i+1]=GetGValue(a.outline);outline.pixels[i+2]=GetRValue(a.outline);}Bitmap border(outline.width,outline.height,outline.width*4,PixelFormat32bppARGB,outline.pixels.data());for(int y=-radius;y<=radius;++y)for(int x=-radius;x<=radius;++x)if(x*x+y*y<=radius*radius)g.DrawImage(&border,r.X+x,r.Y+y);}g.DrawImage(&rendered,r.X,r.Y);return g.GetLastStatus()==Ok;}
+        if(a.tool==Tool::Text&&(nativeText||!a.textRuns.empty()||a.textPadding||a.textLineSpacing!=100||a.textAutoHeight)){auto formatted=RenderRichText(a);Bitmap rendered(formatted.width,formatted.height,formatted.width*4,PixelFormat32bppARGB,formatted.pixels.data());if(a.textOutline){const int radius=std::clamp(a.width/2,1,16);core::Image outline=formatted;for(size_t i=0;i<outline.pixels.size();i+=4){outline.pixels[i]=GetBValue(a.outline);outline.pixels[i+1]=GetGValue(a.outline);outline.pixels[i+2]=GetRValue(a.outline);}Bitmap border(outline.width,outline.height,outline.width*4,PixelFormat32bppARGB,outline.pixels.data());for(int y=-radius;y<=radius;++y)for(int x=-radius;x<=radius;++x)if(x*x+y*y<=radius*radius)g.DrawImage(&border,r.X+x,r.Y+y);}g.DrawImage(&rendered,r.X,r.Y);return g.GetLastStatus()==Ok;}
         GraphicsPath path; path.AddString(text,text.GetLength(),chosen,style,static_cast<REAL>(a.fontSize),r,&format);
         if(a.textOutline) { Pen outline(Ink(a.outline),static_cast<REAL>(std::max(1,a.width))); outline.SetLineJoin(LineJoinRound); g.DrawPath(&outline,&path); }
         SolidBrush fg(a.tool==Tool::Step?Color(255,255,255,255):Ink(a.color,a.alpha)); g.FillPath(&fg,&path);
@@ -107,7 +109,7 @@ bool RenderObject(core::Image& image,const core::Annotation& a)
             for(int i=static_cast<int>(a.points.size())-2;i>=0&&end.x==begin.x&&end.y==begin.y;--i)begin=a.points[i];
             const double length=a.headSize?a.headSize:std::max(14,a.width*5);ArrowHead(g,pen,brush,end,begin,a.endHead,length);auto first=a.points[1];for(size_t i=1;i<a.points.size()&&first.x==a.points.front().x&&first.y==a.points.front().y;++i)first=a.points[i];ArrowHead(g,pen,brush,a.points.front(),first,a.startHead,length); }
     }
-    return g.GetLastStatus()==Ok;
+    const bool ok=g.GetLastStatus()==Ok;if(ok&&a.connectorLabel&&!a.text.IsEmpty()){g.Flush();return RenderObject(image,core::FlowTextObject(a),true);}return ok;
 }
 bool RenderDocument(const core::DocumentState& doc,core::Image& image,CString& error)
 {

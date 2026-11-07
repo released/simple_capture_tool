@@ -10,7 +10,7 @@ public:
     using Audit=std::function<void(ImageSaveDialog&)>;
     inline static thread_local Audit audit;
 private:
-    friend class SaveDirectoryAccess;
+    friend class ReviewRefinementsAccess;friend class SaveDirectoryAccess;
     friend class ReviewOptimizationAccess;
     inline static thread_local std::function<INT_PTR(ImageSaveDialog&)> choiceAudit_;
     inline static thread_local ImageSaveDialog* auditing_=nullptr;

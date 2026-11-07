@@ -1,26 +1,22 @@
 #include "pch.h"
 #include "RichTextService.h"
+#include "../core/NativeTextLayout.h"
+#include "../core/FlowDiagram.h"
 #include "../core/AnnotationExtensions.h"
 #include <richole.h>
 #include <tom.h>
 using Microsoft::WRL::ComPtr;
 namespace sct::services {
 namespace {
-core::TextRun Default(const core::Annotation& a){core::TextRun r;r.font=a.font;r.size=a.fontSize;r.color=a.color;r.bold=a.bold;r.italic=a.italic;r.underline=a.underline;return r;}
+core::TextRun Default(const core::Annotation& a){core::TextRun r;r.font=a.font;r.size=a.fontSize;r.color=core::HasFlowText(a)?a.outline:a.color;r.bold=a.bold;r.italic=a.italic;r.underline=a.underline;return r;}
 bool Same(const core::TextRun& a,const core::TextRun& b){return a.font==b.font&&a.size==b.size&&a.color==b.color&&a.bold==b.bold&&a.italic==b.italic&&a.underline==b.underline;}
 int NativeIndex(const CString& text,int end){int n=0;for(int i=0;i<end;++i){if(text[i]==L'\r'&&i+1<end&&text[i+1]==L'\n')++i;++n;}return n;}
 struct Window {HWND hwnd=nullptr;~Window(){if(hwnd){SendMessage(hwnd,EM_FORMATRANGE,0,0);DestroyWindow(hwnd);}}};
 struct Surface {HDC dc=nullptr;HBITMAP bitmap=nullptr;HGDIOBJ old=nullptr;void* pixels=nullptr;~Surface(){if(old)SelectObject(dc,old);if(bitmap)DeleteObject(bitmap);if(dc)DeleteDC(dc);}void Create(int w,int h){dc=CreateCompatibleDC(nullptr);BITMAPINFO b{};b.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);b.bmiHeader.biWidth=w;b.bmiHeader.biHeight=-h;b.bmiHeader.biPlanes=1;b.bmiHeader.biBitCount=32;bitmap=CreateDIBSection(dc,&b,DIB_RGB_COLORS,&pixels,nullptr,0);if(!dc||!bitmap)throw std::runtime_error("Cannot allocate rich text surface");old=SelectObject(dc,bitmap);}};
 }
-bool EnsureRichText(){static const HMODULE module=LoadLibraryExW(L"Msftedit.dll",nullptr,LOAD_LIBRARY_SEARCH_SYSTEM32);return module!=nullptr;}
-CHARFORMAT2W RichTextFormat(const core::TextRun& run,double scale,int dpi){CHARFORMAT2W format{};format.cbSize=sizeof(format);format.dwMask=CFM_FACE|CFM_SIZE|CFM_COLOR|CFM_BOLD|CFM_ITALIC|CFM_UNDERLINE|CFM_CHARSET;format.yHeight=std::max<LONG>(1,static_cast<LONG>(std::lround(run.size*scale*1440/std::max(1,dpi))));format.crTextColor=run.color;format.dwEffects=(run.bold?CFE_BOLD:0)|(run.italic?CFE_ITALIC:0)|(run.underline?CFE_UNDERLINE:0);format.bCharSet=DEFAULT_CHARSET;wcsncpy_s(format.szFaceName,run.font,_TRUNCATE);return format;}
-void SetRichText(HWND window,const core::Annotation& a,double scale,bool setText,int dpi){
-    if(!IsWindow(window)||!std::isfinite(scale)||scale<=0)throw std::runtime_error("Invalid rich text control");if(!dpi)dpi=static_cast<int>(GetDpiForWindow(window));CHARRANGE saved{};SendMessage(window,EM_EXGETSEL,0,reinterpret_cast<LPARAM>(&saved));SendMessage(window,WM_SETREDRAW,FALSE,0);
-    if(setText)SetWindowText(window,a.text);SendMessage(window,EM_AUTOURLDETECT,FALSE,0);SendMessage(window,EM_EXLIMITTEXT,0,65536);auto format=RichTextFormat(Default(a),scale,dpi);SendMessage(window,EM_SETCHARFORMAT,SCF_ALL,reinterpret_cast<LPARAM>(&format));
-    PARAFORMAT2 paragraph{};paragraph.cbSize=sizeof(paragraph);paragraph.dwMask=PFM_ALIGNMENT|PFM_LINESPACING;paragraph.bLineSpacingRule=a.textLineSpacing==100?0:5;paragraph.dyLineSpacing=MulDiv(20,a.textLineSpacing,100);paragraph.wAlignment=a.alignment%3==1?PFA_CENTER:a.alignment%3==2?PFA_RIGHT:PFA_LEFT;CHARRANGE all{0,-1};SendMessage(window,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&all));SendMessage(window,EM_SETPARAFORMAT,0,reinterpret_cast<LPARAM>(&paragraph));
-    for(const auto& run:a.textRuns){CHARRANGE range{NativeIndex(a.text,run.start),NativeIndex(a.text,run.start+run.length)};SendMessage(window,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&range));format=RichTextFormat(run,scale,dpi);SendMessage(window,EM_SETCHARFORMAT,SCF_SELECTION,reinterpret_cast<LPARAM>(&format));}
-    SendMessage(window,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&saved));SendMessage(window,WM_SETREDRAW,TRUE,0);
-}
+bool EnsureRichText(){return core::EnsureNativeText();}
+CHARFORMAT2W RichTextFormat(const core::TextRun& run,double scale,int dpi){return core::NativeTextFormat(run,scale,dpi);}
+void SetRichText(HWND window,const core::Annotation& a,double scale,bool setText,int dpi){core::ConfigureNativeText(window,a,scale,setText,dpi);}
 bool GetRichText(HWND window,core::Annotation& annotation,double scale,int dpi){
     if(!IsWindow(window)||!std::isfinite(scale)||scale<=0)return false;ComPtr<IRichEditOle> ole;ComPtr<ITextDocument> document;if(!SendMessage(window,EM_GETOLEINTERFACE,0,reinterpret_cast<LPARAM>(ole.GetAddressOf()))||FAILED(ole.As(&document)))return false;
     ComPtr<ITextRange> range;if(FAILED(document->Range(0,0,&range)))return false;long count=0;if(FAILED(range->GetStoryLength(&count))||count<1||count>65537||FAILED(range->SetRange(0,count-1)))return false;BSTR value=nullptr;if(FAILED(range->GetText(&value)))return false;CString text(value?value:L"",value?static_cast<int>(SysStringLen(value)):0);SysFreeString(value);if(text.Find(wchar_t(0xFFFC))>=0)return false;

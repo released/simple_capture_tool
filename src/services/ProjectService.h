@@ -1,5 +1,6 @@
 #pragma once
 #include "../core/Document.h"
+#include "ProjectFormat.h"
 namespace sct::services {
 bool SaveProject(const core::DocumentState& state,const CString& path,CString& error);
 bool LoadProject(const CString& path,core::DocumentState& state,CString& error);

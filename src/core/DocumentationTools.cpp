@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "FlowDiagram.h"
 #include "DocumentationTools.h"
 namespace sct::core {
 std::array<POINT,3> CalloutTail(const Annotation& a){
@@ -11,7 +12,7 @@ std::array<POINT,3> CalloutTail(const Annotation& a){
     if(vertical){const LONG x=p.x<cx?r.left:r.right;const double y=std::clamp(double(p.y),r.top+half,r.bottom-half);return {{{x,LONG(std::lround(y-half))},p,{x,LONG(std::lround(y+half))}}};}
     const LONG y=p.y<cy?r.top:r.bottom;const double x=std::clamp(double(p.x),r.left+half,r.right-half);return {{{LONG(std::lround(x-half)),y},p,{LONG(std::lround(x+half)),y}}};
 }
-RECT CalloutInkBounds(const Annotation& a){auto r=a.rect;if(a.tool==Tool::Callout){const auto t=CalloutTail(a);for(auto p:t){r.left=std::min(r.left,p.x);r.top=std::min(r.top,p.y);r.right=std::max(r.right,p.x+1);r.bottom=std::max(r.bottom,p.y+1);}}return r;}
+RECT CalloutInkBounds(const Annotation& a){auto r=a.rect;if(a.connectorLabel){const auto text=FlowTextBounds(a);r.left=std::min(r.left,text.left);r.top=std::min(r.top,text.top);r.right=std::max(r.right,text.right);r.bottom=std::max(r.bottom,text.bottom);}if(a.tool==Tool::Callout){const auto t=CalloutTail(a);for(auto p:t){r.left=std::min(r.left,p.x);r.top=std::min(r.top,p.y);r.right=std::max(r.right,p.x+1);r.bottom=std::max(r.bottom,p.y+1);}}return r;}
 bool HitCalloutTail(const Annotation& a,POINT p,double tolerance){const auto t=CalloutTail(a);auto cross=[](POINT x,POINT y,POINT q){return (double(y.x)-x.x)*(q.y-x.y)-(double(y.y)-x.y)*(q.x-x.x);};const double first=cross(t[0],t[1],p),second=cross(t[1],t[2],p),third=cross(t[2],t[0],p),area=cross(t[0],t[1],t[2]);if(area&&((first>=0&&second>=0&&third>=0)||(first<=0&&second<=0&&third<=0)))return true;for(size_t i=0;i<3;++i){const auto x=t[i],y=t[(i+1)%3];const double dx=double(y.x)-x.x,dy=double(y.y)-x.y,length=dx*dx+dy*dy,s=length?std::clamp(((p.x-x.x)*dx+(p.y-x.y)*dy)/length,0.,1.):0.;if(std::hypot(p.x-x.x-s*dx,p.y-x.y-s*dy)<=tolerance)return true;}return false;}
 void MultiplyHighlight(Image& image,const Annotation& a){
     if(a.opacity<0||a.opacity>255||a.color>0xFFFFFF)throw std::runtime_error("Invalid highlight blend");if(!a.opacity)return;CRect r;if(!r.IntersectRect(&a.rect,CRect(0,0,image.width,image.height)))return;

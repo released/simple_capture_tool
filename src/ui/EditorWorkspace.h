@@ -28,7 +28,7 @@ protected:
     void PostNcDestroy()override{if(owned_)delete this;}
     BOOL PreTranslateMessage(MSG*)override;DECLARE_MESSAGE_MAP()
 private:
-    friend class ReviewOptimizationAccess;
+    friend class ReviewRefinementsAccess;friend class ReviewOptimizationAccess;
     struct OutputSnapshot {std::vector<core::DocumentState> states;std::vector<CString> labels;std::vector<EditorFrame*> pages;std::vector<HWND> windows;std::vector<uint64_t> revisions;};
     bool SnapshotOutput(OutputSnapshot&,CString&,size_t metadataLimit=64ULL*1024*1024)const;bool OutputCurrent(const OutputSnapshot&)const;
     void QueueRefresh(bool resources=true);bool refreshQueued_=false,refreshResources_=false;size_t refreshCount_=0,resourceCount_=0;

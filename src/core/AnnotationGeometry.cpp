@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "FlowDiagram.h"
 #include "AnnotationGeometry.h"
 #include "AnnotationTools.h"
 #include "DocumentationTools.h"
@@ -29,7 +30,9 @@ void SetArrowNode(Annotation& a,size_t node,POINT p){auto points=ArrowNodes(a);i
 void StartCurvedArrow(Annotation& a,POINT tail,POINT head){const LONG dx=head.x-tail.x,dy=head.y-tail.y;a.points={tail,{tail.x+dx/3,tail.y+dy/3},{tail.x+dx*2/3,tail.y+dy*2/3},head};BoundPoints(a);}
 void StartElbowArrow(Annotation& a,POINT tail,POINT head){if(a.elbowBends==1)a.points={tail,a.elbowVertical?POINT{tail.x,head.y}:POINT{head.x,tail.y},head};else{const LONG mid=a.elbowVertical?(tail.y+head.y)/2:(tail.x+head.x)/2;a.points=a.elbowVertical?std::vector<POINT>{tail,{tail.x,mid},{head.x,mid},head}:std::vector<POINT>{tail,{mid,tail.y},{mid,head.y},head};}BoundPoints(a);}
 bool HitAnnotation(const Annotation& a,POINT p,int tolerance,bool direct){
-    RECT bounds=CalloutInkBounds(a);const int margin=tolerance+(IsArrow(a.tool)?std::max(14,a.headSize?a.headSize:a.width*5):a.width);InflateRect(&bounds,margin,margin);if(!PtInRect(&bounds,p))return false;
+    if(a.connectorLabel&&FlowLabelEnvelope(a).PtInRect(p)&&FlowTextBounds(a).PtInRect(p))return true;
+    if(IsFlowNode(a))return FlowContains(a,p,tolerance+a.width/2);
+    RECT bounds=a.connectorLabel?a.rect:CalloutInkBounds(a);const int margin=tolerance+(IsArrow(a.tool)?std::max(14,a.headSize?a.headSize:a.width*5):a.width);InflateRect(&bounds,margin,margin);if(!PtInRect(&bounds,p))return false;
     if(a.tool==Tool::Picture&&a.pictureMask&&!PictureContains(a,p))return false;const double hit=tolerance+a.width/2.;const auto nodes=ArrowNodes(a);
     if(IsArrow(a.tool)&&!nodes.empty()){
         const auto end=nodes.back();const double length=a.headSize?a.headSize:std::max(14,a.width*5);for(int side=0;side<2;++side){const int kind=side?a.endHead:a.startHead;if(!kind)continue;const auto tip=side?nodes.back():nodes.front();auto inner=side?nodes[nodes.size()-2]:nodes[1];const double angle=atan2(double(tip.y-inner.y),double(tip.x-inner.x));if(kind==3){if(std::hypot(double(p.x-tip.x),double(p.y-tip.y))<=length/2+hit)return true;}else if(kind==4){POINT x{tip.x+static_cast<LONG>(length/2*cos(angle+1.57079632679)),tip.y+static_cast<LONG>(length/2*sin(angle+1.57079632679))},y{tip.x-static_cast<LONG>(length/2*cos(angle+1.57079632679)),tip.y-static_cast<LONG>(length/2*sin(angle+1.57079632679))};if(SegmentDistance(p,x,y)<=hit)return true;}else{for(double offset:{-.5,.5}){POINT wing{tip.x-static_cast<LONG>(length*cos(angle+offset)),tip.y-static_cast<LONG>(length*sin(angle+offset))};if(SegmentDistance(p,tip,wing)<=hit+(kind==2?length*.25:0))return true;}}}

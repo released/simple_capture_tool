@@ -2,6 +2,7 @@
 #include "ObjectComposition.h"
 #include "AnnotationExtensions.h"
 #include "AnnotationTools.h"
+#include "FlowDiagram.h"
 #include <set>
 #include <map>
 namespace sct::core::composition {
@@ -28,7 +29,7 @@ DocumentState Transform(const DocumentState& state,const Indices& input,RECT des
     if(scale&&(sx<=0||sy<=0))throw std::runtime_error("Invalid group size");
     for(int i:ids){auto& a=result.objects[i];if(!scale){Translate(a,destination.left-box.left,destination.top-box.top);continue;}
         auto x=[&](LONG value){return Coordinate(destination.left+(static_cast<double>(value)-box.left)*sx);};auto y=[&](LONG value){return Coordinate(destination.top+(static_cast<double>(value)-box.top)*sy);};
-        if(a.tool==Tool::Callout&&a.anchored)a.focus={x(a.focus.x),y(a.focus.y)};for(auto& p:a.points)p={x(p.x),y(p.y)};a.rect={x(a.rect.left),y(a.rect.top),x(a.rect.right),y(a.rect.bottom)};const double factor=std::sqrt(sx*sy);a.fontSize=static_cast<int>(std::lround(std::clamp(a.fontSize*factor,6.,512.)));a.width=static_cast<int>(std::lround(std::clamp(a.width*factor,1.,128.)));for(auto& run:a.textRuns)run.size=static_cast<int>(std::lround(std::clamp(run.size*factor,6.,512.)));
+        if(a.tool==Tool::Callout&&a.anchored)a.focus={x(a.focus.x),y(a.focus.y)};for(auto& p:a.points)p={x(p.x),y(p.y)};a.rect={x(a.rect.left),y(a.rect.top),x(a.rect.right),y(a.rect.bottom)};const double factor=std::sqrt(sx*sy);if(!IsFlowNode(a)||ids.size()>1)a.fontSize=static_cast<int>(std::lround(std::clamp(a.fontSize*factor,6.,512.)));a.width=static_cast<int>(std::lround(std::clamp(a.width*factor,1.,128.)));if(!IsFlowNode(a)||ids.size()>1)for(auto& run:a.textRuns)run.size=static_cast<int>(std::lround(std::clamp(run.size*factor,6.,512.)));
     }return result;
 }
 DocumentState Recolor(const DocumentState& state,const Indices& input,COLORREF color){RequireEditable(state,input);auto result=state;for(int i:Expand(state,input)){result.objects[i].color=color;for(auto& run:result.objects[i].textRuns)run.color=color;}return result;}

@@ -3,6 +3,7 @@
 #include "FormDialog.h"
 #include "JpegDialog.h"
 #include "ImageSaveDialog.h"
+#include "EditorModalFence.h"
 #include "../services/ConfigService.h"
 #include "../services/CaptureService.h"
 #include "../services/ClipboardService.h"
@@ -18,11 +19,13 @@ void EditorFrame::ShowMore()
 }
 void EditorFrame::OnAction(UINT id)
 {
+    const HWND commandOwner=m_hWnd;
     if((id==Copy||id==Cut)&&!copyTicket_)SetCopyNotice(CopyNotice::Blocked);
     if(CommandMenuFlags(id)&MF_GRAYED){status_.SetWindowText(Tr(job_.Busy()?Text::Busy:Text::CommandUnavailable));return;}
     const bool viewportCommand=id>=ZoomFit&&id<=ToggleFullScreen;
     if(!viewportCommand&&id!=ChooseDocument)status_.ClearOperation();
     if(id>=BringToFront&&id<=ExportSelectedSvg&&(maskGesture_||maskPending_||dragging_||panning_||sidebar_.Dragging()||!IsWindowEnabled()||!::IsWindowEnabled(::GetAncestor(m_hWnd,GA_ROOT)))){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(flowGesture_||flowPaletteDrag_){status_.SetWindowText(Tr(Text::Busy));return;}
     if(sweepGesture_){status_.SetWindowText(Tr(Text::Busy));return;}
     if(pathDrawing_&&id!=CloseDocument&&id!=CloseAllDocuments){status_.SetWindowText(Tr(Text::PathHelp));return;}
     if(clonePending_||screenColorModal_||objectGesture_||cropGesture_||maskGesture_){status_.SetWindowText(Tr(Text::Busy));return;}
@@ -35,6 +38,7 @@ void EditorFrame::OnAction(UINT id)
     if(id>=RunFont&&id<=RunClear){FormatTextRun(id);return;}
     renderSuspended_=false;
     if(!FinishText(true))return;
+    if(id>=FlowPanelToggle&&id<=FlowShapeLast){try{FlowCommand(id);}catch(const std::exception& e){CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());status_.SetWindowText(error);}return;}
     if(id==CancelCropSelection){CropCommand(id);return;}
     if(id==More){ShowMore();return;}
     if(id==SelectAllPixels||id==DeselectPixels){ClipboardCommand(id);return;}
@@ -80,17 +84,20 @@ void EditorFrame::OnAction(UINT id)
         if(id==InsertImage||id==InsertImageFit){CFileDialog dlg(TRUE,L"png",nullptr,OFN_FILEMUSTEXIST,ImageOpenFilter(),this);const HWND host=m_hWnd;if(dlg.DoModal()==IDOK&&::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)InsertFile(dlg.GetPathName(),id==InsertImageFit);return;}
         if(id==JpegQuality){if(rendered_!=revision_){QueueAction(id);RequestRender();return;}int quality=JpegPreview();if(quality>=0)jpegQuality_=quality;return;}
         if(id>=ResizeImage&&id<=RemoveStrip)Transform(id);
-    }catch(const std::exception& e){if(id==Copy||id==Cut)CompleteClipboardCopy(false);CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());AfxMessageBox(error);}
+    }catch(const std::exception& e){if(!::IsWindow(commandOwner)||CWnd::FromHandlePermanent(commandOwner)!=this)return;if(id==Copy||id==Cut)CompleteClipboardCopy(false);CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());AfxMessageBox(error);}
 }
 void EditorFrame::Export(bool project)
 {
-    if(project&&std::any_of(document_.State().objects.begin(),document_.State().objects.end(),[](const auto& a){return a.tool==core::Tool::Redact||a.tool==core::Tool::Blur||a.tool==core::Tool::Mosaic;})&&MessageBox(Tr(Text::ProjectPrivacy),Tr(Text::SaveProject),MB_OKCANCEL|MB_ICONWARNING)!=IDOK)return;
+    const EditorModalFence fence(*this,revision_);const auto confirmAudit=exportConfirmAudit_;const auto crop=cropRegion_;const auto cropVersion=cropGeneration_;auto current=[&]{return fence.Live()&&!closing_&&revision_==fence.revision&&cropRegion_==crop&&cropGeneration_==cropVersion&&!textEditing_&&!(width_.GetSafeHwnd()&&width_.GetModify()&&selected_>=0)&&FlowReady()&&!job_.Busy();};
+    if(project&&std::any_of(document_.State().objects.begin(),document_.State().objects.end(),[](const auto& a){return a.tool==core::Tool::Redact||a.tool==core::Tool::Blur||a.tool==core::Tool::Mosaic;})&&(confirmAudit?confirmAudit(Text::ProjectPrivacy):MessageBox(Tr(Text::ProjectPrivacy),Tr(Text::SaveProject),MB_OKCANCEL|MB_ICONWARNING))!=IDOK)return;
+    if(!current())return;
     // Every save needs a fresh explicit filename, including previously saved documents.
-    services::Settings settings;CString error;if(!services::ConfigService().Load(settings,error))AfxMessageBox(error);
+    services::Settings settings;CString error;if(!services::ConfigService().Load(settings,error)){AfxMessageBox(error);return;}
     DWORD index=settings.format==L"png"?2:settings.format==L"bmp"?3:1;const wchar_t* extensions[]={L".jpg",L".png",L".bmp",L".gif",L".pdf"};
-    ImageSaveDialog dlg(this,project,index);if(dlg.Run()!=IDOK)return;CString path=dlg.GetPathName();index=std::clamp<DWORD>(dlg.GetOFN().nFilterIndex,1,5);
+    ImageSaveDialog dlg(this,project,index);const auto choice=dlg.Run();if(!current()||choice!=IDOK)return;CString path=dlg.GetPathName();index=std::clamp<DWORD>(dlg.GetOFN().nFilterIndex,1,5);
     CString canonical=std::filesystem::path(path.GetString()).replace_extension(project?L".sctproj":extensions[index-1]).c_str();
-    if(canonical.CompareNoCase(path)!=0&&PathFileExists(canonical)&&MessageBox(canonical,Tr(Text::Save),MB_OKCANCEL|MB_ICONQUESTION)!=IDOK)return;path=canonical;
+    if(canonical.CompareNoCase(path)!=0&&PathFileExists(canonical)&&(confirmAudit?confirmAudit(Text::Save):MessageBox(canonical,Tr(Text::Save),MB_OKCANCEL|MB_ICONQUESTION))!=IDOK)return;path=canonical;
+    if(!current())return;
     int quality=jpegQuality_?jpegQuality_:settings.jpegQuality;
     const auto state=document_.State();const auto revision=revision_;activeAction_=project?WorkProjectSave:WorkImageSave;StartWork([state,path,project,quality,revision]{WorkResult r;r.action=project?WorkProjectSave:WorkImageSave;r.path=path;r.revision=revision;
         if(project)services::SaveProject(state,path,r.error);else if(services::RenderDocument(state,r.image,r.error))services::CaptureService::Save(r.image,path,r.error,quality);return r;});status_.SetWindowText(Tr(Text::Busy));
