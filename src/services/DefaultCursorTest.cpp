@@ -11,7 +11,7 @@ std::vector<UINT> Primaries(const sct::services::Settings& settings){std::vector
 void WriteFixture(const std::filesystem::path& file,const char* value){std::ofstream output(file,std::ios::binary);output<<value;if(!output)throw std::runtime_error("Cannot write default fixture");}
 void Defaults(Check check,const std::filesystem::path& dir){
     using namespace sct;using namespace ui;services::Settings defaults,loaded;CString error;
-    const UINT tool=EditorToolFirst;const std::vector<UINT> expected={NewDocument,SaveAs,Undo,tool+7,tool+3,tool+16,tool+6,tool+9,tool+4,Color,tool+8,FlowPanelToggle,PrintImage,CloseDocument,Copy,Properties,tool+5,tool+13,tool+20,tool+22,ResizeImage,Rotate90,Combine,Effects,ZoomFit,ShowThumbnails};
+    const UINT tool=EditorToolFirst;const std::vector<UINT> expected={NewDocument,Save,Undo,tool+7,tool+3,tool+16,tool+6,tool+9,tool+4,Color,tool+8,FlowPanelToggle,PrintImage,CloseDocument,Copy,Properties,tool+5,tool+13,tool+20,tool+22,ResizeImage,Rotate90,Combine,Effects,ZoomFit,ShowThumbnails};
     check(defaults.editorHomeConfigured&&Primaries(defaults)==expected,"captured INI Home defaults preserve all26 real families and their exact current order without fixed More");
     check(defaults.hotkeys[0].key=='1'&&defaults.hotkeys[1].key=='X'&&defaults.hotkeys[1].modifiers==(MOD_CONTROL|MOD_SHIFT)&&defaults.hotkeys[6].key=='7'&&!defaults.hotkeys[7].key&&!defaults.hotkeys[12].key,"captured shortcut defaults include Ctrl+Shift+X and preserve all other enabled/disabled slots");
     const RECT expectedRegion{593,445,760,572};check(EqualRect(&defaults.lastRegion,&expectedRegion)!=FALSE,"captured last-region coordinates match the current INI baseline");

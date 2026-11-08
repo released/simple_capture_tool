@@ -1,4 +1,4 @@
-param(
+﻿param(
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Both',
     [ValidateSet('ImageHome','ReviewRefinements','RichSyncBaseline','FlowDiagram','ClipboardFeedback','ReviewOptimization','SaveDirectory','CaptureMagnifier','Canvas','SelectionToolbar','RibbonClarity','MaskEditing','SelectionTools','ColorFilters','EditorTransitions','EditableLayout','EditorRefinements','AssetSelection','DocumentationTools','AdvancedEditing','Productivity','Composition','ToolStyles','EditorMenus','ImagePrecision','PictureCrop','TextRuns','ObjectAlignment','DefaultCursor','Freehand','WorkspaceTools','CanvasFrame','TextViewport','ObjectPayload','PasteOriginal','EditorPerformance','CropWorkflow','PolygonShapes','ImageReuse','OpenParity','CaptureLatency','Startup')][string[]]$Scope=@('Productivity'),
     [switch]$SkipBuild,
@@ -10,7 +10,7 @@ $token=[Guid]::NewGuid().ToString('N')
 $hubRun=$null
 if($ArtifactLifecycle){. $ArtifactLifecycle;$hubRun=New-HubTestRun -ProjectRoot $project -Purpose 'Scoped native capture-editor fixtures; copied binary and own synthetic output' -MaxBytes 536870912}
 $owned=if($hubRun){$hubRun.Work}else{[IO.Path]::Combine($project,'artifacts','verify051',$token.Substring(0,12))}
-$auditRoot=Join-Path $project 'artifacts\audits\save-original-071'
+$auditRoot=Join-Path $project 'artifacts\audits\flow-snap-072'
 $audit=Join-Path $auditRoot ("verification-$token.json")
 $results=New-Object 'System.Collections.Generic.List[object]'
 $generated=0L;$removed=0L;$active=$null;$batchPassed=$false
@@ -134,7 +134,7 @@ try{
                 [pscustomobject]@{Path=$destination;SHA256=(Get-FileHash -LiteralPath $destination).Hash;Bytes=(Get-Item -LiteralPath $destination).Length;SourceRun=$owned;Purpose='Own hidden native CStatic clipboard notification; synthetic pixels only'} | ConvertTo-Json | Set-Content -LiteralPath $receipt -Encoding UTF8
             }
             if($name -eq 'FlowDiagram' -and $config -eq 'Release' -and $code -eq 0 -and ($lines -match '^TOTAL \d+ FAIL 0$')){
-                foreach($imageName in 'flow-symbols.png','flow-palette.png'){
+                foreach($imageName in 'flow-symbols.png','flow-palette.png','flow-snap.png'){
                     $preview=Join-Path (Split-Path -Parent $log) $imageName;Assert-Local $preview $owned | Out-Null
                     if(-not(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1048576){throw 'Missing/over-limit own flow preview'}
                     $destination=Join-Path $auditRoot $imageName;$receipt=$destination+'.json';Assert-Local $destination $auditRoot | Out-Null

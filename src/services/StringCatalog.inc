@@ -814,3 +814,4 @@ SCT_TEXT(CutSourcePreserved, L"剪下未完成，原始內容已保留。", L"Cu
 SCT_TEXT(FlowSelectionHelp, L"文字：單一未鎖定節點或連線。排列：2–64 個未鎖定、未群組的流程節點。", L"Text: one unlocked node or connector. Layout: 2–64 unlocked, ungrouped flow nodes.")
 
 SCT_TEXT(CanvasEdgesHelp, L"拖曳四邊或四角藍色拉點裁切／擴充畫布，不縮放內容；放開套用，Ctrl+Z 復原，Esc 取消。", L"Drag any blue edge/corner grip to crop or grow canvas without scaling. Release applies; Ctrl+Z undoes; Esc cancels.")
+SCT_TEXT(FlowSnapHelp, L"箭頭／線條端點會吸附最近的流程圖節點連接點；按住 Alt 暫停吸附，Esc 取消。", L"Arrow/line endpoints snap to the nearest flow-node port; hold Alt to suspend snapping, Esc to cancel.")

@@ -16,6 +16,7 @@ Annotation FlowTextObject(const Annotation&);
 Annotation MakeFlowNode(int kind,RECT bounds,int preset=0);
 void ApplyFlowPreset(Annotation&,int);
 void RouteFlowConnector(Annotation&,POINT,POINT);
+DocumentState AddFlowConnector(const DocumentState&,Annotation,int source,int target,int sourceAnchor,int targetAnchor);
 DocumentState ConnectFlow(const DocumentState&,int source,int target,POINT end,int sourceAnchor,int targetAnchor,bool elbow,bool arrowHead=true);
 DocumentState ReconnectFlow(const DocumentState&,int connector,bool start,int target,POINT end,int anchor);
 DocumentState ExtendFlow(const DocumentState&,int source,int direction,int kind,int preset,bool elbow,int& created,bool arrowHead=true);

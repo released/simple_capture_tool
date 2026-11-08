@@ -67,10 +67,12 @@ private:
     friend class ReviewRefinementsAccess;std::function<INT_PTR(CPrintDialog&)> printDialogAudit_;std::function<bool(CString&)> printOutputAudit_;std::function<int(Text)> exportConfirmAudit_;
     friend class FlowDiagramAccess;friend class FlowShapeButton;friend class FlowPanel;
     bool FlowReady()const;void FlowCommand(UINT);void BeginFlowPlacement(int,CPoint);void PlaceFlowNode(CPoint);
-    bool FlowDown(CPoint);bool FlowMove(CPoint);bool FlowUp(CPoint);void CancelFlow(bool placement=true);void PaintFlow(CDC&);
+    bool FlowDown(CPoint,UINT flags=0);bool FlowMove(CPoint);bool FlowUp(CPoint);void CancelFlow(bool placement=true);void PaintFlow(CDC&);
     int FlowTarget(CPoint,int excluded=-1)const;int FlowPort(int,CPoint)const;CPoint FlowPortPoint(int,int)const;
+    int NearestFlowPort(CPoint,int&,int excluded=-1)const;int FlowSnapTarget(CPoint,int&,int excluded,bool nodesOnly)const;
+    core::Annotation FlowPreview(CPoint,int&,int&)const;
     FlowPanel flowPanel_;int flowKind_=1,flowPreset_=0,flowPlacement_=0,flowHover_=-1,flowSource_=-1,flowAnchor_=1,flowEditingArrow_=-1;
-    bool flowElbow_=true,flowArrow_=true,flowGesture_=false,flowPaletteDrag_=false,flowMoved_=false,flowStartEndpoint_=false;
+    bool flowElbow_=true,flowArrow_=true,flowGesture_=false,flowPaletteDrag_=false,flowMoved_=false,flowStartEndpoint_=false,flowDirect_=false;core::Tool flowTool_=core::Tool::Select;
     CPoint flowPress_,flowPoint_;uint64_t flowRevision_=0;core::composition::Indices flowExpected_;
     friend class ClipboardFeedbackAccess;
     enum class CopyNotice {Idle,Pending,Ready,Failed,Blocked,ClipboardChanged,ImageChanged,Partial};

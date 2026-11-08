@@ -34,7 +34,7 @@ void EditorFrame::OnLButtonDown(UINT flags,CPoint p)
     if(finishText){selected_=-1;SyncStyle();Layout();InvalidateRect(canvas_,FALSE);return;}
     if(!canvas_.PtInRect(p)||canvasPending_||(job_.Busy()&&activeAction_!=WorkRender)||pendingAction_==SelectPixels)return;
     if(BeginCanvasResize(p))return;
-    if(FlowDown(p))return;
+    if(FlowDown(p,flags))return;
     if(SweepDown(p))return;
     if(PictureCropDown(p))return;
     if(colorSelectionMode_){ColorSelectionDown(p);return;}

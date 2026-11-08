@@ -80,6 +80,16 @@ void RouteFlowConnector(Annotation& a,POINT start,POINT end){
         else{const LONG mid=a.points.size()==4?(a.elbowVertical?a.points[1].y:a.points[1].x):(a.elbowVertical?start.y+(end.y-start.y)/2:start.x+(end.x-start.x)/2);a.points=a.elbowVertical?std::vector<POINT>{start,{start.x,mid},{end.x,mid},end}:std::vector<POINT>{start,{mid,start.y},{mid,end.y},end};}
     }else throw std::runtime_error("Unsupported attached flow connector");BoundPoints(a);
 }
+DocumentState AddFlowConnector(const DocumentState& input,Annotation a,int source,int target,int sourceAnchor,int targetAnchor){
+    if(source< -1||target< -1||source>=int(input.objects.size())||target>=int(input.objects.size())||source>=0&&source==target||input.objects.size()>=10000||a.points.size()<2||source>=0&&(!Linkable(input.objects[source])||sourceAnchor<2||sourceAnchor>5)||target>=0&&(!Linkable(input.objects[target])||targetAnchor<1||targetAnchor>5))throw std::runtime_error("Invalid flow connection");
+    if(a.tool!=Tool::Arrow&&a.tool!=Tool::ElbowArrow&&a.tool!=Tool::Line)throw std::runtime_error("Unsupported flow connector");
+    if(a.tool==Tool::Line&&a.points.size()!=2&&(source>=0||target>=0))throw std::runtime_error("Attached lines require two endpoints");
+    for(auto p:a.points){Coord(p.x);Coord(p.y);}composition::Indices editable;if(source>=0)editable.push_back(source);if(target>=0)editable.push_back(target);if(!editable.empty())composition::RequireEditable(input,editable);
+    auto state=input;if(source>=0)Identity(state,source);if(target>=0)Identity(state,target);
+    if(a.tool==Tool::Line&&(source>=0||target>=0)){a.tool=Tool::Arrow;a.startHead=a.endHead=0;}
+    a.id=0;a.sourceId=source>=0?state.objects[source].id:0;a.targetId=target>=0?state.objects[target].id:0;a.sourceAnchor=source>=0?sourceAnchor:0;a.targetAnchor=target>=0?targetAnchor:0;
+    state.objects.push_back(std::move(a));RefreshConnections(state);composition::Validate(state);return state;
+}
 DocumentState ConnectFlow(const DocumentState& input,int source,int target,POINT end,int sourceAnchor,int targetAnchor,bool elbow,bool arrowHead){
     if(source<0||source>=int(input.objects.size())||target< -1||target>=int(input.objects.size())||source==target||!Linkable(input.objects[source])||target>=0&&!Linkable(input.objects[target])||input.objects.size()>=10000)throw std::runtime_error("Invalid flow connection");
     composition::RequireEditable(input,target>=0?composition::Indices{source,target}:composition::Indices{source});if(sourceAnchor<1||sourceAnchor>5||targetAnchor<1||targetAnchor>5)throw std::runtime_error("Invalid flow ports");Coord(end.x);Coord(end.y);
