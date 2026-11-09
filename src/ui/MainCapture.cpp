@@ -59,6 +59,7 @@ void MainFrame::HandleCapture(WorkResult& result)
     selecting_=true;const auto selectionMode=mode==Window||mode==Scroll||(mode==ManualScroll||mode==ManualHorizontal)?SelectionMode::Window:mode==Fixed?SelectionMode::Fixed:SelectionMode::Region;
     const auto cursor=result.cursor;SelectionWindow::Begin(this,std::move(result.image),selectionMode,CSize(settings_.fixedWidth,settings_.fixedHeight),[this,mode,cursor](bool ok,SelectionResult selection){selecting_=false;selection.cursor=cursor;
         if(!ok){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}
+        if(selection.fullDesktop){DeliverFrozen(std::move(selection));return;}
         if(mode==Scroll||mode==ManualScroll||mode==ManualHorizontal){HWND window=selection.target.window;QueueCaptureWork([window,mode]{WorkResult r;r.action=3;r.target.window=window;r.target.cursor=mode!=Scroll;r.horizontal=mode==ManualHorizontal;Sleep(150);services::CaptureService::Grab({services::CaptureService::DesktopRect()},r.image,r.error);return r;});}
         else if(mode==Window)StartCapture(selection.target);else DeliverFrozen(std::move(selection));
     },settings_.clientOnly,settings_.childWindow,{settings_.captureMagnifier,settings_.captureGrid,settings_.dimOutside,true});
@@ -99,7 +100,7 @@ void MainFrame::OnTimer(UINT_PTR timer)
     if(r->action==0){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}
     if((r->action>=Full&&r->action<=Scroll)||r->action==CurrentMonitor||r->action==LastRegion||r->action==MenuCapture||r->action==ManualScroll||r->action==ManualHorizontal){HandleCapture(*r);return;}
     if(r->action==3){const HWND window=r->target.window;const bool manual=r->target.cursor,horizontal=r->horizontal;selecting_=true;
-        SelectionWindow::Begin(this,std::move(r->image),SelectionMode::Region,{},[this,window,manual,horizontal](bool ok,SelectionResult selection){selecting_=false;if(!ok){RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}selection.target.window=window;selection.target.cropWindow=true;
+        SelectionWindow::Begin(this,std::move(r->image),SelectionMode::Region,{},[this,window,manual,horizontal](bool ok,SelectionResult selection){selecting_=false;if(!ok){RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}if(selection.fullDesktop){DeliverFrozen(std::move(selection));return;}selection.target.window=window;selection.target.cropWindow=true;
             if(manual){selecting_=true;const RECT region=selection.target.rect;ManualScrollFrame::Open(this,selection.target,[this,region](core::Image image){selecting_=false;if(image.Empty()){RestoreEditors();if(restore_)ShowWindow(SW_SHOW);}else DeliverImage(std::move(image),region);},horizontal);}else StartCapture(selection.target,true);
         },false,false,{settings_.captureMagnifier,settings_.captureGrid,settings_.dimOutside,true});return;}
     CompleteOutput(*r);

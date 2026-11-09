@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "ImageCodec.h"
 #include "AlignmentTest.h"
 #include "NativeTestInput.h"
 #include "LanguageService.h"
@@ -141,6 +142,26 @@ class SelectionToolbarAccess {
         if(mode==SelectionMode::Fixed)check(region.Width()==120&&region.Height()==80,"fixed-region geometry is unchanged by avoidance");
         if(mode==SelectionMode::Window)check(result.target.window==reinterpret_cast<HWND>(UINT_PTR(123)),"window target identity survives toolbar movement");
     }
+    static void FullDesktop(Check check){
+        for(auto mode:{SelectionMode::Region,SelectionMode::Fixed,SelectionMode::Window})for(int shape:{0,1,2,3})for(bool staged:{false,true}){
+            auto* s=Create();const HWND host=s->m_hWnd;WindowGuard guard{host};s->mode_=mode;s->shape_.SetCurSel(shape);s->options_.finishOnRelease=true;s->ratioX_=16;s->ratioY_=9;s->ratio_.SetCurSel(2);s->clientOnly_=s->child_=true;s->selectedWindow_=reinterpret_cast<HWND>(UINT_PTR(123));
+            const auto frozen=s->image_;const auto pixels=frozen->pixels;const CRect desktop=s->desktop_;if(staged){s->selected_={50,300,100,350};s->points_={{50,300},{100,350},{50,350}};core::Region old;old.rect={200,300,250,350};old.shape=core::RegionShape::Ellipse;s->regions_.push_back(old);s->locked_=true;}
+            const auto full=s->GetDlgItem(SelectFull);check(full&&s->buttons_.size()==5&&s->buttons_.back()->GetDlgCtrlID()==SelectFull,"full-screen button follows Clear regions without changing the existing button order");if(!full)throw std::runtime_error("Missing full-screen capture button");CString caption;full->GetWindowText(caption);const auto rect=Rect(*full,*s);check(caption==Tr(Text::CaptureFullDesktop)&&rect.Width()>=TextWidth(*full,caption)&&s->toolbarWork_.PtInRect(rect.TopLeft())&&s->toolbarWork_.PtInRect(rect.BottomRight()-CSize(1,1)),"localized full-screen caption fits its measured native button inside the work area");
+            int calls=0;bool accepted=false,closed=false;SelectionResult result;s->done_=[&](bool ok,SelectionResult r){++calls;accepted=ok;closed=!::IsWindow(host)&&::GetCapture()!=host;result=std::move(r);};
+            s->SendMessage(WM_COMMAND,MAKEWPARAM(SelectFull,BN_SETFOCUS),reinterpret_cast<LPARAM>(full->m_hWnd));check(!calls&&::IsWindow(host),"native focus notification cannot execute full-screen capture");
+            s->escapeKeyAudit_=[] {return false;};check(s->StartEscapeWatch(),"full-screen selection fixture starts its owned Escape timer");if(staged){s->dragging_=true;s->SetCapture();}
+            ::SendMessage(full->m_hWnd,BM_CLICK,0,0);check(calls==1&&accepted&&closed&&result.fullDesktop,"native full-screen click completes exactly once after releasing capture, timer and overlay");
+            check(result.frozen==frozen&&frozen->pixels==pixels&&EqualRect(&result.target.rect,&desktop)&&!result.target.window&&!result.target.cropWindow,"full-screen result retains frozen pixels, signed virtual-desktop bounds and no prior window/client crop");
+            check(result.regions.size()==1&&CRect(result.regions[0].rect)==CRect(0,0,frozen->width,frozen->height)&&result.regions[0].shape==core::RegionShape::Rectangle&&result.regions[0].points.empty(),"full-screen result ignores prior masks, ratios, multiple regions and empty selections");
+            if(accepted&&result.regions.size()==1){RECT bounds{};const auto output=core::ExtractSelection(*frozen,result.regions,bounds);check(output.pixels==pixels&&output.width==frozen->width&&output.height==frozen->height,"full-screen extraction includes every original pixel without dimming, toolbar, help or magnifier overlays");}
+            ::SendMessage(host,WM_TIMER,SelectionWindow::EscapeTimer,0);::SendMessage(host,WM_LBUTTONUP,0,0);::SendMessage(host,WM_COMMAND,SelectFull,0);check(calls==1,"late timer/release/command cannot replay a completed full-screen capture");
+        }
+    }
+    static void FullPreview(Check check,const std::filesystem::path& dir,const wchar_t* name){
+        auto* s=Create();WindowGuard guard{s->m_hWnd};const int w=s->image_->width,h=std::min<int>(s->image_->height,s->ToolbarBounds().bottom+6);CClientDC source(s);CDC dc;CBitmap bitmap;if(!dc.CreateCompatibleDC(&source)||!bitmap.CreateCompatibleBitmap(&source,w,h))throw std::runtime_error("Cannot paint full-screen toolbar fixture");auto* previous=dc.SelectObject(&bitmap);s->PaintFrame(dc);
+        for(CWnd* child=s->GetWindow(GW_CHILD);child;child=child->GetNextWindow()){const auto rect=Rect(*child,*s);const int saved=dc.SaveDC();dc.SetViewportOrg(rect.TopLeft());child->SendMessage(WM_PRINTCLIENT,reinterpret_cast<WPARAM>(dc.m_hDC),PRF_CLIENT|PRF_ERASEBKGND);dc.RestoreDC(saved);}
+        dc.SelectObject(previous);core::Image image;image.Create(w,h);BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=w;info.bmiHeader.biHeight=-h;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;if(GetDIBits(source,bitmap,0,h,image.pixels.data(),&info,DIB_RGB_COLORS)!=h)throw std::runtime_error("Cannot read full-screen toolbar fixture");for(size_t i=3;i<image.pixels.size();i+=4)image.pixels[i]=255;std::vector<BYTE> png;CString error;check(services::EncodeImage(image,L"png",100,png,error)&&png.size()<=1048576&&services::WriteBytes((dir/name).c_str(),png,error),"actual native capture toolbar paints a bounded synthetic preview without desktop capture or invented combo labels");
+    }
     static void Escape(Check check){
         auto timer=[](SelectionWindow* s){s->SendMessage(WM_TIMER,SelectionWindow::EscapeTimer,0);};
         auto key=[](HWND target,UINT message=WM_KEYDOWN,LPARAM flags=0){MSG event{};event.hwnd=target;event.message=message;event.wParam=VK_ESCAPE;event.lParam=flags;return CWnd::WalkPreTranslateTree(nullptr,&event)!=FALSE;};
@@ -200,13 +221,14 @@ class SelectionToolbarAccess {
         }
     }
 public:
-    static void Run(Check check,std::ofstream& log){
+    static void Run(Check check,std::ofstream& log,const std::filesystem::path& dir){
         const auto report=check;check=[&](bool ok,const char* name){if(!ok)log<<"INPUT_STATE alt="<<GetKeyState(VK_MENU)<<" shift="<<GetKeyState(VK_SHIFT)<<" ctrl="<<GetKeyState(VK_CONTROL)<<" capture="<<::GetCapture()<<"\n";report(ok,name);};
         ActivationBlock activation;const auto language=services::CurrentLanguage();const HWND foreground=GetForegroundWindow();const auto clipboard=GetClipboardSequenceNumber();
         auto cleanup=[&]{Alt(false);layoutTestDpi=0;CString error;services::ActivateLanguage(language,error);};
         try{for(auto file:{L"lang_tw.ini",L"lang_en.ini"})for(int dpi:{96,120,144}){
             CString error;check(services::ActivateLanguage(file,error),"private capture toolbar language activated");layoutTestDpi=dpi;
-            check(!CString(Tr(Text::CaptureToolbarDragOnly)).IsEmpty(),"localized idle-click/drag-only avoidance help is available");Geometry(check);Directional(check);NativeControls(check);Escape(check);
+            check(!CString(Tr(Text::CaptureToolbarDragOnly)).IsEmpty(),"localized idle-click/drag-only avoidance help is available");Geometry(check);Directional(check);NativeControls(check);Escape(check);FullDesktop(check);
+            if(dpi==96&&CString(file)==L"lang_tw.ini")FullPreview(check,dir,L"full-tw-96.png");if(dpi==144&&CString(file)==L"lang_en.ini")FullPreview(check,dir,L"full-en-144.png");
             for(int shape:{0,1,2,3})Output(check,shape);Output(check,0,SelectionMode::Fixed);Output(check,0,SelectionMode::Window);
             log<<"CAPTURE_TOOLBAR language="<<CStringA(file).GetString()<<" simulated_dpi="<<dpi<<" private_noactivate_native_controls/frozen_output\n";
         }
@@ -217,5 +239,5 @@ public:
 };
 }
 namespace sct::services {
-void SelectionToolbarChecks(const std::function<void(bool,const char*)>& check,std::ofstream& log,const std::filesystem::path&){ui::SelectionToolbarAccess::Run(check,log);}
+void SelectionToolbarChecks(const std::function<void(bool,const char*)>& check,std::ofstream& log,const std::filesystem::path& dir){ui::SelectionToolbarAccess::Run(check,log,dir);}
 }

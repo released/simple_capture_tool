@@ -47,7 +47,7 @@ enum Command : UINT {
     SaveProject, OpenProject, InsertImage, PasteImage, ResizeImage, Rotate90, Rotate180, Rotate270,
     FlipH, FlipV, Canvas, Combine, RemoveStrip, JpegQuality, ToolChoice,
     CurrentMonitor=40400, ChooseMonitor, LastRegion, Presets, SavePreset, CaptureOptions, Hotkeys, MenuCapture, ManualScroll, DeletePreset,
-    SelectConfirm=40500, SelectCoordinates, SelectShape, SelectAdd, SelectClear,
+    SelectConfirm=40500, SelectCoordinates, SelectShape, SelectAdd, SelectClear, SelectFull,
     ManualNext=40600, ManualFinish, ManualUndo, ManualApply, ManualOverlap,
     FormFirst=41000, FormLabelFirst=41100, FormPreview=41200, FormQuality, FormUpdate,
     HotkeyFirst=41300,PrintScreenFull=41320,PrintScreenHelp, PresetFirst=41400, MonitorFirst=41500,

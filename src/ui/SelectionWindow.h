@@ -11,6 +11,7 @@ struct SelectionResult {
     std::shared_ptr<const core::Image> frozen;
     std::vector<core::Region> regions;
     std::shared_ptr<const services::CapturedCursor> cursor;
+    bool fullDesktop=false;
 };
 class SelectionWindow final:public CWnd {
 public:
@@ -34,7 +35,7 @@ private:
     friend class OpenParityAccess;
     friend class SelectionToolbarAccess;
     friend class CaptureMagnifierAccess;
-    void CreateToolbar(RECT);void Finish(bool);void Coordinates();void Clamp();int Handle(CPoint)const;void AddCurrent();core::Region Current()const;void PaintFrame(CDC&);
+    void CreateToolbar(RECT);void Finish(bool,bool fullDesktop=false);void Coordinates();void Clamp();int Handle(CPoint)const;void AddCurrent();core::Region Current()const;void PaintFrame(CDC&);
     CRect ToolbarBounds()const;CString SelectionHint()const;bool AvoidToolbar(CPoint);
     void CollectMonitorBounds();CRect MagnifierBounds()const;void PaintMagnifier(CDC&);
     bool StartEscapeWatch();bool DropdownOpen()const;void PollEscape(bool);

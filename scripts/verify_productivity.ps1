@@ -10,7 +10,7 @@ $token=[Guid]::NewGuid().ToString('N')
 $hubRun=$null
 if($ArtifactLifecycle){. $ArtifactLifecycle;$hubRun=New-HubTestRun -ProjectRoot $project -Purpose 'Scoped native capture-editor fixtures; copied binary and own synthetic output' -MaxBytes 536870912}
 $owned=if($hubRun){$hubRun.Work}else{[IO.Path]::Combine($project,'artifacts','verify051',$token.Substring(0,12))}
-$auditRoot=Join-Path $project 'artifacts\audits\flow-snap-072'
+$auditRoot=Join-Path $project 'artifacts\audits\capture-full-073'
 $audit=Join-Path $auditRoot ("verification-$token.json")
 $results=New-Object 'System.Collections.Generic.List[object]'
 $generated=0L;$removed=0L;$active=$null;$batchPassed=$false
@@ -132,6 +132,16 @@ try{
                 if(Test-Path -LiteralPath $destination){if(-not(Test-Path -LiteralPath $receipt)){throw 'Unknown clipboard preview target'};$prior=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json;if((Get-FileHash -LiteralPath $destination).Hash -ne $prior.SHA256){throw 'Clipboard preview ownership changed'}}
                 Copy-Item -LiteralPath $preview -Destination $destination -Force
                 [pscustomobject]@{Path=$destination;SHA256=(Get-FileHash -LiteralPath $destination).Hash;Bytes=(Get-Item -LiteralPath $destination).Length;SourceRun=$owned;Purpose='Own hidden native CStatic clipboard notification; synthetic pixels only'} | ConvertTo-Json | Set-Content -LiteralPath $receipt -Encoding UTF8
+            }
+            if($name -eq 'SelectionToolbar' -and $config -eq 'Release' -and $code -eq 0 -and ($lines -match '^TOTAL \d+ FAIL 0$')){
+                foreach($imageName in 'full-tw-96.png','full-en-144.png'){
+                    $preview=Join-Path (Split-Path -Parent $log) $imageName;Assert-Local $preview $owned | Out-Null
+                    if(-not(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1048576){throw 'Missing/over-limit own capture toolbar preview'}
+                    $destination=Join-Path $auditRoot $imageName;$receipt=$destination+'.json';Assert-Local $destination $auditRoot | Out-Null
+                    if(Test-Path -LiteralPath $destination){if(-not(Test-Path -LiteralPath $receipt)){throw 'Unknown capture preview target'};$prior=Get-Content -LiteralPath $receipt -Raw | ConvertFrom-Json;if((Get-FileHash -LiteralPath $destination).Hash -ne $prior.SHA256){throw 'Capture preview ownership changed'}}
+                    Copy-Item -LiteralPath $preview -Destination $destination -Force
+                    [pscustomobject]@{Path=$destination;SHA256=(Get-FileHash -LiteralPath $destination).Hash;Bytes=(Get-Item -LiteralPath $destination).Length;SourceRun=$owned;Purpose='Actual hidden native capture toolbar and buttons over synthetic pixels; no desktop capture or invented labels'} | ConvertTo-Json | Set-Content -LiteralPath $receipt -Encoding UTF8
+                }
             }
             if($name -eq 'FlowDiagram' -and $config -eq 'Release' -and $code -eq 0 -and ($lines -match '^TOTAL \d+ FAIL 0$')){
                 foreach($imageName in 'flow-symbols.png','flow-palette.png','flow-snap.png'){

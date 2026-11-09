@@ -427,6 +427,8 @@ A single-region selection opens in the editor when the mouse is released. To adj
 - Fixed-region, window, and freehand selection keep their usual behavior.
 - Ctrl constraints and Shift adjustment can be used together.
 
+- **Capture full screen**, after **Clear regions**, immediately captures all monitors without a selection. Existing regions, shapes, and ratios do not restrict the output. It uses the frozen image from capture start, excluding the toolbar and selection overlays.
+
 - The toolbar stays still during ordinary hover, so buttons and dropdowns can be used directly without Alt.
 - It moves up or down away from the pointer only while drawing, moving, or resizing a region selection.
 - Releasing the mouse or interrupting the drag stops movement.
