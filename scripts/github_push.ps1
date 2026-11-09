@@ -20,7 +20,7 @@ try {
     foreach ($row in $plan.Rows) { Write-Host ("{0,-7} {1}" -f $row.Kind,$row.Path) }
     Write-Host "Reviewed paths: $($plan.Rows.Count)"
     if ($DryRun) { Write-Host 'PREVIEW ONLY: no staging, commit, push or application build.';exit 0 }
-    if (!$Yes -and (Read-Host 'Type UPLOAD to publish these changes; any other response cancels') -cne 'UPLOAD') {Write-Host 'Canceled; existing local work/index preserved.';exit 0}
+    if (!$Yes -and (Read-Host 'Type PUSH to publish these changes; any other response cancels') -cne 'PUSH') {Write-Host 'Canceled; existing local work/index preserved.';exit 0}
     $result=Invoke-CapturePublish $plan $Message
     Write-Host "$($result.State): $($result.Sha)"
     Write-Host 'Git branch result verified. Actions/Pages deployment is separate.'

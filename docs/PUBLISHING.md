@@ -4,7 +4,7 @@ The update entry is `github_push.bat` in the project root. It uses Windows Power
 
 1. Run `github_push.bat -DryRun` to review the destination and changed paths.
 2. Run `github_push.bat` and inspect the displayed changes.
-3. Enter `UPLOAD` to commit and push, or another response to cancel.
+3. Enter `PUSH` to commit and push, or another response to cancel.
 
 - The destination is the public `released/simple_capture_tool` repository on branch `main`.
 - The script checks the live repository identity, branch ancestry and exact staged content. A changed destination, remote-ahead state or unexpected staged work stops publication.
