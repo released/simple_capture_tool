@@ -860,6 +860,10 @@ Other common operations:
 
 ## Language and portable settings
 
+- A settings read failure preserves the original file and disables settings writes for the current run. Repair `SimpleCaptureTool.ini` and restart to resume saving.
+- When an external change to the settings file is detected during a run, saving stops and preserves the newer file. Restart to load the new settings.
+- Normal saves retain unrelated sections, unknown fields, and comments. Retired recording settings are omitted.
+
 - Format arguments such as `%d`, `%s`, and `%zu` retain their types, order, and count. `%%` represents a percent sign inside a formatted message.
 - An incompatible language is not activated. The error identifies its key; the current language and INI files remain intact.
 
@@ -891,6 +895,8 @@ Save=Save
 Keep the relative `build`/`runtime` layout for portability. Choose saved-image locations in the file dialog. If using custom absolute paths, check them after moving to another computer.
 
 ## Limitations
+
+- A display-layout change during capture cancels the frozen selection and requests another capture to avoid mismatched coordinates.
 
 - Protected/DRM content, locked desktops, the UAC secure desktop, and some GPU/remote-desktop environments may not be capturable.
 - Window and scrolling capture depend on the target application's behavior. Inspect results before sharing.

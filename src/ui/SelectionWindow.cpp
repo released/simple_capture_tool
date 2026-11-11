@@ -26,10 +26,12 @@ BEGIN_MESSAGE_MAP(SelectionWindow,CWnd)
  ON_CBN_DROPDOWN(SelectRatio,&SelectionWindow::OnOverlayRefresh)
  ON_CBN_CLOSEUP(SelectRatio,&SelectionWindow::OnOverlayRefresh)
 END_MESSAGE_MAP()
-HWND SelectionWindow::Begin(CWnd* owner,core::Image image,SelectionMode mode,CSize fixed,Done done,bool clientOnly,bool child,SelectionOptions options)
+HWND SelectionWindow::Begin(CWnd* owner,core::Image image,SelectionMode mode,CSize fixed,Done done,bool clientOnly,bool child,SelectionOptions options,RECT frozenDesktop)
 {
-    auto* self=new SelectionWindow;self->image_=std::make_shared<core::Image>(std::move(image));self->mode_=mode;self->fixed_=fixed;self->done_=std::move(done);self->clientOnly_=clientOnly;self->child_=child;
-    self->desktop_=services::CaptureService::DesktopRect();self->options_=options;
+    const RECT current=services::CaptureService::DesktopRect();const bool frozen=!IsRectEmpty(&frozenDesktop);
+    if(frozen&&(!EqualRect(&current,&frozenDesktop)||image.width!=frozenDesktop.right-frozenDesktop.left||image.height!=frozenDesktop.bottom-frozenDesktop.top)){SelectionResult result;result.desktop=frozenDesktop;result.desktopChanged=true;done(false,std::move(result));return nullptr;}
+    auto* self=new SelectionWindow;self->frozenGeometry_=frozen;self->image_=std::make_shared<core::Image>(std::move(image));self->mode_=mode;self->fixed_=fixed;self->done_=std::move(done);self->clientOnly_=clientOnly;self->child_=child;
+    self->desktop_=frozen?frozenDesktop:current;self->options_=options;
     EnumWindows([](HWND w,LPARAM param)->BOOL{auto* p=reinterpret_cast<SelectionWindow*>(param);RECT r{};DWORD cloaked=0,pid=0;GetWindowThreadProcessId(w,&pid);DwmGetWindowAttribute(w,DWMWA_CLOAKED,&cloaked,sizeof(cloaked));
         if(pid!=GetCurrentProcessId()&&::IsWindowVisible(w)&&!::IsIconic(w)&&!cloaked){if(FAILED(DwmGetWindowAttribute(w,DWMWA_EXTENDED_FRAME_BOUNDS,&r,sizeof(r))))::GetWindowRect(w,&r);if(r.right>r.left&&r.bottom>r.top)p->windows_.emplace_back(w,r);}return TRUE;},reinterpret_cast<LPARAM>(self));
     CString cls=AfxRegisterWndClass(CS_HREDRAW|CS_VREDRAW,LoadCursor(nullptr,IDC_CROSS),nullptr,nullptr);
@@ -188,7 +190,7 @@ void SelectionWindow::OnDestroy(){KillTimer(EscapeTimer);CWnd::OnDestroy();}
 void SelectionWindow::Finish(bool accepted,bool fullDesktop)
 {
     if(accepted&&!fullDesktop&&selected_.IsRectEmpty()&&regions_.empty())return;
-    SelectionResult result;if(accepted){result.frozen=image_;result.fullDesktop=fullDesktop;
+    SelectionResult result;result.desktop=frozenGeometry_?RECT(desktop_):RECT{};const RECT current=services::CaptureService::DesktopRect();if(accepted&&frozenGeometry_&&!EqualRect(&desktop_,&current)){accepted=false;result.desktopChanged=true;}if(accepted){result.frozen=image_;result.fullDesktop=fullDesktop;
         if(fullDesktop){result.target.rect={0,0,image_->width,image_->height};result.regions.push_back({result.target.rect});}
         else{result.target.rect=selected_;result.target.window=mode_==SelectionMode::Window?selectedWindow_:nullptr;result.target.cropWindow=clientOnly_||child_;result.regions=regions_;if(!selected_.IsRectEmpty())result.regions.push_back(Current());}
         OffsetRect(&result.target.rect,desktop_.left,desktop_.top);}

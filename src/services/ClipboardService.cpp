@@ -22,14 +22,16 @@ struct ClipboardReadScope {
 std::shared_ptr<ClipboardPacket> PrepareClipboardImage(const core::Image& image,CString& error)
 {
     if(image.Empty()){error=L"Empty clipboard image";return {};}
-    auto packet=std::make_shared<ClipboardPacket>();auto flat=core::Flatten(image);std::vector<BYTE> png;
+    auto packet=std::make_shared<ClipboardPacket>();std::vector<BYTE> png;
     if(!EncodeImage(image,L"png",100,png,error))return {};
-    packet->dib=GlobalAlloc(GMEM_MOVEABLE,sizeof(BITMAPINFOHEADER)+flat.pixels.size());packet->png=GlobalAlloc(GMEM_MOVEABLE,png.size());
+    packet->dib=GlobalAlloc(GMEM_MOVEABLE,sizeof(BITMAPINFOHEADER)+image.pixels.size());packet->png=GlobalAlloc(GMEM_MOVEABLE,png.size());
     if(!packet->dib||!packet->png){error=L"Clipboard allocation failed";return {};}
     void* dib=GlobalLock(packet->dib);void* encoded=GlobalLock(packet->png);
     if(!dib||!encoded){if(dib)GlobalUnlock(packet->dib);if(encoded)GlobalUnlock(packet->png);error=L"Clipboard lock failed";return {};}
     BITMAPINFOHEADER header{};header.biSize=sizeof(header);header.biWidth=image.width;header.biHeight=-image.height;header.biPlanes=1;header.biBitCount=32;
-    memcpy(dib,&header,sizeof(header));memcpy(static_cast<BYTE*>(dib)+sizeof(header),flat.pixels.data(),flat.pixels.size());memcpy(encoded,png.data(),png.size());GlobalUnlock(packet->dib);GlobalUnlock(packet->png);return packet;
+    memcpy(dib,&header,sizeof(header));auto* opaque=static_cast<BYTE*>(dib)+sizeof(header);
+    for(size_t i=0;i<image.pixels.size();i+=4){const int alpha=image.pixels[i+3];for(int c=0;c<3;++c)opaque[i+c]=static_cast<BYTE>((image.pixels[i+c]*alpha+255*(255-alpha)+127)/255);opaque[i+3]=255;}
+    memcpy(encoded,png.data(),png.size());GlobalUnlock(packet->dib);GlobalUnlock(packet->png);return packet;
 }
 ClipboardApiAudit::ClipboardApiAudit(const ClipboardApi& api):previous_(clipboardApi){clipboardApi=&api;}
 ClipboardApiAudit::~ClipboardApiAudit(){clipboardApi=previous_;}

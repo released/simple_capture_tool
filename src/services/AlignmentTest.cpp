@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "SingleInstanceTest.h"
 #include "AlignmentTest.h"
+namespace sct::services {void ReviewReliabilityChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 namespace sct::services {void ImagePrecisionChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 namespace sct::services {void EditorTransitionsChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 namespace sct::services {void TextViewportChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
@@ -78,6 +79,7 @@ public:static void Run(Check check,std::ofstream& log,const std::filesystem::pat
 namespace sct::services {
 int RunAlignmentTests(){const auto dir=paths::TestEvidence()/L"alignment";std::filesystem::create_directories(dir);std::ofstream log(dir/L"alignment-test.log");int total=0,fail=0;Check check=[&](bool ok,const char* name){++total;if(!ok)++fail;log<<(ok?"PASS ":"FAIL ")<<name<<"\n";log.flush();};
     try{NativeTestInput input;CString error;InitializeLanguages(ConfigService::ExecutableDirectory(),error);
+        if(CString(GetCommandLine()).Find(L"--test-review-reliability-only")>=0){ReviewReliabilityChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-review-refinements-only")>=0||CString(GetCommandLine()).Find(L"--test-rich-sync-baseline-only")>=0){ReviewRefinementsChecks(check,log,dir,CString(GetCommandLine()).Find(L"--test-rich-sync-baseline-only")>=0);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-flow-diagram-only")>=0){FlowDiagramChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}
         if(CString(GetCommandLine()).Find(L"--test-clipboard-feedback-only")>=0){ClipboardFeedbackChecks(check,log,dir);log<<"TOTAL "<<total<<" FAIL "<<fail<<"\n";return fail?1:0;}

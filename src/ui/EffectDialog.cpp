@@ -27,7 +27,7 @@ void EffectDialog::Preview(){++generation_;pending_=true;CString s;s.Format(L"%d
 void EffectDialog::OnTimer(UINT_PTR)
 {
     int& parameter=Parameter(values_,choice_.GetCurSel());if(parameter!=slider_.GetPos()){parameter=slider_.GetPos();Preview();}
-    if(auto r=job_.Take()){
+    if(auto r=job_.TakeOwned()){
         if(!r->source.Empty())small_=std::make_shared<core::Image>(std::move(r->source));
         if(!r->error.IsEmpty()){hint_.SetWindowText(r->error);ok_.EnableWindow(FALSE);}
         else if(r->generation==generation_){preview_=std::move(r->image);Invalidate(FALSE);if(audit_){audit_(*this);if(ContinueModal())EndDialog(IDCANCEL);return;}}

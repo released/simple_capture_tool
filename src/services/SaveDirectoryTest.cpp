@@ -8,6 +8,8 @@
 #include "../ui/EditorFrame.h"
 #include "../ui/ImageSaveDialog.h"
 #include <shlobj.h>
+#include <optional>
+namespace sct::ui {void SetEditorShortcutModifiersAudit(std::optional<UINT>);}
 namespace {
 using Check=std::function<void(bool,const char*)>;
 class ActivationBlock {
@@ -20,8 +22,10 @@ public:
 namespace sct::ui {
 class SaveDirectoryAccess {
     static bool CtrlSave(EditorFrame* page){
-        page->SetFocus();services::NativeTestInput input;BYTE keys[256]{};keys[VK_CONTROL]=0x80;if(!SetKeyboardState(keys))throw std::runtime_error("Cannot isolate save shortcut modifiers");
-        MSG message{};message.hwnd=page->m_hWnd;message.message=WM_KEYDOWN;message.wParam='S';return page->PreTranslateMessage(&message)!=FALSE;
+        struct Modifiers {Modifiers(){SetEditorShortcutModifiersAudit(MOD_CONTROL);}~Modifiers(){SetEditorShortcutModifiersAudit(std::nullopt);}} modifiers;
+        ::SetFocus(nullptr);page->SetFocus();services::NativeTestInput input;BYTE keys[256]{};keys[VK_CONTROL]=0x80;if(!SetKeyboardState(keys))throw std::runtime_error("Cannot isolate save shortcut modifiers");
+        MSG message{};message.hwnd=page->m_hWnd;message.message=WM_KEYDOWN;message.wParam='S';const bool control=GetKeyState(VK_CONTROL)<0;const bool sidebar=page->sidebar_.OwnsFocus();const bool focused=::GetFocus()==page->m_hWnd;const bool routed=page->PreTranslateMessage(&message)!=FALSE;
+        std::ofstream trace(services::paths::TestEvidence()/L"alignment"/L"save-keys.log",std::ios::app);trace<<"KEY_ROUTE control="<<control<<" page_focus="<<focused<<" sidebar_focus="<<sidebar<<" routed="<<routed<<"\n";return routed;
     }
     static RibbonButton* HomeSave(EditorFrame* page){for(auto* child=page->ribbon_.GetWindow(GW_CHILD);child;child=child->GetNextWindow())if(child->GetDlgCtrlID()==Save&&(child->GetStyle()&WS_VISIBLE))return dynamic_cast<RibbonButton*>(child);return nullptr;}
     static void Wait(EditorFrame* page){

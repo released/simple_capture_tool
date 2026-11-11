@@ -816,3 +816,5 @@ SCT_TEXT(FlowSelectionHelp, L"文字：單一未鎖定節點或連線。排列�
 SCT_TEXT(CanvasEdgesHelp, L"拖曳四邊或四角藍色拉點裁切／擴充畫布，不縮放內容；放開套用，Ctrl+Z 復原，Esc 取消。", L"Drag any blue edge/corner grip to crop or grow canvas without scaling. Release applies; Ctrl+Z undoes; Esc cancels.")
 SCT_TEXT(FlowSnapHelp, L"箭頭／線條端點會吸附最近的流程圖節點連接點；按住 Alt 暫停吸附，Esc 取消。", L"Arrow/line endpoints snap to the nearest flow-node port; hold Alt to suspend snapping, Esc to cancel.")
 SCT_TEXT(CaptureFullDesktop, L"全螢幕擷取", L"Capture full screen")
+
+SCT_TEXT(CaptureDesktopChanged, L"螢幕配置已變更，請重新截圖。", L"Display layout changed. Please capture again.")

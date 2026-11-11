@@ -14,9 +14,16 @@ template<class Result>void SaveOutput(Result& r,const services::Settings& settin
         catch(const std::exception& e){CString error;error.Format(L"Clipboard preparation: %hs",e.what());r.error+=L"\r\n"+error;}
 }
 }
-bool MainFrame::QueueCaptureWork(std::function<WorkResult()> work)
+bool MainFrame::QueueCaptureWork(std::function<WorkResult()> work,bool captureCancelable)
 {
-    if(!job_.Start(std::move(work)))return false;capturePolling_=SetTimer(CapturePollTimer,CapturePollInterval,nullptr)!=0;return true;
+    WorkResult failure;failure.action=-1;if(!job_.Start(std::move(work),std::move(failure)))return false;captureCancelable_=captureCancelable;captureEscapeDown_=captureCancelable&&(captureEscapeAudit_?captureEscapeAudit_():GetAsyncKeyState(VK_ESCAPE)<0);capturePolling_=SetTimer(CapturePollTimer,CapturePollInterval,nullptr)!=0;return true;
+}
+void MainFrame::FrozenLayoutChanged(){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();status_.SetWindowText(Tr(Text::CaptureDesktopChanged));if(!isolated_||restore_)ShowWindow(SW_SHOWNOACTIVATE);}
+RECT MainFrame::CaptureDesktop()const{return captureDesktopAudit_?captureDesktopAudit_():services::CaptureService::DesktopRect();}
+bool MainFrame::ValidateFrozen(RECT desktop,const core::Image* image){
+    if(IsRectEmpty(&desktop))return true;const RECT current=CaptureDesktop();
+    if(EqualRect(&desktop,&current)&&(!image||(image->width==desktop.right-desktop.left&&image->height==desktop.bottom-desktop.top)))return true;
+    FrozenLayoutChanged();return false;
 }
 void MainFrame::BeginCapture(UINT mode)
 {
@@ -32,14 +39,14 @@ void MainFrame::BeginCapture(UINT mode)
 void MainFrame::LaunchFrozen(UINT mode)
 {
     if(mode==ActiveWindow){StartCapture({{},activeTarget_,settings_.cursor});return;}
-    const bool cursor=settings_.cursor,editable=cursor&&settings_.editableCursor;const RECT rect=captureRect_;
-    QueueCaptureWork([this,mode,cursor,editable,rect]{WorkResult r;r.action=static_cast<int>(mode);r.target.rect=rect;for(int i=0;i<15&&!job_.cancel;++i)Sleep(10);if(job_.cancel){r.action=0;return r;}if(editable){services::CaptureTarget target;target.rect=services::CaptureService::DesktopRect();services::GrabEditableCursor(target,r.image,r.cursor,r.error);}else services::CaptureService::Grab({services::CaptureService::DesktopRect(),nullptr,cursor},r.image,r.error);return r;});
+    const bool cursor=settings_.cursor,editable=cursor&&settings_.editableCursor;const RECT rect=captureRect_;const auto desktopRead=captureDesktopAudit_;
+    QueueCaptureWork([this,mode,cursor,editable,rect,desktopRead]{WorkResult r;r.action=static_cast<int>(mode);r.target.rect=rect;for(int i=0;i<15&&!job_.cancel;++i)Sleep(10);if(job_.cancel){r.action=0;return r;}r.frozenDesktop=desktopRead?desktopRead():services::CaptureService::DesktopRect();if(editable){services::CaptureTarget target;target.rect=r.frozenDesktop;services::GrabEditableCursor(target,r.image,r.cursor,r.error);}else services::CaptureService::Grab({r.frozenDesktop,nullptr,cursor},r.image,r.error);return r;},true);
 }
 void MainFrame::DeliverFrozen(SelectionResult selection)
 {
-    const RECT desktop=services::CaptureService::DesktopRect();
+    if(!selection.frozen||!ValidateFrozen(selection.desktop,selection.frozen.get()))return;const RECT desktop=IsRectEmpty(&selection.desktop)?CaptureDesktop():selection.desktop;
     QueueCaptureWork([selection=std::move(selection),desktop]{WorkResult r;r.action=2;RECT bounds{};r.image=core::ExtractSelection(*selection.frozen,selection.regions,bounds);OffsetRect(&bounds,desktop.left,desktop.top);r.target.rect=bounds;
-        if(r.image.Empty())r.error=L"Empty selection";else if(selection.cursor){r.document.base=std::make_shared<core::Image>(std::move(r.image));services::AttachCapturedCursor(r.document,*selection.cursor,bounds);}return r;});
+        if(r.image.Empty())r.error=L"Empty selection";else if(selection.cursor){r.document.base=std::make_shared<core::Image>(std::move(r.image));services::AttachCapturedCursor(r.document,*selection.cursor,bounds);}return r;},true);
 }
 void MainFrame::DeliverImage(core::Image image,RECT region)
 {
@@ -48,21 +55,21 @@ void MainFrame::DeliverImage(core::Image image,RECT region)
 void MainFrame::StartCapture(services::CaptureTarget target,bool scroll)
 {
     const int delay=settings_.scrollDelay;target.cursor=settings_.cursor;const bool editable=target.cursor&&settings_.editableCursor&&!scroll;QueueCaptureWork([this,target,scroll,delay,editable]{WorkResult r;r.action=2;r.target=target;Sleep(150);
-        if(scroll)services::CaptureScroll(target.window,target.rect,job_.cancel,r.image,r.error,delay);else if(editable){if(services::GrabEditableCursor(r.target,r.image,r.cursor,r.error)){r.document.base=std::make_shared<core::Image>(std::move(r.image));if(r.cursor)services::AttachCapturedCursor(r.document,*r.cursor,r.target.rect);}}else services::CaptureService::Grab(target,r.image,r.error);return r;});
+        if(scroll)services::CaptureScroll(target.window,target.rect,job_.cancel,r.image,r.error,delay);else if(editable){if(services::GrabEditableCursor(r.target,r.image,r.cursor,r.error)){r.document.base=std::make_shared<core::Image>(std::move(r.image));if(r.cursor)services::AttachCapturedCursor(r.document,*r.cursor,r.target.rect);}}else services::CaptureService::Grab(target,r.image,r.error);return r;},true);
 }
 void MainFrame::HandleCapture(WorkResult& result)
 {
-    const UINT mode=static_cast<UINT>(result.action);const RECT desktop=services::CaptureService::DesktopRect();
+    const UINT mode=static_cast<UINT>(result.action);if(!ValidateFrozen(result.frozenDesktop,&result.image))return;const RECT desktop=IsRectEmpty(&result.frozenDesktop)?CaptureDesktop():result.frozenDesktop;
     if(mode==Full||mode==CurrentMonitor||mode==LastRegion){RECT region=mode==Full?desktop:result.target.rect;
         if(mode==Full&&!result.cursor&&result.image.width==desktop.right-desktop.left&&result.image.height==desktop.bottom-desktop.top){result.action=2;result.target.rect=desktop;CompleteOutput(result);return;}
-        OffsetRect(&region,-desktop.left,-desktop.top);SelectionResult selection;selection.frozen=std::make_shared<core::Image>(std::move(result.image));selection.regions.push_back({region});selection.cursor=result.cursor;DeliverFrozen(std::move(selection));return;}
+        OffsetRect(&region,-desktop.left,-desktop.top);SelectionResult selection;selection.desktop=result.frozenDesktop;selection.frozen=std::make_shared<core::Image>(std::move(result.image));selection.regions.push_back({region});selection.cursor=result.cursor;DeliverFrozen(std::move(selection));return;}
     selecting_=true;const auto selectionMode=mode==Window||mode==Scroll||(mode==ManualScroll||mode==ManualHorizontal)?SelectionMode::Window:mode==Fixed?SelectionMode::Fixed:SelectionMode::Region;
     const auto cursor=result.cursor;SelectionWindow::Begin(this,std::move(result.image),selectionMode,CSize(settings_.fixedWidth,settings_.fixedHeight),[this,mode,cursor](bool ok,SelectionResult selection){selecting_=false;selection.cursor=cursor;
-        if(!ok){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}
+        if(!ok){if(selection.desktopChanged){FrozenLayoutChanged();return;}captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}
         if(selection.fullDesktop){DeliverFrozen(std::move(selection));return;}
-        if(mode==Scroll||mode==ManualScroll||mode==ManualHorizontal){HWND window=selection.target.window;QueueCaptureWork([window,mode]{WorkResult r;r.action=3;r.target.window=window;r.target.cursor=mode!=Scroll;r.horizontal=mode==ManualHorizontal;Sleep(150);services::CaptureService::Grab({services::CaptureService::DesktopRect()},r.image,r.error);return r;});}
+        if(mode==Scroll||mode==ManualScroll||mode==ManualHorizontal){HWND window=selection.target.window;QueueCaptureWork([window,mode]{WorkResult r;r.action=3;r.target.window=window;r.target.cursor=mode!=Scroll;r.horizontal=mode==ManualHorizontal;Sleep(150);r.frozenDesktop=services::CaptureService::DesktopRect();services::CaptureService::Grab({r.frozenDesktop},r.image,r.error);return r;},true);}
         else if(mode==Window)StartCapture(selection.target);else DeliverFrozen(std::move(selection));
-    },settings_.clientOnly,settings_.childWindow,{settings_.captureMagnifier,settings_.captureGrid,settings_.dimOutside,true});
+    },settings_.clientOnly,settings_.childWindow,{settings_.captureMagnifier,settings_.captureGrid,settings_.dimOutside,true},result.frozenDesktop);
 }
 void MainFrame::CompleteOutput(WorkResult& result)
 {
@@ -94,15 +101,15 @@ void MainFrame::OnTimer(UINT_PTR timer)
     if(countdownMode_){if(GetAsyncKeyState(VK_ESCAPE)<0){RestoreEditors();countdownMode_=0;countdown_.Close();if(restore_)ShowWindow(SW_SHOW);}
         else{const auto left=std::chrono::duration_cast<std::chrono::milliseconds>(deadline_-std::chrono::steady_clock::now()).count();if(left<=0){UINT mode=countdownMode_;countdownMode_=0;countdown_.Close();LaunchFrozen(mode);}else countdown_.UpdateSeconds(static_cast<int>((left+999)/1000));}}
     }
-    if(job_.Busy()&&GetAsyncKeyState(VK_ESCAPE)<0)job_.cancel=true;auto r=job_.Take();if(pendingExit_){ExitApplication();return;}if(!r){if(capturePolling_&&!job_.Busy()){KillTimer(CapturePollTimer);capturePolling_=false;}return;}
+    if(job_.Busy()&&captureCancelable_){const bool down=captureEscapeAudit_?captureEscapeAudit_():GetAsyncKeyState(VK_ESCAPE)<0;if(down&&!captureEscapeDown_)job_.cancel=true;captureEscapeDown_=down;}const bool cancelled=captureCancelable_&&job_.cancel;auto r=job_.TakeOwned();if(r&&cancelled){r->action=0;r->error.Empty();r->document={};r->image={};}if(r){captureCancelable_=false;captureEscapeDown_=false;}if(pendingExit_){ExitApplication();return;}if(!r){if(capturePolling_&&!job_.Busy()){KillTimer(CapturePollTimer);capturePolling_=false;}return;}
     if(capturePolling_){KillTimer(CapturePollTimer);capturePolling_=false;}
     if(!r->error.IsEmpty()&&r->action!=2&&r->action!=4){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();status_.SetWindowText(CString(Tr(Text::Failed))+r->error);ShowWindow(SW_SHOW);return;}
     if(r->action==0){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}
     if((r->action>=Full&&r->action<=Scroll)||r->action==CurrentMonitor||r->action==LastRegion||r->action==MenuCapture||r->action==ManualScroll||r->action==ManualHorizontal){HandleCapture(*r);return;}
-    if(r->action==3){const HWND window=r->target.window;const bool manual=r->target.cursor,horizontal=r->horizontal;selecting_=true;
-        SelectionWindow::Begin(this,std::move(r->image),SelectionMode::Region,{},[this,window,manual,horizontal](bool ok,SelectionResult selection){selecting_=false;if(!ok){RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}if(selection.fullDesktop){DeliverFrozen(std::move(selection));return;}selection.target.window=window;selection.target.cropWindow=true;
+    if(r->action==3){if(!ValidateFrozen(r->frozenDesktop,&r->image))return;const HWND window=r->target.window;const bool manual=r->target.cursor,horizontal=r->horizontal;selecting_=true;
+        SelectionWindow::Begin(this,std::move(r->image),SelectionMode::Region,{},[this,window,manual,horizontal](bool ok,SelectionResult selection){selecting_=false;if(!ok){if(selection.desktopChanged){FrozenLayoutChanged();return;}RestoreEditors();if(restore_)ShowWindow(SW_SHOW);return;}if(selection.fullDesktop){DeliverFrozen(std::move(selection));return;}selection.target.window=window;selection.target.cropWindow=true;
             if(manual){selecting_=true;const RECT region=selection.target.rect;ManualScrollFrame::Open(this,selection.target,[this,region](core::Image image){selecting_=false;if(image.Empty()){RestoreEditors();if(restore_)ShowWindow(SW_SHOW);}else DeliverImage(std::move(image),region);},horizontal);}else StartCapture(selection.target,true);
-        },false,false,{settings_.captureMagnifier,settings_.captureGrid,settings_.dimOutside,true});return;}
+        },false,false,{settings_.captureMagnifier,settings_.captureGrid,settings_.dimOutside,true},r->frozenDesktop);return;}
     CompleteOutput(*r);
 }
 HWND MainFrame::ExternalWindow()const{HWND window=::GetForegroundWindow();DWORD pid=0;GetWindowThreadProcessId(window,&pid);if(window&&pid!=GetCurrentProcessId()&&::IsWindowVisible(window)&&!::IsIconic(window))return ::GetAncestor(window,GA_ROOT);if(::IsWindow(lastExternal_)&&::IsWindowVisible(lastExternal_)&&!::IsIconic(lastExternal_)){GetWindowThreadProcessId(lastExternal_,&pid);if(pid!=GetCurrentProcessId())return lastExternal_;}return nullptr;}

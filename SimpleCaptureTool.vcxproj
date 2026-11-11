@@ -56,5 +56,17 @@
       <PreprocessorDefinitions Condition="'$(SctIncludeTests)'!='true'">SCT_ENABLE_SELFTESTS=0;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
+  <PropertyGroup>
+    <SctBuildStamp Condition="'$(SctBuildStamp)'==''">$([System.DateTime]::Now.ToString('yyyy-MM-ddTHH:mm:sszzz'))</SctBuildStamp>
+    <SctIdentityDir>$(IntDir)identity\</SctIdentityDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile><AdditionalIncludeDirectories>$(SctIdentityDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile>
+    <ResourceCompile><AdditionalIncludeDirectories>$(SctIdentityDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ResourceCompile>
+  </ItemDefinitionGroup>
+  <Target Name="PrepareSctIdentity" BeforeTargets="ClCompile;ResourceCompile">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)scripts\prepare_tool_build_identity.ps1&quot; -VersionHeader &quot;$(ProjectDir)src\version.h&quot; -VersionMacro SCT_VERSION -OutputHeader &quot;$(SctIdentityDir)tool_build_identity.h&quot; -Stamp &quot;$(SctBuildStamp)&quot;" />
+  </Target>
+  <ItemGroup><None Include="scripts\prepare_tool_build_identity.ps1" /></ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

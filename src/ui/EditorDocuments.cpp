@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "EditorFrame.h"
+#include "EditorOperationScope.h"
 #include "EditorWorkspace.h"
 #include "FormDialog.h"
 #include "../services/CaptureService.h"
@@ -19,7 +20,7 @@ void EditorFrame::ShowNewImage(CSize size)
 void EditorFrame::DocumentCommand(UINT id)
 {
     if(id==NewDocument){const HWND owner=m_hWnd;newImageVisible_=IsWindowVisible()!=FALSE;const auto reader=newImageReadAudit_;activeAction_=WorkNewDimensions;StartWork([owner,reader]{WorkResult r;r.action=WorkNewDimensions;r.dimensions=services::ClipboardNewImageDimensions(owner,reader);return r;});status_.SetWindowText(Tr(Text::Busy));return;}
-    if(id==OpenImages){CFileDialog dlg(TRUE,nullptr,nullptr,OFN_FILEMUSTEXIST|OFN_ALLOWMULTISELECT,ImageOpenFilter(true),this);std::vector<wchar_t> buffer(65536);dlg.GetOFN().lpstrFile=buffer.data();dlg.GetOFN().nMaxFile=static_cast<DWORD>(buffer.size());if(dlg.DoModal()!=IDOK)return;POSITION p=dlg.GetStartPosition();while(p)openQueue_.push_back(dlg.GetNextPathName(p));EditorPolling(true);return;}
+    if(id==OpenImages){const EditorOperationScope operation(*this);CFileDialog dlg(TRUE,nullptr,nullptr,OFN_FILEMUSTEXIST|OFN_ALLOWMULTISELECT,ImageOpenFilter(true),this);std::vector<wchar_t> buffer(65536);dlg.GetOFN().lpstrFile=buffer.data();dlg.GetOFN().nMaxFile=static_cast<DWORD>(buffer.size());if(dlg.DoModal()!=IDOK||!operation.Live())return;POSITION p=dlg.GetStartPosition();while(p)openQueue_.push_back(dlg.GetNextPathName(p));EditorPolling(true);return;}
     if(id==PasteNewDocument){HWND owner=m_hWnd;activeAction_=WorkOpenPage;StartWork([owner]{WorkResult r;r.action=WorkOpenPage;services::ReadClipboardImage(owner,r.image,r.error);return r;});return;}
     if(id==ZoomFit){ZoomTo(1,true);return;}if(id==ZoomActual){ZoomTo(1);return;}if(id==ZoomIn){ZoomTo(zoom_*1.25);return;}if(id==ZoomOut){ZoomTo(zoom_/1.25);return;}
     if(id==ShowThumbnails||id==SaveAll||id==CloseDocument||id==CloseAllDocuments){if(auto* w=dynamic_cast<EditorWorkspace*>(workspace_))w->Action(id);else if(id==CloseDocument||id==CloseAllDocuments)PostMessage(WM_CLOSE);else if(id==SaveAll)OnAction(Save);return;}

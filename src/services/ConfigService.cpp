@@ -1,5 +1,8 @@
 #include "pch.h"
 #include "ConfigService.h"
+#include "AtomicFile.h"
+#include <map>
+#include <set>
 #include "LanguageService.h"
 #include "CaptureNaming.h"
 #include "ToolStyleService.h"
@@ -21,18 +24,22 @@ CString ConfigService::ExecutableDirectory()
     return std::filesystem::path(path).parent_path().c_str();
 }
 ConfigService::ConfigService(CString path) : iniPath_(path.IsEmpty()?CString(paths::Configuration().c_str()):std::move(path)) {}
-bool ConfigService::Load(Settings& output, CString& error) const
+namespace {
+bool Managed(const std::string& key);
+bool NumberedKey(const std::string& key,const char* prefix){const size_t length=strlen(prefix);return key.size()>length&&key.compare(0,length,prefix)==0&&key.find_first_not_of("0123456789",length)==std::string::npos;}
+bool ParseSettings(std::istream& file,Settings& output,CString& error,const CString& iniPath_)
 {
-    Settings s;bool manualPolicy=false;
-    if (!std::filesystem::exists(iniPath_.GetString())) { if(!Save(s,error)) return false; output=s; return true; }
-    std::ifstream file(std::filesystem::path(iniPath_.GetString()), std::ios::binary);
-    if (!file) { error = L"Cannot read " + iniPath_; return false; }
-    std::string line;
+    Settings s;bool manualPolicy=false,productContent=false,firstLine=true;
+    std::string line,section;
     try {
         while (std::getline(file, line)) {
+            if(firstLine){firstLine=false;if(line.compare(0,3,"\xEF\xBB\xBF")==0)line.erase(0,3);}
             if (!line.empty() && line.back() == '\r') line.pop_back();
+            if(line.size()>=2&&line.front()=='['&&line.back()==']'){section=line.substr(1,line.size()-2);if(section=="Capture"||section=="ScreenshotOptions"||section=="Interface")productContent=true;continue;}
+            if(!section.empty()&&section!="Capture"&&section!="ScreenshotOptions"&&section!="Interface")continue;
+            if(line.empty()||line.front()==';'||line.front()=='#')continue;
             const auto eq = line.find('='); if (eq == std::string::npos) continue;
-            const std::string key = line.substr(0, eq), value = line.substr(eq + 1);
+            const std::string key = line.substr(0, eq), value = line.substr(eq + 1);if(Managed(key))productContent=true;
             const int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value.c_str(), -1, nullptr, 0);
             if (!size) throw std::runtime_error("Invalid UTF-8");
             std::wstring wide(size, 0); MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, value.c_str(), -1, wide.data(), size);
@@ -65,13 +72,15 @@ bool ConfigService::Load(Settings& output, CString& error) const
             else if(key=="HideEditors")s.hideEditors=value=="1";
             else if(key=="ScrollDelay")s.scrollDelay=std::stoi(value);
             else if(key=="FilePattern")s.filePattern=wide.c_str();
-            else if (key == "LastRegion" || key.rfind("PresetRect",0)==0) {
+            else if (key == "LastRegion" || NumberedKey(key,"PresetRect")) {
                 std::wstring list=wide;std::replace(list.begin(),list.end(),L',',L' ');std::wistringstream input(list);RECT r{};
                 if(!(input>>r.left>>r.top>>r.right>>r.bottom)||abs(static_cast<int64_t>(r.left))>1000000||abs(static_cast<int64_t>(r.top))>1000000||abs(static_cast<int64_t>(r.right))>1000000||abs(static_cast<int64_t>(r.bottom))>1000000) throw std::runtime_error("Invalid region");
                 if(key=="LastRegion")s.lastRegion=r;else {const int index=std::stoi(key.substr(10));if(index<0||index>=20)throw std::runtime_error("Preset limit");if(s.presets.size()<=static_cast<size_t>(index))s.presets.resize(index+1);s.presets[index].rect=r;}
-            } else if(key.rfind("PresetName",0)==0) {const int index=std::stoi(key.substr(10));if(index<0||index>=20)throw std::runtime_error("Preset limit");if(s.presets.size()<=static_cast<size_t>(index))s.presets.resize(index+1);s.presets[index].name=wide.c_str();}
-            else if(key.rfind("Hotkey",0)==0) {int index=std::stoi(key.substr(6));if(index<0||index>=static_cast<int>(s.hotkeys.size()))throw std::runtime_error("Invalid hotkey index");unsigned mods=0,vk=0;if(swscanf_s(wide.c_str(),L"%u,%u",&mods,&vk)!=2||mods>15||vk>255)throw std::runtime_error("Invalid hotkey");s.hotkeys[index]={mods,vk};}
+            } else if(NumberedKey(key,"PresetName")) {const int index=std::stoi(key.substr(10));if(index<0||index>=20)throw std::runtime_error("Preset limit");if(s.presets.size()<=static_cast<size_t>(index))s.presets.resize(index+1);s.presets[index].name=wide.c_str();}
+            else if(NumberedKey(key,"Hotkey")) {int index=std::stoi(key.substr(6));if(index<0||index>=static_cast<int>(s.hotkeys.size()))throw std::runtime_error("Invalid hotkey index");unsigned mods=0,vk=0;if(swscanf_s(wide.c_str(),L"%u,%u",&mods,&vk)!=2||mods>15||vk>255)throw std::runtime_error("Invalid hotkey");s.hotkeys[index]={mods,vk};}
         }
+        if(!productContent)throw std::runtime_error("No supported settings section or key");
+        if(file.bad())throw std::runtime_error("Settings read failed");
         s.directory = paths::UpgradeCaptureDirectory(s.directory);
         if (!manualPolicy||(s.format != L"png" && s.format != L"jpg" && s.format != L"bmp")) s.format = L"jpg";
         s.delay = std::clamp(s.delay, 0, 30);
@@ -80,9 +89,9 @@ bool ConfigService::Load(Settings& output, CString& error) const
         s.scrollDelay=std::clamp(s.scrollDelay,50,10000);CString patternError;if(!ValidateCapturePattern(s.filePattern,patternError))throw std::runtime_error("Invalid capture filename pattern");
         s.presets.erase(std::remove_if(s.presets.begin(),s.presets.end(),[](const RegionPreset& p){return p.name.IsEmpty()||p.rect.right<=p.rect.left||p.rect.bottom<=p.rect.top;}),s.presets.end());
     } catch (const std::exception& e) { error.Format(L"Invalid settings %s: %hs", iniPath_.GetString(), e.what()); return false; }
-    output=s; return true;
+    output=std::move(s);return true;
 }
-bool ConfigService::Save(const Settings& s, CString& error) const
+bool SerializeSettings(const Settings& s,std::string& utf8,CString& error)
 {
     if(!ValidImageDirectory(s.lastImageDirectory)){error=L"Invalid image save directory";return false;}
     if(!ValidateToolStyleData(s.toolStyles,error))return false;
@@ -115,13 +124,51 @@ bool ConfigService::Save(const Settings& s, CString& error) const
         text<<L"PresetName"<<i<<L"="<<name.GetString()<<L"\nPresetRect"<<i<<L"="<<r.left<<L","<<r.top<<L","<<r.right<<L","<<r.bottom<<L"\n";}
     const auto wide = text.str();
     const int bytes = WideCharToMultiByte(CP_UTF8, 0, wide.data(), static_cast<int>(wide.size()), nullptr, 0, nullptr, nullptr);
-    std::string utf8(bytes, 0); WideCharToMultiByte(CP_UTF8, 0, wide.data(), static_cast<int>(wide.size()), utf8.data(), bytes, nullptr, nullptr);
-    const CString temp = iniPath_ + L".tmp";
-    std::ofstream file(std::filesystem::path(temp.GetString()), std::ios::binary | std::ios::trunc);
-    file.write(utf8.data(), utf8.size()); file.close();
-    if (!file || !MoveFileEx(temp, iniPath_, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
-        error.Format(L"Cannot save %s (Win32=%lu)", iniPath_.GetString(), GetLastError()); return false;
-    }
+    utf8.assign(bytes,0); WideCharToMultiByte(CP_UTF8,0,wide.data(),static_cast<int>(wide.size()),utf8.data(),bytes,nullptr,nullptr);
     return true;
+}
+
+std::recursive_mutex configMutex;
+bool OwnedSection(const std::string& s){return s.empty()||s=="Capture"||s=="ScreenshotOptions"||s=="Interface";}
+bool Retired(const std::string& key){return key=="Hotkey3"||key=="Hotkey4"||key=="RecordFormat"||key=="VideoFormat"||key=="VideoCodec"||key=="AudioMode"||key=="AudioDevice"||key=="Microphone"||key=="SystemAudio"||key=="Fps"||key=="FPS"||key=="FFmpegPath";}
+bool Managed(const std::string& key){
+    static const std::set<std::string> keys={"Directory","Format","Cursor","EditableCursor","EditAfter","CloseToTray","Delay","FixedWidth","FixedHeight","ImageSavePolicy","SaveAfter","CopyAfter","ClientOnly","ChildWindow","JpegQuality","CaptureMagnifier","CaptureGrid","DimOutside","HideEditors","ScrollDelay","FilePattern","LastImageDirectory","LastRegion","LanguageFile","HomeFeatures","EditorHome","EditorHomeChildren","StickerLibrary","ToolStyles","Palette","EditorShortcuts"};
+    return keys.count(key)||NumberedKey(key,"Hotkey")||NumberedKey(key,"PresetName")||NumberedKey(key,"PresetRect")||Retired(key);
+}
+bool ReadConfig(const CString& path,std::string& bytes,bool& exists,CString& error){
+    std::error_code ec;exists=std::filesystem::exists(path.GetString(),ec);if(ec){error=L"Cannot inspect settings: "+path;return false;}if(!exists){bytes.clear();return true;}
+    const auto size=std::filesystem::file_size(path.GetString(),ec);if(ec||size>8ULL*1024*1024){error=L"Settings file cannot be read or exceeds 8 MiB: "+path;return false;}
+    std::ifstream file(std::filesystem::path(path.GetString()),std::ios::binary);if(!file){error=L"Cannot read "+path;return false;}
+    bytes.resize(static_cast<size_t>(size));file.read(bytes.data(),static_cast<std::streamsize>(size));if(file.gcount()!=static_cast<std::streamsize>(size)||file.bad()||file.peek()!=std::char_traits<char>::eof()){error=L"Settings changed during reading: "+path;return false;}return true;
+}
+std::string MergeSettings(const std::string& previous,const std::string& canonical){
+    struct Entry{std::string section,value;};std::map<std::string,Entry> entries;std::string line,section;
+    std::istringstream desired(canonical);while(std::getline(desired,line)){if(!line.empty()&&line.back()=='\r')line.pop_back();if(!line.empty()&&line.front()=='['){section=line.substr(1,line.size()-2);continue;}auto eq=line.find('=');if(eq!=std::string::npos)entries[line.substr(0,eq)]={section,line.substr(eq+1)};}
+    std::ostringstream merged;std::set<std::string> written;std::istringstream old(previous);section.clear();bool firstLine=true;
+    while(std::getline(old,line)){if(firstLine){firstLine=false;if(line.compare(0,3,"\xEF\xBB\xBF")==0){merged<<"\xEF\xBB\xBF";line.erase(0,3);}}if(!line.empty()&&line.back()=='\r')line.pop_back();if(line.size()>=2&&line.front()=='['&&line.back()==']')section=line.substr(1,line.size()-2);
+        if(section=="Recording")continue;
+        const auto eq=line.find('=');if(OwnedSection(section)&&eq!=std::string::npos&&Managed(line.substr(0,eq))){const auto key=line.substr(0,eq);auto it=entries.find(key);if(it!=entries.end()&&written.insert(key).second)merged<<key<<'='<<it->second.value<<'\n';continue;}
+        merged<<line<<'\n';
+    }
+    for(const auto& group:{"Capture","ScreenshotOptions","Interface"}){bool header=false;for(const auto& item:entries)if(item.second.section==group&&!written.count(item.first)){if(!header){merged<<'['<<group<<"]\n";header=true;}merged<<item.first<<'='<<item.second.value<<'\n';}}
+    return merged.str();
+}
+}
+bool ConfigService::Load(Settings& output,CString& error)const{
+    std::lock_guard<std::recursive_mutex> lock(configMutex);std::string bytes;bool exists=false;loadFailed_=true;
+    if(!ReadConfig(iniPath_,bytes,exists,error))return false;
+    if(!exists){loadFailed_=false;if(!Save(Settings{},error)){loadFailed_=true;return false;}bytes=baseline_;}
+    std::istringstream input(bytes);Settings candidate;if(!ParseSettings(input,candidate,error,iniPath_))return false;
+    baseline_=bytes;hasBaseline_=true;loadFailed_=false;output=std::move(candidate);error.Empty();return true;
+}
+bool ConfigService::Save(const Settings& settings,CString& error)const{
+    std::lock_guard<std::recursive_mutex> lock(configMutex);
+    if(loadFailed_){error=L"Settings were not loaded successfully; the original INI is preserved. Repair the file and restart.";return false;}
+    std::string current;bool exists=false;if(!ReadConfig(iniPath_,current,exists,error))return false;
+    if(hasBaseline_&&current!=baseline_){error=L"Settings changed outside this window; reload before saving. The newer INI is preserved.";return false;}
+    if(exists){std::istringstream input(current);Settings checked;if(!ParseSettings(input,checked,error,iniPath_))return false;}
+    std::string canonical;if(!SerializeSettings(settings,canonical,error))return false;
+    const auto merged=MergeSettings(current,canonical);std::vector<BYTE> bytes(merged.begin(),merged.end());
+    if(!WriteBytes(iniPath_,bytes,error))return false;baseline_=merged;hasBaseline_=true;error.Empty();return true;
 }
 }

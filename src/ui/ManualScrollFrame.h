@@ -16,7 +16,7 @@ protected:
     afx_msg LRESULT OnDpiChanged(WPARAM,LPARAM);
 private:
     friend class EnhancementAccess;
-    struct Result{core::ManualStitcher stitch;core::Image preview;CString error;};
+    struct Result{std::shared_ptr<core::ManualStitcher> staged;core::ManualStitcher stitch;core::Image preview;CString error;};
     void Start(UINT action);services::CaptureTarget target_;Done done_;CFont font_;CEdit overlap_;CStatic status_;std::vector<std::unique_ptr<CButton>> buttons_;
     core::ManualStitcher stitch_;core::Image preview_;core::BackgroundJob<Result> job_;
     bool horizontal_=false;int dpi_=96;

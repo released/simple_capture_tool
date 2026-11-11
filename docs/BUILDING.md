@@ -20,6 +20,11 @@ scripts\build_debug.bat
 
 Release 輸出至 `build\SimpleCaptureTool.exe`，Debug 輸出至 `artifacts\debug\SimpleCaptureTool.exe`。相容入口 `scripts\build_release_mfc.bat` 使用相同 Release 流程。
 
+- 版本來源為 `src/version.h`；每次 MSBuild 建置會準備一次固定的建置時間。
+- UI 與 EXE 版本資源共用產生的建置識別；Debug、Release 與測試版本的標頭分別放在各自的中間檔目錄。
+- 自動化建置可透過 MSBuild 的 `SctBuildStamp` 屬性傳入固定的 ISO 8601 時間，例如 `2026-11-11T10:11:12+08:00`。
+
+
 建置前會要求既有目標程式安全退出；有未儲存圖片、草稿或對話框時會停止，不強制丟棄內容。需保留的圖片須先儲存。一般建置不會執行功能測試。
 
 ## 驗證

@@ -3,6 +3,7 @@
 #include "NativeTestInput.h"
 #include "ImageCodec.h"
 #include "AtomicWriteAudit.h"
+#include "ClipboardService.h"
 #include "CaptureService.h"
 #include "LanguageService.h"
 #include "../ui/EditorFrame.h"
@@ -96,13 +97,14 @@ class ReviewOptimizationAccess {
         Wait([&]{return !::IsWindow(host);});check(EditorWorkspace::Current()==nullptr,"pending exit automatically closes all RAM pages and main frame after work finishes");
     }
 public:static void Run(Check check,std::ofstream& log,const std::filesystem::path& dir){
+        int clipboardCalls=0;services::ClipboardApi api;api.open=[&](HWND){++clipboardCalls;return false;};api.empty=[&]{++clipboardCalls;return false;};api.set=[&](UINT,HGLOBAL){++clipboardCalls;return false;};api.close=[&]{++clipboardCalls;};api.readRaster=[&](UINT,std::vector<BYTE>&,core::Image&,bool&,CString&){++clipboardCalls;return false;};services::ClipboardApiAudit clipboardAudit(api);
         AtomicChecks(check,dir);ActivationBlock activation;const auto foreground=GetForegroundWindow();const auto clipboard=GetClipboardSequenceNumber();auto* previous=AfxGetApp()->m_pMainWnd;const auto oldWorkspace=EditorWorkspace::current_;const auto language=services::CurrentLanguage();
         auto* main=new MainFrame(true);const HWND host=main->m_hWnd;AfxGetApp()->m_pMainWnd=main;auto* w=new EditorWorkspace;w->Create(nullptr,L"Private review workspace",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,CRect(0,0,1100,800));w->owned_=true;const HWND workspace=w->m_hWnd;EditorWorkspace::current_=workspace;
         auto cleanup=[&]{services::atomicWriteFaults=nullptr;ImageSaveDialog::choiceAudit_={};layoutTestDpi=0;if(::IsWindow(workspace))w->DestroyWindow();if(::IsWindow(host))main->DestroyWindow();EditorWorkspace::current_=oldWorkspace;AfxGetApp()->m_pMainWnd=previous;CString error;services::ActivateLanguage(language,error);};
         try{auto* a=Add(w);auto* b=Add(w);w->RefreshDocuments();w->Layout();
             for(auto file:{L"lang_tw.ini",L"lang_en.ini"})for(int dpi:{96,144}){layoutTestDpi=dpi;CString error;check(services::ActivateLanguage(file,error),"private review language activated");a->document_.Reset(Source());b->document_.Reset(Source());++a->revision_;++b->revision_;a->renderSuspended_=b->renderSuspended_=true;a->selected_=b->selected_=-1;a->cropRegion_.SetRectEmpty();a->sidebar_.Refresh(true);Snapshots(check,*w,*a,*b,dir);StatusAndRefresh(check,log,*w,*b,*main,dir);InsertAndCommands(check,*w,*b,dir);log<<"REVIEW language="<<CStringA(file).GetString()<<" simulated_dpi="<<dpi<<" private native snapshots/status/insert/menus/refresh\n";}
             struct Result {CString error;};core::BackgroundJob<Result> cancel;std::atomic_bool entered=false;cancel.Start([&]{entered=true;while(!cancel.cancel.load()){core::CancellationPoint();Sleep(1);}core::CancellationPoint();return Result{};});Wait([&]{return entered.load();});cancel.cancel=true;std::optional<Result> result;Wait([&]{result=cancel.Take();return result.has_value();});check(!result->error.IsEmpty(),"owned cancellable pixel work terminates cooperatively and returns an error result");
-            RefreshMetrics(check,log);Close(check,*w,*main);DWORD foregroundPid=0;GetWindowThreadProcessId(GetForegroundWindow(),&foregroundPid);check(GetForegroundWindow()==foreground||foregroundPid!=GetCurrentProcessId(),"private review fixture never activates a foreground window");check(GetClipboardSequenceNumber()==clipboard,"private review fixture never reads or publishes user clipboard images");cleanup();
+            RefreshMetrics(check,log);Close(check,*w,*main);DWORD foregroundPid=0;GetWindowThreadProcessId(GetForegroundWindow(),&foregroundPid);check(GetForegroundWindow()==foreground||foregroundPid!=GetCurrentProcessId(),"private review fixture never activates a foreground window");DWORD clipboardOwner=0;GetWindowThreadProcessId(GetClipboardOwner(),&clipboardOwner);const auto finalClipboard=GetClipboardSequenceNumber();check(clipboardCalls==0&&(finalClipboard==clipboard||clipboardOwner!=GetCurrentProcessId()),"private review fixture never reads or publishes user clipboard images; independent external changes are allowed");log<<"REVIEW_CLIPBOARD start="<<clipboard<<" final="<<finalClipboard<<" ownerPid="<<clipboardOwner<<" ownPid="<<GetCurrentProcessId()<<" apiCalls="<<clipboardCalls<<"\n";cleanup();
         }catch(...){cleanup();throw;}
     }
 };

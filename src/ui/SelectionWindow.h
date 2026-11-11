@@ -11,12 +11,13 @@ struct SelectionResult {
     std::shared_ptr<const core::Image> frozen;
     std::vector<core::Region> regions;
     std::shared_ptr<const services::CapturedCursor> cursor;
+    RECT desktop{};bool desktopChanged=false;
     bool fullDesktop=false;
 };
 class SelectionWindow final:public CWnd {
 public:
     using Done=std::function<void(bool,SelectionResult)>;
-    static HWND Begin(CWnd* owner,core::Image image,SelectionMode mode,CSize fixed,Done done,bool clientOnly=false,bool child=false,SelectionOptions options={});
+    static HWND Begin(CWnd* owner,core::Image image,SelectionMode mode,CSize fixed,Done done,bool clientOnly=false,bool child=false,SelectionOptions options={},RECT frozenDesktop={});
 protected:
     BOOL PreTranslateMessage(MSG*)override;
     void PostNcDestroy()override{delete this;}
@@ -52,6 +53,7 @@ private:
     std::vector<std::pair<HWND,CRect>> windows_;std::vector<POINT> points_,originalPoints_;std::vector<core::Region> regions_;
     int ratioX_=0,ratioY_=0,ratioIndex_=0;std::function<INT_PTR(FormDialog&)> ratioAudit_;
     CComboBox shape_,ratio_;CFont font_;std::vector<std::unique_ptr<CButton>> buttons_;Done done_;
+    bool frozenGeometry_=false;
     SelectionOptions options_;CPoint cursor_;
 };
 }

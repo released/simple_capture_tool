@@ -5,6 +5,7 @@
 #include "EditorSelectionVisuals.h"
 #include "EditorViewportVisuals.h"
 #include "ImagePreviewDialog.h"
+#include "EditorOperationScope.h"
 #include "UiSupport.h"
 #include "../core/ImageOperations.h"
 #include "../core/PixelTools.h"
@@ -151,14 +152,15 @@ void EditorFrame::RequestRender()
 void EditorFrame::OnTimer(UINT_PTR)
 {
     if(closing_){
-        auto result=job_.Take();if(job_.Busy())return;
+        if(operationDepth_)return;auto result=job_.TakeOwned();if(job_.Busy())return;
         if(result&&result->error.IsEmpty()&&(result->action==WorkImageSave||result->action==WorkOutput||result->action==WorkWorkflow&&result->command==ExportScaled)&&!result->path.IsEmpty()){CString ignored;MainFrame::RememberImageSave(result->path,ignored);}
         if(result&&result->error.IsEmpty()&&result->action==WorkWorkflow&&result->command==BatchExport){for(const auto& file:result->exports)if(file.error.IsEmpty()){CString ignored;MainFrame::RememberImageSave(file.path,ignored);break;}}
         DestroyWindow();return;
     }
     if(screenColorModal_)return;
+    const EditorOperationScope operation(*this);
     RefreshCopyNotice();
-    auto r=job_.Take();try{if(r){if(!r->error.IsEmpty()){if(r->action==WorkCanvas||(canvasPending_&&activeAction_==WorkCanvas)){canvasPending_=false;InvalidateRect(canvas_,FALSE);}const bool copying=copyTicket_!=0;status_.SetWindowText(r->error);pendingAction_=0;CompleteClipboardCopy(false);if(copying)SetCopyNotice(CopyNotice::Failed,r->error);}
+    auto r=job_.TakeOwned();try{if(r){if(!r->error.IsEmpty()){if(r->action==WorkCanvas||(canvasPending_&&activeAction_==WorkCanvas)){canvasPending_=false;InvalidateRect(canvas_,FALSE);}const bool copying=copyTicket_!=0;status_.SetWindowText(r->error);pendingAction_=0;CompleteClipboardCopy(false);if(copying)SetCopyNotice(CopyNotice::Failed,r->error);}
         else if(r->action==WorkRender){if(r->revision==revision_&&r->preview==previewGeneration_){image_=std::move(r->image);if(!r->thumbnail.Empty()){thumbnail_=std::move(r->thumbnail);rendered_=r->revision;NotifyWorkspace();}InvalidateRect(canvas_,FALSE);}}
         else if(r->action==WorkImageSave||r->action==WorkProjectSave){if(r->action==WorkImageSave)path_=r->path;else projectPath_=r->path;projectPrimary_=r->action==WorkProjectSave;dirty_=r->revision!=revision_;status_.SetWindowText(CString(Tr(Text::Saved))+r->path);if(r->action==WorkImageSave)ImageSaved(r->path);NotifyWorkspace(false);}
         else if(r->action==WorkTransform){if(r->command==Effects&&(r->revision!=revision_||r->maskEpoch!=maskEpoch_||r->preview!=cropGeneration_||r->expected!=Selection()||CRect(r->screen)!=pixelSelection_||r->colorCrop!=cropRegion_||r->colorTool!=style_.tool||textEditing_||sidebar_.Dirty())){status_.SetWindowText(Tr(Text::Busy));}else if(r->command==Effects&&!r->colorChanged){status_.SetWindowText(Tr(Text::RefinementUnchanged));}else{document_.Commit(std::move(r->state));selected_=-1;pixelSelection_.SetRectEmpty();offsetX_=offsetY_=0;SyncStyle();Layout();Changed();if(r->recipe)RememberRecipe(*r->recipe);}}
@@ -169,8 +171,8 @@ void EditorFrame::OnTimer(UINT_PTR)
         else if(r->action==WorkComposition){if(r->revision&&r->revision!=revision_||r->mask&&r->maskEpoch!=maskEpoch_){status_.SetWindowText(Tr(Text::Busy));}else{document_.Commit(std::move(r->state));style_.tool=core::Tool::Select;selected_=-1;Changed();if(!r->selected.empty())SetSelection(std::move(r->selected));else Select(document_.State().objects.empty()?-1:static_cast<int>(document_.State().objects.size())-1);}}
         else if(r->action==WorkOutput){if(r->path.IsEmpty())status_.SetWindowText(Tr(Text::Saved));else ImageSaved(r->path);}
         else if(r->action==WorkPreset){if(!LoadEffectPreset(r->path))status_.SetWindowText(Tr(Text::InvalidValue));}
-        else if(r->action==WorkPrintPreview){ImagePreviewDialog preview(this,std::move(r->image),Text::PrintPreview);preview.Run();}
-        else if(r->action==WorkBackground&&r->revision==revision_){ImagePreviewDialog preview(this,std::move(r->thumbnail),Text::BackgroundEffect,true);if(preview.Run()==IDOK&&r->revision==revision_){document_.Commit(std::move(r->state));selected_=-1;Changed();}}
+        else if(r->action==WorkPrintPreview){ImagePreviewDialog preview(this,std::move(r->image),Text::PrintPreview);if(previewModalAudit_)preview.initAudit_=[audit=previewModalAudit_](ImagePreviewDialog& dialog){audit(dialog);};preview.Run();if(!operation.Live())return;}
+        else if(r->action==WorkBackground&&r->revision==revision_){ImagePreviewDialog preview(this,std::move(r->thumbnail),Text::BackgroundEffect,true);if(previewModalAudit_)preview.initAudit_=[audit=previewModalAudit_](ImagePreviewDialog& dialog){audit(dialog);};if(preview.Run()==IDOK&&operation.Live()&&r->revision==revision_){document_.Commit(std::move(r->state));selected_=-1;Changed();}}
         else if(r->action==WorkCanvas)CompleteCanvasResize(*r);
         else if(r->action==WorkImagePaste)CompleteImagePaste(*r);
         else if(r->action==WorkNewDimensions){const HWND host=m_hWnd;ShowNewImage(r->dimensions);if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;}
@@ -190,18 +192,22 @@ void EditorFrame::OnTimer(UINT_PTR)
         else if(r->action==WorkAdvanced){const HWND host=m_hWnd;CompleteAdvanced(*r);if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;}
         else if(r->action==WorkProductivity)CompleteProductivity(*r);
         else if(r->action==WorkEnhancement){const HWND host=m_hWnd;CompleteEnhancement(*r);if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;}
-    }}catch(const std::exception& e){CompleteClipboardCopy(false);CString error;error.Format(L"%s %hs",Tr(Text::Failed),e.what());status_.SetWindowText(error);}
-    StartCloneCommit();ApplyCanvasResize();StartColorSelection();StartMask();RunPendingAction();
+    }}catch(const std::exception& e){if(!operation.Live())return;CompleteClipboardCopy(false);CString error;error.Format(L"%s %hs",Tr(Text::Failed),e.what());status_.SetWindowText(error);}
+    if(!operation.Live())return;StartCloneCommit();ApplyCanvasResize();StartColorSelection();StartMask();RunPendingAction();
     PollClipboardPaste();
     OpenNext();RequestRender();const HWND host=m_hWnd;RunQueuedLayout();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;
     EditorPolling(EditorWorkPending());if(r&&r->action!=WorkRender){ribbon_.RefreshEnabled();flowPanel_.SyncOptions();}
 }
 void EditorFrame::OnClose(){
-    if(closing_)return;closing_=true;widthClosing_=true;renderSuspended_=true;
+    if(closing_){if(!job_.Busy()&&!operationDepth_)DestroyWindow();return;}closing_=true;widthClosing_=true;renderSuspended_=true;
+    if(operationDepth_){const HWND page=m_hWnd,root=::GetAncestor(page,GA_ROOT);struct Owners{HWND page,root;} owners{page,root};
+        EnumThreadWindows(GetCurrentThreadId(),[](HWND dialog,LPARAM value)->BOOL{const auto& owners=*reinterpret_cast<Owners*>(value);wchar_t name[32]{};::GetClassName(dialog,name,_countof(name));if(wcscmp(name,L"#32770"))return TRUE;
+            for(HWND owner=::GetWindow(dialog,GW_OWNER);owner;owner=::GetWindow(owner,GW_OWNER))if(owner==owners.page||owner==owners.root){::PostMessage(dialog,WM_CLOSE,0,0);break;}return TRUE;},reinterpret_cast<LPARAM>(&owners));}
+
     if(width_.GetSafeHwnd())width_.SetModify(FALSE);CancelSweep();openQueue_.clear();pendingLayoutPaths_.clear();pendingAction_=0;
     job_.cancel=true;dragging_=false;canvasHandle_=-1;textEditing_=false;CompleteClipboardCopy(false);pasteTicket_=0;
     if(GetCapture()==this)ReleaseCapture();
-    if(job_.Busy()){EnableWindow(FALSE);status_.SetWindowText(Tr(Text::ClosingWork));EditorPolling(true);return;}
+    if(job_.Busy()||operationDepth_){EnableWindow(FALSE);status_.SetWindowText(Tr(Text::ClosingWork));EditorPolling(true);return;}
     DestroyWindow();
 }
 void EditorFrame::OnDestroy(){widthClosing_=true;CancelSweep();KillTimer(1);editorPollMs_=0;CompleteClipboardCopy(false);pasteTicket_=0;if(auto* w=dynamic_cast<EditorWorkspace*>(workspace_))w->ChildClosed(m_hWnd);CFrameWnd::OnDestroy();}

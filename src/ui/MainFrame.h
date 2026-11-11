@@ -7,6 +7,7 @@
 #include "CountdownWindow.h"
 #include "SelectionWindow.h"
 #include "../services/CursorCapture.h"
+#include "tool_build_display.h"
 class SimpleCaptureToolApp;
 namespace sct::ui {
 class FormDialog;
@@ -24,7 +25,9 @@ protected:
     afx_msg LRESULT OnHotkey(WPARAM,LPARAM);afx_msg LRESULT OnDeferredHotkey(WPARAM,LPARAM);
     afx_msg void OnEnterMenuLoop(BOOL);afx_msg void OnExitMenuLoop(BOOL);
 private:
+    native_tool_ui::BuildIdentityLabel buildIdentity_;
     friend class ReviewOptimizationAccess;
+    friend class ReviewReliabilityAccess;
     bool pendingExit_=false;
     friend class ::SimpleCaptureToolApp;
     friend class EditorRefinementsAccess;
@@ -43,9 +46,12 @@ private:
     friend class PreferenceAccess;
     friend class CaptureAlignmentAccess;
     friend class SavePaintAccess;friend class SaveDirectoryAccess;friend class ScreenshotOnlyAccess;
-    struct WorkResult {core::Image image;core::DocumentState document;CString path,error;int action=0;bool horizontal=false,blankCanvas=false;services::CaptureTarget target;std::shared_ptr<const services::CapturedCursor> cursor;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<const core::Image> source;HWND editor=nullptr;CSize dimensions{1280,720};CWnd* imageOwner=nullptr;};
+    struct WorkResult {RECT frozenDesktop{};core::Image image;core::DocumentState document;CString path,error;int action=0;bool horizontal=false,blankCanvas=false;services::CaptureTarget target;std::shared_ptr<const services::CapturedCursor> cursor;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<const core::Image> source;HWND editor=nullptr;CSize dimensions{1280,720};CWnd* imageOwner=nullptr;};
     HWND captureIntoEditor_=nullptr;EditorFrame* captureIntoOwner_=nullptr;uint64_t captureIntoRevision_=0,captureIntoEpoch_=0,captureIntoCrop_=0;bool captureIntoRequested_=false;std::vector<int> captureIntoSelection_;std::function<void()> captureIntoAudit_;
-    bool QueueCaptureWork(std::function<WorkResult()>);
+    bool QueueCaptureWork(std::function<WorkResult()>,bool captureCancelable=false);
+    void FrozenLayoutChanged();RECT CaptureDesktop()const;bool ValidateFrozen(RECT,const core::Image* image=nullptr);
+    bool captureCancelable_=false,captureEscapeDown_=false;
+    std::function<bool()> captureEscapeAudit_;std::function<RECT()> captureDesktopAudit_;
     void BeginCapture(UINT);void LaunchFrozen(UINT);void HandleCapture(WorkResult&);
     void StartCapture(services::CaptureTarget,bool scroll=false);
     void DeliverFrozen(SelectionResult);void DeliverImage(core::Image,RECT region={});

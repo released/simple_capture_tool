@@ -9,6 +9,7 @@
 #include "../resource.h"
 #include "../core/BuildExitProtocol.h"
 #include "../services/SingleInstance.h"
+#include "tool_build_identity.h"
 namespace {UINT taskbarCreated=RegisterWindowMessage(L"TaskbarCreated"),buildExit=RegisterWindowMessage(SCT_BUILD_EXIT_MESSAGE),activateExisting=sct::services::SingleInstance::ActivationMessage();}
 namespace sct::ui {
 BEGIN_MESSAGE_MAP(MainFrame,CFrameWnd)
@@ -46,17 +47,21 @@ MainFrame::MainFrame(bool isolated):isolated_(isolated)
 int MainFrame::OnCreate(LPCREATESTRUCT cs)
 {
     if(CFrameWnd::OnCreate(cs)==-1)return -1;::SetProp(m_hWnd,L"SCT.LocaleRoot",reinterpret_cast<HANDLE>(1));::SetProp(m_hWnd,L"SCT.MainFrame",reinterpret_cast<HANDLE>(1));SetIcon(AfxGetApp()->LoadIcon(IDI_APP_ICON),TRUE);SetIcon(AfxGetApp()->LoadIcon(IDI_APP_ICON),FALSE);
+    if(!buildIdentity_.Create(m_hWnd,TOOL_BUILD_VERSION_W,TOOL_BUILD_DISPLAY_TIME_W,TOOL_BUILD_TIMESTAMP_ISO_W))return -1;
     for(const auto& entry:MainFeatures()){
         auto b=std::make_unique<CButton>();b->Create(Tr(entry.label),WS_CHILD|WS_VISIBLE|WS_TABSTOP,CRect(),this,entry.command);BindText(*b,entry.label);buttons_.push_back(std::move(b));}
     status_.Create(Tr(Text::Ready),WS_CHILD|WS_VISIBLE|SS_LEFT,CRect(),this);ApplyFont(*this,font_);
     BuildMenu();SetWindowPos(nullptr,0,0,Px(m_hWnd,740),Px(m_hWnd,520),SWP_NOMOVE|SWP_NOZORDER);if(!isolated_)AddTray();CString error;
-    if(!isolated_&&!RegisterKeys(settings_,error))startupError_=error;if(!startupError_.IsEmpty())status_.SetWindowText(startupError_);SetTimer(1,100,nullptr);Layout();return 0;
+    if(!isolated_&&!RegisterKeys(settings_,error))startupError_+=L"\r\n"+error;if(!startupError_.IsEmpty())status_.SetWindowText(startupError_);SetTimer(1,100,nullptr);Layout();return 0;
 }
 void MainFrame::Layout()
 {
-    if(!status_.GetSafeHwnd())return;CRect client;GetClientRect(client);const int gap=Px(m_hWnd,12),h=Px(m_hWnd,38);int x=gap,y=gap;
+    if(!status_.GetSafeHwnd())return;CRect client;GetClientRect(client);const int gap=Px(m_hWnd,12),h=Px(m_hWnd,38);
+    buildIdentity_.SetFont(reinterpret_cast<HFONT>(::SendMessageW(status_.GetSafeHwnd(),WM_GETFONT,0,0)));
+    buildIdentity_.Place(client.right-gap,gap,(std::max)(0,client.Width()-gap*2));
+    const int contentTop=gap+buildIdentity_.Height()+gap;int x=gap,y=contentTop;
     for(size_t i=0;i<buttons_.size();++i){auto& b=buttons_[i];const bool visible=HomeVisible(settings_,MainFeatures()[i]);b->ShowWindow(visible?SW_SHOW:SW_HIDE);if(!visible)continue;CString text;b->GetWindowText(text);int w=std::min(client.Width()-gap*2,TextWidth(*b,text,30));if(x+w>client.right-gap){x=gap;y+=h+gap;}b->MoveWindow(x,y,w,h);x+=w+gap;}
-    y=x==gap&&y==gap?gap:y+h+gap;CRect desired(0,0,client.Width(),y+Px(m_hWnd,72)+gap);AdjustClientRect(desired,*this,true);CRect outer;GetWindowRect(outer);
+    y=x==gap&&y==contentTop?contentTop:y+h+gap;CRect desired(0,0,client.Width(),y+Px(m_hWnd,72)+gap);AdjustClientRect(desired,*this,true);CRect outer;GetWindowRect(outer);
     if(desired.Height()!=outer.Height()){SetWindowPos(nullptr,0,0,outer.Width(),desired.Height(),SWP_NOMOVE|SWP_NOZORDER);return;}
     status_.MoveWindow(gap,y,client.Width()-gap*2,std::max<int>(Px(m_hWnd,50),client.bottom-y-gap));Invalidate(TRUE);
 }

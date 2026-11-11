@@ -1,4 +1,5 @@
 # Visual Studio and compiler intermediates
+/src/generated/tool_build_identity.h
 .vs/
 *.user
 *.suo

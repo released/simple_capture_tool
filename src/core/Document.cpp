@@ -7,25 +7,35 @@
 namespace sct::core {
 int MosaicBlockSize(const Annotation& a){return a.mosaicStrength?4+MulDiv(std::clamp(a.mosaicStrength,1,100)-1,60,99):std::clamp(a.width*4,4,64);}
 int MosaicStrengthPercent(const Annotation& a){return a.mosaicStrength?std::clamp(a.mosaicStrength,1,100):1+MulDiv(MosaicBlockSize(a)-4,99,60);}
-void Document::Bound(std::vector<DocumentState>& states)
+namespace {
+size_t RetainedStart(const std::vector<DocumentState>& states,const DocumentState& previous)
 {
-    while(states.size()>20) states.erase(states.begin());
-    for (;;) {
-        std::set<const Image*> unique; size_t bytes=0;
-        for(const auto& state:states) {
-            if(state.base && unique.insert(state.base.get()).second) bytes+=state.base->pixels.size();
-            for(const auto& a:state.objects) { bytes+=a.textRuns.size()*sizeof(TextRun);for(const auto& run:a.textRuns)bytes+=(run.font.GetLength()+1)*sizeof(wchar_t);bytes+=a.points.size()*sizeof(POINT)+(a.text.GetLength()+a.label.GetLength())*sizeof(wchar_t);
-                if(a.asset && unique.insert(a.asset.get()).second) bytes+=a.asset->pixels.size(); }
+    const size_t count=states.size()+1;size_t first=count>20?count-20:0;
+    for(;;){std::set<const Image*> unique;size_t bytes=0;
+        for(size_t i=first;i<count;++i){const auto& state=i==states.size()?previous:states[i];
+            if(state.base&&unique.insert(state.base.get()).second)bytes+=state.base->pixels.size();
+            for(const auto& a:state.objects){bytes+=a.textRuns.size()*sizeof(TextRun);for(const auto& run:a.textRuns)bytes+=(run.font.GetLength()+1)*sizeof(wchar_t);bytes+=a.points.size()*sizeof(POINT)+(a.text.GetLength()+a.label.GetLength())*sizeof(wchar_t);if(a.asset&&unique.insert(a.asset.get()).second)bytes+=a.asset->pixels.size();}
         }
-        if(bytes<=256ULL*1024*1024 || states.size()<=1) break;
-        states.erase(states.begin());
+        if(bytes<=256ULL*1024*1024||count-first<=1)return first;++first;
     }
+}
+void CommitCheckpoint(int phase){
+#if SCT_ENABLE_SELFTESTS
+    if(documentCommitFault==phase)throw std::bad_alloc();
+#else
+    (void)phase;
+#endif
+}
 }
 void Document::Commit(DocumentState state) {
     RefreshConnections(state);composition::Validate(state);
     if(!state.base||state.base->Empty()||state.objects.size()>10000)throw std::runtime_error("Invalid document or object limit (10000)");
     size_t points=0;for(const auto& a:state.objects){points+=a.points.size();if(points>1000000)throw std::runtime_error("Document point limit (1000000)");}
-    undo_.push_back(state_);Bound(undo_);redo_.clear();state_=std::move(state);
+    static_assert(std::is_nothrow_move_constructible_v<DocumentState>&&std::is_nothrow_move_assignable_v<DocumentState>);
+    // Stage all allocating work before changing the visible state or either history.
+    CommitCheckpoint(1);auto previous=state_;CommitCheckpoint(2);const auto first=RetainedStart(undo_,previous);
+    CommitCheckpoint(3);undo_.reserve(undo_.size()+1);
+    undo_.push_back(std::move(previous));undo_.erase(undo_.begin(),undo_.begin()+first);redo_.clear();state_=std::move(state);
 }
 bool Document::Undo(){return NavigateHistory(-1);}
 bool Document::Redo(){return NavigateHistory(1);}

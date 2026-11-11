@@ -2,6 +2,9 @@
 #include "Image.h"
 #include "DocumentResources.h"
 namespace sct::core {
+#if SCT_ENABLE_SELFTESTS
+inline thread_local int documentCommitFault=0;
+#endif
 enum class Tool { Pen, Rectangle, Ellipse, Arrow, Mosaic, Crop, Text, Select, Step, Highlight, Redact, Blur, Picture, Magnifier, Spotlight,
     Line,RoundRectangle,Callout,Stamp,CursorStamp,Eraser,SmartEraser,Fill,Eyedropper,PixelSelect,CurvedArrow,Polygon,ElbowArrow,CloneBrush };
 struct TextRun {int start=0,length=0;CString font=L"Microsoft JhengHei UI";int size=28;COLORREF color=RGB(240,40,40);bool bold=false,italic=false,underline=false;};
@@ -61,7 +64,6 @@ public:
     size_t UndoCount()const{return undo_.size();}size_t RedoCount()const{return redo_.size();}
     void ClearHistory(){std::vector<DocumentState>().swap(undo_);std::vector<DocumentState>().swap(redo_);}
 private:
-    static void Bound(std::vector<DocumentState>& states);
     DocumentState state_;
     std::vector<DocumentState> undo_, redo_;
 };

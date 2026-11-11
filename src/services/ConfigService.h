@@ -44,5 +44,7 @@ public:
     static CString ExecutableDirectory();
 private:
     CString iniPath_;
+    mutable bool loadFailed_=false,hasBaseline_=false;
+    mutable std::string baseline_;
 };
 }

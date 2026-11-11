@@ -4,6 +4,7 @@
 #include "JpegDialog.h"
 #include "ImageSaveDialog.h"
 #include "EditorModalFence.h"
+#include "EditorOperationScope.h"
 #include "../services/ConfigService.h"
 #include "../services/CaptureService.h"
 #include "../services/ClipboardService.h"
@@ -19,6 +20,7 @@ void EditorFrame::ShowMore()
 }
 void EditorFrame::OnAction(UINT id)
 {
+    const EditorOperationScope operation(*this);if(!operation.Live())return;
     const HWND commandOwner=m_hWnd;
     if((id==Copy||id==Cut)&&!copyTicket_)SetCopyNotice(CopyNotice::Blocked);
     if(CommandMenuFlags(id)&MF_GRAYED){status_.SetWindowText(Tr(job_.Busy()?Text::Busy:Text::CommandUnavailable));return;}
@@ -80,7 +82,7 @@ void EditorFrame::OnAction(UINT id)
         if(id==Duplicate&&selected_>=0){document_.Duplicate(selected_);Select(static_cast<int>(document_.State().objects.size())-1);Changed();return;}
         if(id==DeleteObject&&selected_>=0){document_.Remove(selected_);selected_=-1;SyncStyle();Layout();Changed();return;}
         if((id==Forward||id==Backward)&&selected_>=0){const int delta=id==Forward?1:-1;document_.Reorder(selected_,delta);selected_=std::clamp(selected_+delta,0,static_cast<int>(document_.State().objects.size())-1);Changed();return;}
-        if(id==OpenProject){CFileDialog dlg(TRUE,L"sctproj",nullptr,OFN_FILEMUSTEXIST,Tr(Text::ProjectFilter),this);if(dlg.DoModal()!=IDOK)return;openQueue_.push_back(dlg.GetPathName());OpenNext();return;}
+        if(id==OpenProject){CFileDialog dlg(TRUE,L"sctproj",nullptr,OFN_FILEMUSTEXIST,Tr(Text::ProjectFilter),this);if(dlg.DoModal()!=IDOK||!operation.Live())return;openQueue_.push_back(dlg.GetPathName());OpenNext();return;}
         if(id==InsertImage||id==InsertImageFit){CFileDialog dlg(TRUE,L"png",nullptr,OFN_FILEMUSTEXIST,ImageOpenFilter(),this);const HWND host=m_hWnd;if(dlg.DoModal()==IDOK&&::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)InsertFile(dlg.GetPathName(),id==InsertImageFit);return;}
         if(id==JpegQuality){if(rendered_!=revision_){QueueAction(id);RequestRender();return;}int quality=JpegPreview();if(quality>=0)jpegQuality_=quality;return;}
         if(id>=ResizeImage&&id<=RemoveStrip)Transform(id);
@@ -88,7 +90,7 @@ void EditorFrame::OnAction(UINT id)
 }
 void EditorFrame::Export(bool project,bool useImagePath)
 {
-    const EditorModalFence fence(*this,revision_);const auto confirmAudit=exportConfirmAudit_;const auto crop=cropRegion_;const auto cropVersion=cropGeneration_;auto current=[&]{return fence.Live()&&!closing_&&revision_==fence.revision&&cropRegion_==crop&&cropGeneration_==cropVersion&&!textEditing_&&!(width_.GetSafeHwnd()&&width_.GetModify()&&selected_>=0)&&FlowReady()&&!job_.Busy();};
+    const EditorOperationScope operation(*this);if(!operation.Live())return;const EditorModalFence fence(*this,revision_);const auto confirmAudit=exportConfirmAudit_;const auto crop=cropRegion_;const auto cropVersion=cropGeneration_;auto current=[&]{return fence.Live()&&!closing_&&revision_==fence.revision&&cropRegion_==crop&&cropGeneration_==cropVersion&&!textEditing_&&!(width_.GetSafeHwnd()&&width_.GetModify()&&selected_>=0)&&FlowReady()&&!job_.Busy();};
     if(project&&std::any_of(document_.State().objects.begin(),document_.State().objects.end(),[](const auto& a){return a.tool==core::Tool::Redact||a.tool==core::Tool::Blur||a.tool==core::Tool::Mosaic;})&&(confirmAudit?confirmAudit(Text::ProjectPrivacy):MessageBox(Tr(Text::ProjectPrivacy),Tr(Text::SaveProject),MB_OKCANCEL|MB_ICONWARNING))!=IDOK)return;
     if(!current())return;
     services::Settings settings;CString error;if(!services::ConfigService().Load(settings,error)){AfxMessageBox(error);return;}

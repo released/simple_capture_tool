@@ -1,8 +1,22 @@
 #include "pch.h"
 #include "SelectionWindow.h"
 #include "UiSupport.h"
+#include <optional>
 
 namespace sct::ui {
+#if SCT_ENABLE_SELFTESTS
+namespace {thread_local std::optional<bool> selectionToolbarAlt;}
+void SetSelectionToolbarAltAudit(std::optional<bool> value){selectionToolbarAlt=value;}
+#endif
+namespace {
+bool ToolbarAltHeld(){
+#if SCT_ENABLE_SELFTESTS
+    if(selectionToolbarAlt.has_value())return *selectionToolbarAlt;
+#endif
+    return GetKeyState(VK_MENU)<0;
+}
+}
+
 CRect SelectionWindow::ToolbarBounds()const
 {
     CRect bounds=toolbar_;bounds.bottom+=6+toolbarHelpHeight_;return bounds;
@@ -16,7 +30,7 @@ CString SelectionWindow::SelectionHint()const
 }
 bool SelectionWindow::AvoidToolbar(CPoint point)
 {
-    if(!GetSafeHwnd()||!IsWindowEnabled()||!dragging_||!toolbarVisible_||toolbar_.IsRectEmpty()||toolbarWork_.IsRectEmpty()||GetKeyState(VK_MENU)<0||
+    if(!GetSafeHwnd()||!IsWindowEnabled()||!dragging_||!toolbarVisible_||toolbar_.IsRectEmpty()||toolbarWork_.IsRectEmpty()||ToolbarAltHeld()||
         (shape_.GetSafeHwnd()&&shape_.GetDroppedState())||(ratio_.GetSafeHwnd()&&ratio_.GetDroppedState()))return false;
     const auto previous=ToolbarBounds();const int gap=Px(m_hWnd,12),height=previous.Height();
     CRect proximity=previous;proximity.InflateRect(0,gap);

@@ -3,6 +3,8 @@
 #include "AlignmentTest.h"
 #include "NativeTestInput.h"
 #include "LanguageService.h"
+#include <optional>
+namespace sct::ui {void SetSelectionToolbarAltAudit(std::optional<bool>);}
 #include "../ui/SelectionWindow.h"
 #include "../ui/FormDialog.h"
 
@@ -26,12 +28,12 @@ struct DropdownProbe {
     explicit DropdownProbe(HWND h):window(h){if(!SetWindowSubclass(h,Proc,64,reinterpret_cast<DWORD_PTR>(this)))throw std::runtime_error("Cannot isolate dropdown state");}
     ~DropdownProbe(){if(::IsWindow(window))RemoveWindowSubclass(window,Proc,64);}
 };
-void Alt(bool down){BYTE keys[256]{};keys[VK_MENU]=down?0x80:0;if(!SetKeyboardState(keys))throw std::runtime_error("Cannot isolate Alt state");}
+void Alt(bool down){sct::ui::SetSelectionToolbarAltAudit(down);BYTE keys[256]{};keys[VK_MENU]=down?0x80:0;if(!SetKeyboardState(keys))throw std::runtime_error("Cannot isolate Alt state");}
 }
 namespace sct::ui {
 class SelectionToolbarAccess {
     static SelectionWindow* Create(int width=1280,int height=900){
-        services::NeutralTestKeys();
+        services::NeutralTestKeys();SetSelectionToolbarAltAudit(false);
         auto* s=new SelectionWindow;auto image=std::make_shared<core::Image>();image->Create(width,height);
         for(int y=0;y<height;++y)for(int x=0;x<width;++x){auto* pixel=image->Row(y)+x*4;pixel[0]=BYTE(x%251);pixel[1]=BYTE(y%241);pixel[2]=37;pixel[3]=255;}
         s->image_=image;s->desktop_={-400,-180,width-400,height-180};s->options_={false,false,false,false};
@@ -224,7 +226,7 @@ public:
     static void Run(Check check,std::ofstream& log,const std::filesystem::path& dir){
         const auto report=check;check=[&](bool ok,const char* name){if(!ok)log<<"INPUT_STATE alt="<<GetKeyState(VK_MENU)<<" shift="<<GetKeyState(VK_SHIFT)<<" ctrl="<<GetKeyState(VK_CONTROL)<<" capture="<<::GetCapture()<<"\n";report(ok,name);};
         ActivationBlock activation;const auto language=services::CurrentLanguage();const HWND foreground=GetForegroundWindow();const auto clipboard=GetClipboardSequenceNumber();
-        auto cleanup=[&]{Alt(false);layoutTestDpi=0;CString error;services::ActivateLanguage(language,error);};
+        auto cleanup=[&]{Alt(false);SetSelectionToolbarAltAudit(std::nullopt);layoutTestDpi=0;CString error;services::ActivateLanguage(language,error);};
         try{for(auto file:{L"lang_tw.ini",L"lang_en.ini"})for(int dpi:{96,120,144}){
             CString error;check(services::ActivateLanguage(file,error),"private capture toolbar language activated");layoutTestDpi=dpi;
             check(!CString(Tr(Text::CaptureToolbarDragOnly)).IsEmpty(),"localized idle-click/drag-only avoidance help is available");Geometry(check);Directional(check);NativeControls(check);Escape(check);FullDesktop(check);
