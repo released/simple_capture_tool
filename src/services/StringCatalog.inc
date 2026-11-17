@@ -818,3 +818,7 @@ SCT_TEXT(FlowSnapHelp, L"箭頭／線條端點會吸附最近的流程圖節點�
 SCT_TEXT(CaptureFullDesktop, L"全螢幕擷取", L"Capture full screen")
 
 SCT_TEXT(CaptureDesktopChanged, L"螢幕配置已變更，請重新截圖。", L"Display layout changed. Please capture again.")
+
+SCT_TEXT(SaveDestinationConflict,L"全部儲存已停止：下列分頁使用相同目的檔案。請先另存其中一頁。\r\n%s",L"Save All stopped: these pages share a destination. Save one page under another name first.\r\n%s")
+SCT_TEXT(SaveAllResults,L"全部儲存：成功 %zu、失敗 %zu、處理中 %zu",L"Save All: %zu saved, %zu failed, %zu pending")
+SCT_TEXT(ProjectImageBudget,L"專案影像資料超過 %llu 位元組；重用圖片仍按每次出現計算。",L"Project image data exceeds %llu bytes; reused images count once per occurrence.")

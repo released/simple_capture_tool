@@ -107,6 +107,38 @@ public:static void Run(Check check,std::ofstream& log,const std::filesystem::pat
             RefreshMetrics(check,log);Close(check,*w,*main);DWORD foregroundPid=0;GetWindowThreadProcessId(GetForegroundWindow(),&foregroundPid);check(GetForegroundWindow()==foreground||foregroundPid!=GetCurrentProcessId(),"private review fixture never activates a foreground window");DWORD clipboardOwner=0;GetWindowThreadProcessId(GetClipboardOwner(),&clipboardOwner);const auto finalClipboard=GetClipboardSequenceNumber();check(clipboardCalls==0&&(finalClipboard==clipboard||clipboardOwner!=GetCurrentProcessId()),"private review fixture never reads or publishes user clipboard images; independent external changes are allowed");log<<"REVIEW_CLIPBOARD start="<<clipboard<<" final="<<finalClipboard<<" ownerPid="<<clipboardOwner<<" ownPid="<<GetCurrentProcessId()<<" apiCalls="<<clipboardCalls<<"\n";cleanup();
         }catch(...){cleanup();throw;}
     }
+    static void Status(Check check,std::ofstream& log,const std::filesystem::path& dir){
+        ActivationBlock activation;const auto language=services::CurrentLanguage();
+        auto* w=new EditorWorkspace;if(!w->Create(nullptr,L"Private status fixture",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,CRect(0,0,1200,850))){delete w;throw std::runtime_error("Cannot create status fixture");}w->owned_=true;const HWND host=w->m_hWnd;
+        auto count=[](const CString& text,const CString& token){int result=0,at=0;while((at=text.Find(token,at))>=0){++result;at+=token.GetLength();}return result;};
+        try{
+            core::Image image;image.Create(941,143);const auto source=core::Document(std::move(image)).State();auto* page=Add(w,&source);w->active_=0;w->Layout();w->UpdateResources();page->KillTimer(1);page->editorPollMs_=0;
+            const auto revision=page->revision_,undo=page->document_.UndoCount();
+            for(auto file:{L"lang_tw.ini",L"lang_en.ini"})for(int dpi:{96,144}){
+                layoutTestDpi=dpi;CString error;check(services::ActivateLanguage(file,error),"status fixture activates an existing isolated language");page->Layout();page->ZoomTo(1);page->status_.ClearOperation();page->status_.SetPositionText(L"");
+                CString dimensions;dimensions.Format(L"%d × %d px",941,143);CString memory;memory.Format(Tr(Text::ResourceStatus),w->ResourceBytes()/1048576.);
+                auto read=[&]{CString text;page->status_.GetWindowText(text);return text;};
+                auto move=[&](int n){const CPoint point(page->canvas_.left+Px(page->m_hWnd,24)+n%60,page->canvas_.top+Px(page->m_hWnd,24)+n%40);page->SendMessage(WM_MOUSEMOVE,0,MAKELPARAM(point.x,point.y));return page->ImagePoint(point);};
+                bool bounded=true;CPoint expected;for(int n=0;n<1000;++n){expected=move(n);const auto text=read();if(count(text,dimensions)!=1||count(text,L"100%")!=1||count(text,memory)!=1||count(text,L"X:")!=1||text.GetLength()>200){bounded=false;break;}if(n%10==0)page->ViewStatus();}
+                check(bounded,"1000 native mouse moves and view refreshes retain one dimensions/zoom/resource/coordinate block");CString xy;xy.Format(L"X:%d Y:%d",expected.x,expected.y);check(read().Right(xy.GetLength())==xy,"status coordinates track the latest native mouse event");
+                page->status_.SetWindowText(L"operation marker");for(int n=0;n<50;++n)move(n);auto text=read();check(count(text,L"operation marker")==1&&count(text,dimensions)==1,"mouse movement preserves an operation message without reusing the composed display as an operation");
+                page->ZoomTo(.5);move(12);text=read();check(count(text,L"50%")==1&&count(text,L"100%")==0&&count(text,dimensions)==1&&count(text,memory)==1,"zoom replaces view data while retaining one coordinate and operation block");
+                page->status_.SetWindowText(L"save failure marker");page->ViewStatus();move(15);text=read();check(count(text,L"save failure marker")==1&&count(text,L"operation marker")==0&&count(text,L"X:")==1,"new error feedback replaces the old operation without losing cursor feedback");
+                page->status_.ClearOperation();page->ViewStatus();text=read();check(text.Find(L"failure marker")<0&&count(text,dimensions)==1&&count(text,L"X:")==1,"clearing an operation leaves the independent view and coordinate fields intact");
+                page->ZoomTo(1);move(20);if(dpi==96&&CString(file)==L"lang_tw.ini"){
+                    CRect bounds;page->status_.GetClientRect(bounds);core::Image painted;check(painted.Create(bounds.Width(),bounds.Height()),"own status preview allocates a bounded paint surface");
+                    BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=painted.width;info.bmiHeader.biHeight=-painted.height;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;void* pixels=nullptr;
+                    HDC dc=CreateCompatibleDC(nullptr);HBITMAP bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,&pixels,nullptr,0);if(!dc||!bitmap){if(bitmap)::DeleteObject(bitmap);if(dc)DeleteDC(dc);throw std::runtime_error("Cannot paint private status preview");}
+                    const auto previous=SelectObject(dc,bitmap);PatBlt(dc,0,0,painted.width,painted.height,WHITENESS);page->status_.SendMessage(WM_PRINTCLIENT,reinterpret_cast<WPARAM>(dc),PRF_CLIENT|PRF_ERASEBKGND);memcpy(painted.pixels.data(),pixels,painted.pixels.size());SelectObject(dc,previous);::DeleteObject(bitmap);DeleteDC(dc);
+                    size_t dark=0;for(size_t n=0;n<painted.pixels.size();n+=4){if(painted.pixels[n]<160&&painted.pixels[n+1]<160&&painted.pixels[n+2]<160)++dark;painted.pixels[n+3]=255;}
+                    check(dark>20&&services::CaptureService::Save(painted,(dir/L"status.png").c_str(),error),"native static-control paint contains real text and saves only owned synthetic status pixels");
+                }
+                log<<"STATUS language="<<CStringA(file).GetString()<<" dpi="<<dpi<<" chars="<<read().GetLength()<<" native_mouse_moves=1000\n";
+            }
+            check(page->revision_==revision&&page->document_.UndoCount()==undo&&page->document_.State().base==source.base,"status-only updates leave the document and Undo untouched");
+            w->DestroyWindow();layoutTestDpi=0;CString ignored;services::ActivateLanguage(language,ignored);
+        }catch(...){if(::IsWindow(host))w->DestroyWindow();layoutTestDpi=0;CString ignored;services::ActivateLanguage(language,ignored);throw;}
+    }
 };
 }
-namespace sct::services {void ReviewOptimizationChecks(const std::function<void(bool,const char*)>& check,std::ofstream& log,const std::filesystem::path& dir){ui::ReviewOptimizationAccess::Run(check,log,dir);}}
+namespace sct::services {void ReviewOptimizationChecks(const std::function<void(bool,const char*)>& check,std::ofstream& log,const std::filesystem::path& dir){ui::ReviewOptimizationAccess::Run(check,log,dir);}void StatusChecks(const std::function<void(bool,const char*)>& check,std::ofstream& log,const std::filesystem::path& dir){ui::ReviewOptimizationAccess::Status(check,log,dir);}}

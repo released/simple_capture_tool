@@ -96,7 +96,7 @@ int EditorFrame::OnCreate(LPCREATESTRUCT cs)
     zoomSlider_.Create(WS_CHILD|WS_VISIBLE|TBS_NOTICKS,CRect(),this,ZoomSlider);zoomSlider_.SetRange(5,800);zoomSlider_.SetPos(100);
     horizontal_.Create(WS_CHILD|WS_VISIBLE|SBS_HORZ,CRect(),this,HorizontalScroll);vertical_.Create(WS_CHILD|WS_VISIBLE|SBS_VERT,CRect(),this,VerticalScroll);
     status_.Create(Tr(Text::EditorHelp),WS_CHILD|WS_VISIBLE|SS_LEFTNOWORDWRAP|SS_ENDELLIPSIS|SS_NOTIFY,CRect(),this);
-    if(!copyNotice_.Create(L"",WS_CHILD|SS_LEFTNOWORDWRAP|SS_ENDELLIPSIS|SS_NOTIFY,CRect(),this))return -1;
+    if(!copyNotice_.Create(L"",WS_CHILD|SS_LEFTNOWORDWRAP|SS_CENTERIMAGE|SS_ENDELLIPSIS|SS_NOTIFY,CRect(),this))return -1;
     tips_.Create(this,TTS_ALWAYSTIP);tips_.SetMaxTipWidth(Px(m_hWnd,700));tips_.AddTool(&status_,LPSTR_TEXTCALLBACK);tips_.AddTool(&copyNotice_,LPSTR_TEXTCALLBACK);tips_.SetDelayTime(TTDT_AUTOPOP,20000);
     ApplyFont(*this,font_);
     for(auto* combo:{&tools_,&fontSize_,&lineStyle_,&opacity_,&zoomChoice_})combo->SetRedraw(TRUE);
@@ -152,7 +152,7 @@ void EditorFrame::RequestRender()
 void EditorFrame::OnTimer(UINT_PTR)
 {
     if(closing_){
-        if(operationDepth_)return;auto result=job_.TakeOwned();if(job_.Busy())return;
+        if(operationDepth_)return;auto result=job_.TakeOwned();if(result)FinishSaveBatch(*result);if(job_.Busy())return;
         if(result&&result->error.IsEmpty()&&(result->action==WorkImageSave||result->action==WorkOutput||result->action==WorkWorkflow&&result->command==ExportScaled)&&!result->path.IsEmpty()){CString ignored;MainFrame::RememberImageSave(result->path,ignored);}
         if(result&&result->error.IsEmpty()&&result->action==WorkWorkflow&&result->command==BatchExport){for(const auto& file:result->exports)if(file.error.IsEmpty()){CString ignored;MainFrame::RememberImageSave(file.path,ignored);break;}}
         DestroyWindow();return;
@@ -193,7 +193,7 @@ void EditorFrame::OnTimer(UINT_PTR)
         else if(r->action==WorkProductivity)CompleteProductivity(*r);
         else if(r->action==WorkEnhancement){const HWND host=m_hWnd;CompleteEnhancement(*r);if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;}
     }}catch(const std::exception& e){if(!operation.Live())return;CompleteClipboardCopy(false);CString error;error.Format(L"%s %hs",Tr(Text::Failed),e.what());status_.SetWindowText(error);}
-    if(!operation.Live())return;StartCloneCommit();ApplyCanvasResize();StartColorSelection();StartMask();RunPendingAction();
+    if(!operation.Live())return;if(r)FinishSaveBatch(*r);StartCloneCommit();ApplyCanvasResize();StartColorSelection();StartMask();RunPendingAction();
     PollClipboardPaste();
     OpenNext();RequestRender();const HWND host=m_hWnd;RunQueuedLayout();if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;
     EditorPolling(EditorWorkPending());if(r&&r->action!=WorkRender){ribbon_.RefreshEnabled();flowPanel_.SyncOptions();}

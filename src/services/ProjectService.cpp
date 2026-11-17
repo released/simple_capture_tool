@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "ProjectService.h"
 #include "ImageCodec.h"
+#include "Strings.h"
 #include "../core/ObjectComposition.h"
 #include "../core/AnnotationExtensions.h"
 namespace {
@@ -26,9 +27,27 @@ struct Reader {
 uint32_t Checksum(const BYTE* data,size_t size) {uint32_t crc=~0u;for(size_t i=0;i<size;++i) {crc^=data[i];for(int b=0;b<8;++b) crc=(crc>>1)^(0xEDB88320u&static_cast<uint32_t>(-static_cast<int>(crc&1)));}return ~crc;}
 }
 namespace sct::services {
+bool PreflightProject(const core::DocumentState& state,CString& error,size_t decodedLimit){
+    try{
+        core::composition::Validate(state);if(!state.base||state.base->Empty()||state.objects.size()>10000)throw std::runtime_error("Invalid document");
+        decodedLimit=std::min(decodedLimit,Limit);size_t decoded=0,points=0,runs=0;
+        auto image=[&](const std::shared_ptr<const core::Image>& value){if(!value)return true;
+            if(value->Empty()||uint64_t(value->width)*value->height*4!=value->pixels.size())throw std::runtime_error("Invalid project image");
+            if(value->pixels.size()>decodedLimit-decoded){error.Format(Tr(Text::ProjectImageBudget),static_cast<unsigned long long>(decodedLimit));return false;}
+            decoded+=value->pixels.size();return true;};
+        if(!image(state.base))return false;
+        for(const auto& a:state.objects){
+            if(a.points.size()>1000000-points)throw std::runtime_error("Point limit (1000000)");points+=a.points.size();
+            if(a.textRuns.size()>100000-runs)throw std::runtime_error("Document text run limit (100000)");runs+=a.textRuns.size();
+            if(a.text.GetLength()>65536||a.font.GetLength()>65536)throw std::runtime_error("Text length limit");
+            if(!image(a.asset))return false;
+        }return true;
+    }catch(const std::exception& e){error.Format(L"Save project: %hs",e.what());return false;}
+}
 bool EncodeProject(const core::DocumentState& state,std::vector<BYTE>& output,CString& error)
 {
-    try {core::composition::Validate(state);if(!state.base||state.base->Empty()||state.objects.size()>10000) throw std::runtime_error("Invalid document");Writer w;w.Raw("SCTPROJ\0",8);w.Int(CurrentProjectVersion);w.Image(state.base);w.Int(static_cast<int>(state.objects.size()));
+    if(!PreflightProject(state,error))return false;
+    try {Writer w;w.Raw("SCTPROJ\0",8);w.Int(CurrentProjectVersion);w.Image(state.base);w.Int(static_cast<int>(state.objects.size()));
         size_t points=0;for(const auto& a:state.objects) {points+=a.points.size();if(points>1000000)throw std::runtime_error("Point limit (1000000)");w.Int(static_cast<int>(a.tool));w.Raw(&a.rect,sizeof(a.rect));w.Int(static_cast<int>(a.points.size()));for(auto p:a.points) w.Raw(&p,sizeof(p));
             w.String(a.text);w.String(a.font);w.Int(a.color);w.Int(a.background);w.Int(a.outline);w.Int(a.width);w.Int(a.fontSize);w.Int(a.opacity);w.Int(a.number);w.Int(a.magnification);
             if(a.alignment<0||a.alignment>5||a.mosaicStrength<0||a.mosaicStrength>100||a.eraseMode<0||a.eraseMode>1||(a.tool==core::Tool::CurvedArrow&&a.points.size()!=4))throw std::runtime_error("Invalid annotation style or curve points");

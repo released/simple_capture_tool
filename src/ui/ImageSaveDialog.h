@@ -11,7 +11,7 @@ public:
     inline static thread_local Audit audit;
 private:
     friend class ReviewRefinementsAccess;friend class SaveDirectoryAccess;
-    friend class ReviewOptimizationAccess;
+    friend class ReviewOptimizationAccess;friend class ReviewFollowupAccess;
     inline static thread_local std::function<INT_PTR(ImageSaveDialog&)> choiceAudit_;
     inline static thread_local ImageSaveDialog* auditing_=nullptr;
     CString folder_;std::exception_ptr auditError_;

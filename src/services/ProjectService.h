@@ -4,6 +4,7 @@
 namespace sct::services {
 bool SaveProject(const core::DocumentState& state,const CString& path,CString& error);
 bool LoadProject(const CString& path,core::DocumentState& state,CString& error);
+bool PreflightProject(const core::DocumentState&,CString&,size_t decodedLimit=512ULL*1024*1024);
 bool EncodeProject(const core::DocumentState&,std::vector<BYTE>&,CString& error);
 bool DecodeProject(const std::vector<BYTE>&,core::DocumentState&,CString& error);
 }

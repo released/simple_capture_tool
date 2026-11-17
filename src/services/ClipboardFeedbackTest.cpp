@@ -4,6 +4,7 @@
 #include "ClipboardTransfer.h"
 #include "LanguageService.h"
 #include "ImageCodec.h"
+#include "CaptureService.h"
 #include "../ui/EditorFrame.h"
 #include "../ui/FormDialog.h"
 namespace {
@@ -79,7 +80,32 @@ class ClipboardFeedbackAccess {
         CClientDC screen(p);CDC dc;CBitmap bitmap;const auto r=Rect(p->copyNotice_,p);if(!dc.CreateCompatibleDC(&screen)||!bitmap.CreateCompatibleBitmap(&screen,r.Width(),r.Height()))throw std::runtime_error("Clipboard notice preview allocation");auto old=dc.SelectObject(&bitmap);dc.FillSolidRect(0,0,r.Width(),r.Height(),RGB(249,250,251));p->copyNotice_.SendMessage(WM_PRINTCLIENT,reinterpret_cast<WPARAM>(dc.m_hDC),PRF_CLIENT|PRF_ERASEBKGND);
         core::Image preview;preview.Create(r.Width(),r.Height());BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=r.Width();info.bmiHeader.biHeight=-r.Height();info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;dc.SelectObject(old);if(GetDIBits(screen,bitmap,0,r.Height(),preview.pixels.data(),&info,DIB_RGB_COLORS)!=r.Height())throw std::runtime_error("Clipboard notice preview read");for(size_t n=3;n<preview.pixels.size();n+=4)preview.pixels[n]=255;std::vector<BYTE> encoded;check(services::EncodeImage(preview,L"png",100,encoded,error)&&services::WriteBytes((dir/L"clipboard-notice.png").c_str(),encoded,error),"actual native localized notice renders to a private bounded PNG");
     }
-public:static void Run(Check check,std::ofstream& log,const std::filesystem::path& dir){
+public:
+    static void LayoutOnly(Check check,std::ofstream& log,const std::filesystem::path& dir){
+        ActivationBlock isolation;uint32_t sequence=2001;services::ClipboardSequenceAudit privateSequence([&]{return sequence;});const auto language=services::CurrentLanguage();auto* previous=AfxGetApp()->m_pMainWnd;
+        class Host final:public CFrameWnd{void PostNcDestroy()override{}} parent;
+        if(!parent.Create(nullptr,L"Private notice alignment",WS_OVERLAPPEDWINDOW,CRect(0,0,1500,950)))throw std::runtime_error("Notice alignment host");AfxGetApp()->m_pMainWnd=&parent;
+        auto* p=new EditorFrame(core::Document(Pixels()).State(),L"",&parent,true);const HWND host=p->m_hWnd;p->KillTimer(1);p->editorPollMs_=0;
+        auto cleanup=[&]{layoutTestDpi=0;if(::IsWindow(host))p->DestroyWindow();if(parent.GetSafeHwnd())parent.DestroyWindow();AfxGetApp()->m_pMainWnd=previous;CString ignored;services::ActivateLanguage(language,ignored);};
+        auto paint=[&]{CRect r;p->copyNotice_.GetClientRect(r);core::Image image;if(!image.Create(r.Width(),r.Height()))throw std::runtime_error("Notice paint size");BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=image.width;info.bmiHeader.biHeight=-image.height;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;void* pixels=nullptr;HDC dc=::CreateCompatibleDC(nullptr);HBITMAP bitmap=::CreateDIBSection(dc,&info,DIB_RGB_COLORS,&pixels,nullptr,0);if(!dc||!bitmap){if(bitmap)::DeleteObject(bitmap);if(dc)::DeleteDC(dc);throw std::runtime_error("Notice paint resources");}const auto old=::SelectObject(dc,bitmap);::PatBlt(dc,0,0,image.width,image.height,WHITENESS);p->copyNotice_.SendMessage(WM_PRINTCLIENT,reinterpret_cast<WPARAM>(dc),PRF_CLIENT|PRF_ERASEBKGND);memcpy(image.pixels.data(),pixels,image.pixels.size());::SelectObject(dc,old);::DeleteObject(bitmap);::DeleteDC(dc);for(size_t n=3;n<image.pixels.size();n+=4)image.pixels[n]=255;return image;};
+        auto ink=[](const core::Image& image){CRect r(image.width,image.height,0,0);for(int y=0;y<image.height;++y)for(int x=0;x<image.width;++x){const auto* v=image.Row(y)+x*4;if(v[0]<128&&v[1]<128&&v[2]<128){r.left=std::min<LONG>(r.left,x);r.right=std::max<LONG>(r.right,x+1);r.top=std::min<LONG>(r.top,y);r.bottom=std::max<LONG>(r.bottom,y+1);}}return r;};
+        try{const auto base=p->document_.State().base;const auto revision=p->revision_,undo=p->document_.UndoCount();
+            for(auto file:{L"lang_tw.ini",L"lang_en.ini"})for(int dpi:{96,120,144}){
+                CString error;check(services::ActivateLanguage(file,error),"private notice language activates");layoutTestDpi=dpi;p->SetWindowPos(nullptr,0,0,Px(p->m_hWnd,1450),Px(p->m_hWnd,850),SWP_NOZORDER|SWP_NOACTIVATE);p->SendMessage(LanguageChanged);
+                p->copiedSize_={573,450};p->copiedRevision_=p->revision_;p->copiedSequence_=sequence;p->SetCopyNotice(EditorFrame::CopyNotice::Ready);
+                const auto bounds=Rect(p->copyNotice_,p),opacity=Rect(p->opacity_,p),canvas=p->canvas_;
+                check((p->copyNotice_.GetStyle()&SS_CENTERIMAGE)&&p->copyNoticeFits_&&bounds.top==opacity.top&&bounds.bottom<canvas.top,"native notice requests vertical centering in the unchanged property row");CString caption;p->copyNotice_.GetWindowText(caption);check(caption==p->copyNoticeText_&&caption.Find(L"573")>=0&&caption.Find(L"450")>=0,"centered native notice retains localized caption and copied dimensions");
+                p->copyNotice_.ModifyStyle(SS_CENTERIMAGE,0);const auto before=paint();p->copyNotice_.ModifyStyle(0,SS_CENTERIMAGE);const auto after=paint();const auto oldInk=ink(before),newInk=ink(after);const int oldError=abs(oldInk.top+oldInk.bottom-before.height),newError=abs(newInk.top+newInk.bottom-after.height);
+                check(!newInk.IsRectEmpty()&&newError<=Px(p->m_hWnd,3)&&newError<oldError&&newInk.left==oldInk.left,"native glyph pixels are vertically centered and improve on top alignment without changing left alignment");
+                p->SetCopyNotice(EditorFrame::CopyNotice::Failed,L"Private failure");const auto failed=paint();const auto failedInk=ink(failed);check(!failedInk.IsRectEmpty()&&abs(failedInk.top+failedInk.bottom-failed.height)<=Px(p->m_hWnd,3)&&p->canvas_==canvas&&Rect(p->copyNotice_,p)==bounds,"failure feedback is centered without moving controls or canvas");
+                if(dpi==96&&CString(file)==L"lang_tw.ini"){core::Image pair;pair.Create(before.width,before.height+after.height+4);for(int y=0;y<before.height;++y)memcpy(pair.Row(y),before.Row(y),before.width*4);for(int y=0;y<after.height;++y)memcpy(pair.Row(before.height+4+y),after.Row(y),after.width*4);check(services::CaptureService::Save(pair,(dir/L"notice-align.png").c_str(),error),"owned native before/after notice pixels are saved for visual inspection");}
+                p->SetWindowPos(nullptr,0,0,Px(p->m_hWnd,680),Px(p->m_hWnd,480),SWP_NOZORDER|SWP_NOACTIVATE);p->Layout();const auto narrow=p->canvas_;p->SetCopyNotice(EditorFrame::CopyNotice::Ready);check(p->canvas_==narrow&&bool(p->copyNotice_.GetStyle()&WS_VISIBLE)==p->copyNoticeFits_&&(p->copyNotice_.GetStyle()&SS_CENTERIMAGE),"narrow-window fallback and centering preserve the existing canvas height");
+                log<<"NOTICE_ALIGN language="<<CStringA(file).GetString()<<" dpi="<<dpi<<" old_ink="<<oldInk.top<<","<<oldInk.bottom<<" centered_ink="<<newInk.top<<","<<newInk.bottom<<" row_height="<<after.height<<"\n";
+            }
+            check(p->revision_==revision&&p->document_.UndoCount()==undo&&p->document_.State().base==base,"notice layout changes no document state or Undo");cleanup();
+        }catch(...){cleanup();throw;}
+    }
+    static void Run(Check check,std::ofstream& log,const std::filesystem::path& dir){
         ActivationBlock isolation;uint32_t sequence=1001;services::ClipboardSequenceAudit privateSequence([&]{return sequence;});const auto language=services::CurrentLanguage();const auto foreground=GetForegroundWindow();const auto actualSequence=GetClipboardSequenceNumber();auto* previous=AfxGetApp()->m_pMainWnd;
         CFrameWnd parent;if(!parent.Create(nullptr,L"Private clipboard feedback",WS_OVERLAPPEDWINDOW,CRect(0,0,1500,950)))throw std::runtime_error("Clipboard feedback host");AfxGetApp()->m_pMainWnd=&parent;
         auto* p=new EditorFrame(core::Document(Pixels()).State(),L"",&parent,true);HWND host=p->m_hWnd;p->renderSuspended_=false;p->RequestRender();
@@ -91,4 +117,4 @@ public:static void Run(Check check,std::ofstream& log,const std::filesystem::pat
     }
 };
 }
-namespace sct::services {void ClipboardFeedbackChecks(const std::function<void(bool,const char*)>& check,std::ofstream& log,const std::filesystem::path& dir){ui::ClipboardFeedbackAccess::Run(check,log,dir);}}
+namespace sct::services {void ClipboardFeedbackChecks(const std::function<void(bool,const char*)>& check,std::ofstream& log,const std::filesystem::path& dir){ui::ClipboardFeedbackAccess::Run(check,log,dir);}void NoticeAlignmentChecks(const std::function<void(bool,const char*)>& check,std::ofstream& log,const std::filesystem::path& dir){ui::ClipboardFeedbackAccess::LayoutOnly(check,log,dir);}}

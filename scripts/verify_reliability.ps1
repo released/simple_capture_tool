@@ -1,19 +1,20 @@
 param(
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Both',
-    [ValidateSet('ReviewReliability','ReviewOptimization','SaveDirectory','EditorTransitions','Composition','ClipboardFeedback','SelectionToolbar','CaptureLatency','Startup')]
+    [ValidateSet('ReviewFollowup','ReviewRefinements','EditableLayout','ObjectPayload','NoticeAlignment','Status','ReviewReliability','ReviewOptimization','SaveDirectory','EditorTransitions','Composition','ClipboardFeedback','SelectionToolbar','CaptureLatency','Startup')]
     [string[]]$Scope=@('ReviewReliability'),
-    [string]$HubRoot=''
+    [string]$HubRoot='',
+    [ValidatePattern('^[a-z][a-z0-9-]{0,63}$')][string]$AuditName='reliability-075'
 )
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 if(!$HubRoot){$HubRoot=Join-Path (Split-Path -Parent $project) '#READ_ME_FIRST#'}
 if(!(Test-Path -LiteralPath (Join-Path $HubRoot 'scripts\invoke_hub_test.ps1'))){throw 'Specify -HubRoot for the registered test-artifact center.'}
 . (Join-Path $HubRoot 'scripts\invoke_hub_test.ps1')
-$audit=Join-Path $project 'artifacts\audits\reliability-075'
+$audit=Join-Path $project ('artifacts\audits\'+$AuditName)
 $records=New-Object 'Collections.Generic.List[object]'
 $producers=New-Object 'Collections.Generic.List[object]'
 $workers=New-Object 'Collections.Generic.List[object]'
-$arguments=@{ReviewReliability='review-reliability';ReviewOptimization='review-optimization';SaveDirectory='save-directory';EditorTransitions='editor-transitions';Composition='composition';ClipboardFeedback='clipboard-feedback';SelectionToolbar='selection-toolbar';CaptureLatency='capture-latency'}
+$arguments=@{ReviewFollowup='review-followup';ReviewRefinements='review-refinements';EditableLayout='editable-layout';ObjectPayload='object-payload';NoticeAlignment='notice-alignment';Status='status';ReviewReliability='review-reliability';ReviewOptimization='review-optimization';SaveDirectory='save-directory';EditorTransitions='editor-transitions';Composition='composition';ClipboardFeedback='clipboard-feedback';SelectionToolbar='selection-toolbar';CaptureLatency='capture-latency'}
 if(-not('SctReliability.Native' -as [type])){Add-Type -TypeDefinition @'
 using System;
 using System.Text;
@@ -90,6 +91,30 @@ $result=Invoke-HubOwnedTest -ProjectRoot $project -Purpose '075 settings, modal,
         $trace=Join-Path $evidence 'alignment\save-keys.log'
         if(Test-Path -LiteralPath $trace){$summary+=@([IO.File]::ReadAllLines($trace))}
         $records.Add([pscustomobject]@{Configuration=$config;Scope=$name;Exit=$child.ExitCode;Summary=$summary;BuildStamp=$stamp;IdentityResourceMatch=$true;BinaryHash=(Get-FileHash -LiteralPath $source).Hash})
+        if($name -eq 'ReviewFollowup' -and $child.ExitCode -eq 0){
+            $preview=Join-Path $evidence 'alignment\jpeg.png'
+            if(!(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1MB){throw 'Missing or oversized native JPEG preview'}
+            [void][IO.Directory]::CreateDirectory($audit)
+            $destination=Join-Path $audit ('jpeg-'+$config+'-'+$run.Id+'.png')
+            if(Test-Path -LiteralPath $destination){throw 'Unknown JPEG preview destination'}
+            Copy-Item -LiteralPath $preview -Destination $destination
+        }
+        if($name -eq 'NoticeAlignment' -and $child.ExitCode -eq 0){
+            $preview=Join-Path $evidence 'alignment\notice-align.png'
+            if(!(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1MB){throw 'Missing or oversized own notice preview'}
+            [void][IO.Directory]::CreateDirectory($audit)
+            $destination=Join-Path $audit ('notice-'+$config+'-'+$run.Id+'.png')
+            if(Test-Path -LiteralPath $destination){throw 'Unknown notice preview destination'}
+            Copy-Item -LiteralPath $preview -Destination $destination
+        }
+        if($name -eq 'Status' -and $child.ExitCode -eq 0){
+            $preview=Join-Path $evidence 'alignment\status.png'
+            if(!(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1MB){throw 'Missing or oversized own status preview'}
+            [void][IO.Directory]::CreateDirectory($audit)
+            $destination=Join-Path $audit ('status-'+$config+'-'+$run.Id+'.png')
+            if(Test-Path -LiteralPath $destination){throw 'Unknown status preview destination'}
+            Copy-Item -LiteralPath $preview -Destination $destination
+        }
         Write-Host ($config+' '+$name+': '+($summary -join ' | '))
         if($child.ExitCode -ne 0 -or !($lines -match '^TOTAL \d+ FAIL 0$')){throw "Native verification failed: $config $name"}
     }}

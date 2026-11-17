@@ -5,6 +5,9 @@
 #include "../core/EditorRefinements.h"
 namespace sct::ui {
 class EditorFrame;
+#if SCT_ENABLE_SELFTESTS
+inline thread_local int workspaceOpenFault=0;
+#endif
 constexpr UINT WorkspaceRefresh=WM_APP+31;
 inline constexpr wchar_t EditorTrayHidden[]=L"SCT.EditorTrayHidden";
 class EditorWorkspace final:public CFrameWnd {
@@ -28,9 +31,14 @@ protected:
     void PostNcDestroy()override{if(owned_)delete this;}
     BOOL PreTranslateMessage(MSG*)override;DECLARE_MESSAGE_MAP()
 private:
+    friend class ReviewFollowupAccess;
     friend class ReviewRefinementsAccess;friend class ReviewOptimizationAccess;
-    struct OutputSnapshot {std::vector<core::DocumentState> states;std::vector<CString> labels;std::vector<EditorFrame*> pages;std::vector<HWND> windows;std::vector<uint64_t> revisions;};
-    bool SnapshotOutput(OutputSnapshot&,CString&,size_t metadataLimit=64ULL*1024*1024)const;bool OutputCurrent(const OutputSnapshot&)const;
+    struct OutputSnapshot {std::vector<core::DocumentState> states;std::vector<CString> labels;std::vector<EditorFrame*> pages;std::vector<HWND> windows;std::vector<uint64_t> revisions;bool allowRender=false;};
+    bool SnapshotOutput(OutputSnapshot&,CString&,size_t metadataLimit=64ULL*1024*1024,bool allowRender=false)const;bool OutputCurrent(const OutputSnapshot&)const;
+    EditorFrame* CreatePage(core::DocumentState,CString,bool,bool,bool deferred=false);
+    void SaveAllPages();void SaveFinished(HWND,uint64_t,const CString&);void SaveReport();
+    struct SaveItem {HWND window=nullptr;CString path,error;bool done=false;};
+    std::vector<SaveItem> saveItems_;uint64_t saveBatch_=0;
     void QueueRefresh(bool resources=true);bool refreshQueued_=false,refreshResources_=false;size_t refreshCount_=0,resourceCount_=0;
     std::optional<core::EffectRecipe> repeat_;
     friend class EditorRefinementsAccess;

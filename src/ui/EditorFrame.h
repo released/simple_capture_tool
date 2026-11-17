@@ -35,7 +35,7 @@ public:
     void Captured(){dirty_=true;NotifyWorkspace();}
     CString DocumentName()const;const core::Image& Thumbnail()const{return thumbnail_;}
     bool HasUnsavedChanges()const{return !closing_&&(flowGesture_||flowPaletteDrag_||(width_.GetSafeHwnd()&&width_.GetModify()&&(selected_>=0||textEditing_))||sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||dirty_||textEditing_||dragging_||objectGesture_||sidebar_.Dirty()||!cropRegion_.IsRectEmpty()||canvasHandle_>=0||canvasPending_);}
-    bool WorkingForBuild()const{return closing_||flowGesture_||flowPaletteDrag_||sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||maskPending_||job_.Busy()||(renderPending_&&!renderSuspended_)||!pendingLayoutPaths_.empty()||pendingAction_!=0||copyTicket_||pasteTicket_||objectGesture_||sidebar_.Dragging()||cropGesture_||canvasHandle_>=0||canvasPending_||screenColorModal_;}
+    bool WorkingForBuild(bool allowRender=false)const{return closing_||flowGesture_||flowPaletteDrag_||sweepGesture_||pathDrawing_||clonePending_.has_value()||maskGesture_||maskPending_||(job_.Busy()&&(!allowRender||activeAction_!=WorkRender))||(renderPending_&&!renderSuspended_&&!allowRender)||!pendingLayoutPaths_.empty()||pendingAction_!=0||copyTicket_||pasteTicket_||objectGesture_||sidebar_.Dragging()||cropGesture_||canvasHandle_>=0||canvasPending_||screenColorModal_;}
     void AutomaticOutput(const std::shared_ptr<const core::Image>&,const CString& path,const CString& error);
 protected:
     BOOL PreTranslateMessage(MSG*) override;
@@ -64,6 +64,7 @@ protected:
     afx_msg LRESULT OnLanguageChanged(WPARAM,LPARAM);
     DECLARE_MESSAGE_MAP()
 private:
+    friend class ReviewFollowupAccess;
     friend class ReviewRefinementsAccess;std::function<INT_PTR(CPrintDialog&)> printDialogAudit_;std::function<bool(CString&)> printOutputAudit_;std::function<int(Text)> exportConfirmAudit_;
     friend class FlowDiagramAccess;friend class FlowShapeButton;friend class FlowPanel;
     bool FlowReady()const;void FlowCommand(UINT);void BeginFlowPlacement(int,CPoint);void PlaceFlowNode(CPoint);
@@ -157,6 +158,8 @@ private:
     friend class EditorEnhancementsAccess;friend class PictureCropAccess;friend class SelectionToolsAccess;friend class TextRunsAccess;friend class DragImageAccess;
     friend class DiscoveryAccess;friend class MaskEditingAccess;friend class CaptureInsertAccess;friend class MainFrame;
     struct WorkResult;
+    struct ExportPlan {core::DocumentState state;CString path;uint64_t revision=0;int quality=90;bool project=false;};
+    bool PrepareExport(bool,bool,ExportPlan&);bool StartExport(ExportPlan,uint64_t batch=0);void FinishSaveBatch(const WorkResult&);uint64_t saveBatch_=0;
     void ImageSaved(const CString&);void EnhancementCommand(UINT);void ColorSelectionDown(CPoint);void StartColorSelection();void CompleteEnhancement(WorkResult&);void ShowDragImage(WorkResult&);
     void PictureCropCommand(UINT);bool PictureCropDown(CPoint);bool PictureCropMove(CPoint);bool PictureCropUp(CPoint);
     bool pictureCropMode_=false,pictureCropGesture_=false;int pictureCropIndex_=-1;int colorSelectionMode_=0,colorTolerance_=24;

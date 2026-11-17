@@ -51,10 +51,14 @@ void EditorFrame::InsertImages(std::vector<CString> paths,CPoint origin,bool dro
 }
 void EditorFrame::LayoutCommand(UINT id){
     if(id==Command::InsertImages){CFileDialog dialog(TRUE,nullptr,nullptr,OFN_FILEMUSTEXIST|OFN_ALLOWMULTISELECT,ImageOpenFilter(),this);std::vector<wchar_t> buffer(65536);dialog.GetOFN().lpstrFile=buffer.data();dialog.GetOFN().nMaxFile=static_cast<DWORD>(buffer.size());if(dialog.DoModal()!=IDOK)return;std::vector<CString> paths;auto position=dialog.GetStartPosition();while(position)paths.push_back(dialog.GetNextPathName(position));InsertImages(std::move(paths),{0,0});return;}
-    auto* workspace=dynamic_cast<EditorWorkspace*>(workspace_);if(!workspace)return;std::vector<core::DocumentState> states;std::vector<CString> labels;for(auto* page:workspace->Pages()){if(page->job_.Busy()&&page->activeAction_!=WorkRender||page->textEditing_||page->dragging_||page->objectGesture_){status_.SetWindowText(Tr(Text::Busy));return;}states.push_back(page->document_.State());labels.push_back(page->DocumentName().Left(80));}
-    const HWND host=m_hWnd;const auto audit=layoutFormAudit_;FormDialog form(this,Text::CollageDocuments,Fields({0,0}));core::LayoutOptions options;screenColorModal_=true;bool chosen=false;
+    auto* workspace=dynamic_cast<EditorWorkspace*>(workspace_);if(!workspace)return;EditorWorkspace::OutputSnapshot snapshot;CString error;
+    if(!workspace->SnapshotOutput(snapshot,error,64ULL*1024*1024,true)){status_.SetWindowText(error.IsEmpty()?Tr(Text::Busy):error);return;}
+    const HWND host=m_hWnd,root=workspace->m_hWnd;const auto audit=layoutFormAudit_;FormDialog form(this,Text::CollageDocuments,Fields({0,0}));core::LayoutOptions options;screenColorModal_=true;bool chosen=false;
     try{chosen=Options(this,form,audit,options);}catch(...){if(::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)screenColorModal_=false;throw;}
-    if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;screenColorModal_=false;if(!chosen)return;activeAction_=WorkOpenPage;StartWork([states=std::move(states),labels=std::move(labels),options]{WorkResult r;r.action=WorkOpenPage;r.state=services::LayoutDocuments(states,labels,options);return r;});
+    if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;screenColorModal_=false;if(!chosen)return;
+    if(!::IsWindow(root)||CWnd::FromHandlePermanent(root)!=workspace||!workspace->OutputCurrent(snapshot)){status_.SetWindowText(Tr(Text::LayoutStale));return;}
+    for(auto& label:snapshot.labels)label=label.Left(80);activeAction_=WorkOpenPage;
+    StartWork([states=std::move(snapshot.states),labels=std::move(snapshot.labels),options]{WorkResult r;r.action=WorkOpenPage;r.state=services::LayoutDocuments(states,labels,options);return r;});
 }
 void EditorFrame::CompleteLayout(WorkResult& result){
     if(result.revision!=revision_){status_.SetWindowText(Tr(Text::LayoutStale));return;}if(result.image.Empty()||!result.state.base){status_.SetWindowText(Tr(Text::Failed));return;}

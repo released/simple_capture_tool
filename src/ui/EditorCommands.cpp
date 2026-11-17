@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "EditorFrame.h"
+#include "EditorWorkspace.h"
 #include "FormDialog.h"
 #include "JpegDialog.h"
 #include "ImageSaveDialog.h"
@@ -88,23 +89,35 @@ void EditorFrame::OnAction(UINT id)
         if(id>=ResizeImage&&id<=RemoveStrip)Transform(id);
     }catch(const std::exception& e){if(!::IsWindow(commandOwner)||CWnd::FromHandlePermanent(commandOwner)!=this)return;if(id==Copy||id==Cut)CompleteClipboardCopy(false);CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());AfxMessageBox(error);}
 }
-void EditorFrame::Export(bool project,bool useImagePath)
+bool EditorFrame::PrepareExport(bool project,bool useImagePath,ExportPlan& plan)
 {
-    const EditorOperationScope operation(*this);if(!operation.Live())return;const EditorModalFence fence(*this,revision_);const auto confirmAudit=exportConfirmAudit_;const auto crop=cropRegion_;const auto cropVersion=cropGeneration_;auto current=[&]{return fence.Live()&&!closing_&&revision_==fence.revision&&cropRegion_==crop&&cropGeneration_==cropVersion&&!textEditing_&&!(width_.GetSafeHwnd()&&width_.GetModify()&&selected_>=0)&&FlowReady()&&!job_.Busy();};
-    if(project&&std::any_of(document_.State().objects.begin(),document_.State().objects.end(),[](const auto& a){return a.tool==core::Tool::Redact||a.tool==core::Tool::Blur||a.tool==core::Tool::Mosaic;})&&(confirmAudit?confirmAudit(Text::ProjectPrivacy):MessageBox(Tr(Text::ProjectPrivacy),Tr(Text::SaveProject),MB_OKCANCEL|MB_ICONWARNING))!=IDOK)return;
-    if(!current())return;
-    services::Settings settings;CString error;if(!services::ConfigService().Load(settings,error)){AfxMessageBox(error);return;}
+    const EditorOperationScope operation(*this);if(!operation.Live())return false;const EditorModalFence fence(*this,revision_);const auto confirmAudit=exportConfirmAudit_;const auto crop=cropRegion_;const auto cropVersion=cropGeneration_;auto current=[&]{return fence.Live()&&!closing_&&revision_==fence.revision&&cropRegion_==crop&&cropGeneration_==cropVersion&&!textEditing_&&!(width_.GetSafeHwnd()&&width_.GetModify()&&selected_>=0)&&FlowReady()&&!job_.Busy();};
+    if(project&&std::any_of(document_.State().objects.begin(),document_.State().objects.end(),[](const auto& a){return a.tool==core::Tool::Redact||a.tool==core::Tool::Blur||a.tool==core::Tool::Mosaic;})&&(confirmAudit?confirmAudit(Text::ProjectPrivacy):MessageBox(Tr(Text::ProjectPrivacy),Tr(Text::SaveProject),MB_OKCANCEL|MB_ICONWARNING))!=IDOK)return false;
+    if(!current())return false;
+    services::Settings settings;CString error;if(!services::ConfigService().Load(settings,error)){AfxMessageBox(error);return false;}
     CString path=!project&&useImagePath?path_:CString();
     if(path.IsEmpty()){
         DWORD index=settings.format==L"png"?2:settings.format==L"bmp"?3:1;const wchar_t* extensions[]={L".jpg",L".png",L".bmp",L".gif",L".pdf"};
-        ImageSaveDialog dlg(this,project,index);const auto choice=dlg.Run();if(!current()||choice!=IDOK)return;path=dlg.GetPathName();index=std::clamp<DWORD>(dlg.GetOFN().nFilterIndex,1,5);
+        ImageSaveDialog dlg(this,project,index);const auto choice=dlg.Run();if(!current()||choice!=IDOK)return false;path=dlg.GetPathName();index=std::clamp<DWORD>(dlg.GetOFN().nFilterIndex,1,5);
         CString canonical=std::filesystem::path(path.GetString()).replace_extension(project?L".sctproj":extensions[index-1]).c_str();
-        if(canonical.CompareNoCase(path)!=0&&PathFileExists(canonical)&&(confirmAudit?confirmAudit(Text::Save):MessageBox(canonical,Tr(Text::Save),MB_OKCANCEL|MB_ICONQUESTION))!=IDOK)return;path=canonical;
+        if(canonical.CompareNoCase(path)!=0&&PathFileExists(canonical)&&(confirmAudit?confirmAudit(Text::Save):MessageBox(canonical,Tr(Text::Save),MB_OKCANCEL|MB_ICONQUESTION))!=IDOK)return false;path=canonical;
     }
-    if(!current())return;
-    int quality=jpegQuality_?jpegQuality_:settings.jpegQuality;
-    const auto state=document_.State();const auto revision=revision_;activeAction_=project?WorkProjectSave:WorkImageSave;StartWork([state,path,project,quality,revision]{WorkResult r;r.action=project?WorkProjectSave:WorkImageSave;r.path=path;r.revision=revision;
-        if(project)services::SaveProject(state,path,r.error);else if(services::RenderDocument(state,r.image,r.error))services::CaptureService::Save(r.image,path,r.error,quality);return r;});status_.SetWindowText(Tr(Text::Busy));
+    if(!current())return false;
+    plan.state=document_.State();plan.path=path;plan.revision=revision_;plan.quality=jpegQuality_?jpegQuality_:settings.jpegQuality;plan.project=project;return true;
+}
+void EditorFrame::Export(bool project,bool useImagePath){ExportPlan plan;if(PrepareExport(project,useImagePath,plan))StartExport(std::move(plan));}
+bool EditorFrame::StartExport(ExportPlan plan,uint64_t batch){
+    if(closing_||job_.Busy()||revision_!=plan.revision)return false;
+    activeAction_=plan.project?WorkProjectSave:WorkImageSave;saveBatch_=batch;
+    try{if(!StartWork([plan=std::move(plan)]{WorkResult r;r.action=plan.project?WorkProjectSave:WorkImageSave;r.path=plan.path;r.revision=plan.revision;
+        if(plan.project)services::SaveProject(plan.state,plan.path,r.error);else if(services::RenderDocument(plan.state,r.image,r.error))services::CaptureService::Save(r.image,plan.path,r.error,plan.quality);return r;})){saveBatch_=0;return false;}}
+    catch(...){saveBatch_=0;throw;}
+    status_.SetWindowText(Tr(Text::Busy));return true;
+}
+void EditorFrame::FinishSaveBatch(const WorkResult& result){
+    if(!saveBatch_||(result.action!=WorkImageSave&&result.action!=WorkProjectSave))return;
+    const auto batch=saveBatch_;saveBatch_=0;
+    if(auto* workspace=dynamic_cast<EditorWorkspace*>(workspace_))workspace->SaveFinished(m_hWnd,batch,result.error);
 }
 void EditorFrame::InsertFile(const CString& path,bool fit)
 {
@@ -115,7 +128,13 @@ void EditorFrame::InsertFile(const CString& path,bool fit)
         if(!core::PasteImageOriginalSize(state,std::move(image),r.state)){r.error=limit;return r;}
         if(services::RenderDocument(r.state,r.image,r.error)){const double scale=std::min({1.0,144.0/r.image.width,96.0/r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,int(r.image.width*scale)),std::max(1,int(r.image.height*scale)));}return r;});
 }
-int EditorFrame::JpegPreview(){auto source=std::make_shared<core::Image>(std::move(image_));modalImage_=source;int quality=-1;{JpegDialog dialog(this,source);if(dialog.Run()==IDOK)quality=dialog.Quality();}image_=std::move(*source);modalImage_.reset();InvalidateRect(canvas_,FALSE);return quality;}
+int EditorFrame::JpegPreview(){
+    services::Settings settings;CString error;if(!services::ConfigService().Load(settings,error)){status_.SetWindowText(error);return -1;}
+    auto source=std::make_shared<core::Image>(std::move(image_));modalImage_=source;int quality=-1;
+    try{JpegDialog dialog(this,source,jpegQuality_?jpegQuality_:settings.jpegQuality);if(dialog.Run()==IDOK&&!closing_)quality=dialog.Quality();}
+    catch(...){image_=std::move(*source);modalImage_.reset();throw;}
+    image_=std::move(*source);modalImage_.reset();if(!closing_)InvalidateRect(canvas_,FALSE);return quality;
+}
 void EditorFrame::Insert(core::Image image)
 {
     if(image.Empty())return;core::Annotation a;a.tool=core::Tool::Picture;const double scale=std::min({1.0,static_cast<double>(document_.Width())/image.width,static_cast<double>(document_.Height())/image.height});

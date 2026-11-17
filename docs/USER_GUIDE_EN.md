@@ -675,6 +675,7 @@ Ctrl+A followed by Ctrl+C copies the full composed image without permanently mer
 - Images with existing content or an editing or save history retain the insertion/layout workflow. Explicit insert commands also retain their existing behavior.
 - Drop multiple image files, or use **Image layout → Insert images / layout**, to set columns, gaps, and the insertion origin. Images remain separate editable objects, and the batch supports one-step Undo.
 - Collage of open images creates a new page of editable Picture objects, preserving source pages.
+- Collage checks all source pages for unapplied properties, text, crop drafts, and pending document work, identifying the page that needs attention. Display rendering alone does not block a ready document; source changes during the options dialog cancel the stale result.
 
 ### Image layout → Split into image tabs
 
@@ -787,7 +788,11 @@ Effect preview offers original-image and split-comparison views. Drag the divide
 - New captures and blank images require a filename on their first save. **Save as / Ctrl+Shift+S** always opens the filename dialog.
 - Choosing **Save as** from the regular Save button's dropdown leaves the main button assigned to ordinary Save.
 - A write failure displays an error and retains the unsaved state. **Save as** can select another location or a supported output format.
-- Save all saves each page, reusing existing image paths and asking for unnamed images. It stops after a canceled filename dialog.
+- Save all collects every destination before writing, reusing existing image paths and asking for unnamed images.
+- Canceling any filename dialog starts no writes for that batch. If pages share a destination, the status identifies the conflict; save one page under another name before trying again.
+- The completion status reports saved, failed, and pending counts, with failed paths and reasons in its full tooltip. Successful files remain saved if another output fails.
+- The JPEG quality dialog starts with the current image's quality, or the general setting when no page-specific value is set. Its preview and buttons fit the current monitor's work area.
+- Canceling a JPEG preview skips later processing. A system codec already in progress finishes safely while the dialog continues processing messages.
 - Outputs already started are not withdrawn by that cancellation.
 - The first dialog uses Windows Downloads.
 - After a successful image, image-PDF, or annotation-SVG save, the folder becomes the preference for other images and subsequent launches.
@@ -805,7 +810,8 @@ Effect preview offers original-image and split-comparison views. Drag the divide
 - JPG, PNG, BMP, static GIF, PDF, multipage PDF, and printing are supported.
 - PNG retains transparency. JPG, BMP, GIF, PDF, and printing composite onto white. The transparency checkerboard is an editor preview only.
 - GIF is a static 256-color image. PDF contains image pages rather than editable vectors. Print preview uses A4 as a reference; actual paper and orientation follow the printer dialog.
-- `.sctproj` embeds the original image, assets, and editable objects. The current v13 format can read v1–v12 projects. Older application versions may not read newer files. Fonts are not embedded; another computer needs the same fonts.
+- Project saves check the decoded embedded-image total before encoding. The current format counts reused assets once per occurrence, unlike shared RAM accounting. A rejected project leaves the destination unchanged.
+- `.sctproj` embeds the original image, assets, and editable objects. The current v14 format can read v1–v13 projects. Older application versions may not read newer files. Fonts are not embedded; another computer needs the same fonts.
 
 For sensitive content, apply solid redaction and export a composed image. Editable projects retain the source before redaction. Blur and mosaic are not equivalent to securely removing the information.
 
