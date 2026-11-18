@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "SingleInstanceTest.h"
 #include "SingleInstance.h"
+#include "OpenRequest.h"
 #include "NativeTestInput.h"
 #include "LanguageService.h"
 #include "AppPaths.h"
@@ -68,10 +69,10 @@ namespace sct::services {
 int RunSingleInstanceChild(){
     int count=0;LPWSTR* args=CommandLineToArgvW(GetCommandLine(),&count);CString token,action;int index=-1;
     if(args&&count==5&&wcscmp(args[1],L"--single-instance-child")==0){token=args[2];wchar_t* end=nullptr;const long number=wcstol(args[3],&end,10);if(*args[3]&&end&&!*end&&number>=0&&number<16)index=static_cast<int>(number);action=args[4];}if(args)LocalFree(args);GUID id{};
-    if(index<0||FAILED(CLSIDFromString(token,&id))||(action!=L"normal"&&action!=L"delay"&&action!=L"crash"))return 2;
+    if(index<0||FAILED(CLSIDFromString(token,&id))||(action!=L"normal"&&action!=L"delay"&&action!=L"crash"&&action!=L"open"))return 2;
     try{
         const auto base=Base(token);auto start=Event(EventName(base,L"Start"),false),stop=Event(EventName(base,L"Stop"),false),publish=Event(EventName(base,L"Publish"),false),ready=Event(EventName(base,L"Ready"),false),activated=Event(EventName(base,L"Activated"),false);auto primary=Event(EventName(base,L"Primary",index),false),secondary=Event(EventName(base,L"Secondary",index),false),failed=Event(EventName(base,L"Failed",index),false);
-        if(WaitForSingleObject(start.value,5000)!=WAIT_OBJECT_0)return 3;SingleInstance instance;CString error;const auto role=instance.Start(error,base+L".Lock");
+        if(WaitForSingleObject(start.value,5000)!=WAIT_OBJECT_0)return 3;SingleInstance instance;CString error;const std::vector<CString> requested{L"C:\\SCT-private-open-image.png"};const auto role=instance.Start(error,base+L".Lock",2000,action==L"open"?&requested:nullptr);
         if(role==InstanceRole::Failed){Set(failed.value);return 2;}if(role==InstanceRole::Secondary){Set(secondary.value);return 0;}Set(primary.value);
         if(action==L"delay"&&WaitForSingleObject(publish.value,5000)!=WAIT_OBJECT_0)return 3;
         WNDCLASS cls{};cls.lpfnWndProc=ProbeWindow;cls.hInstance=GetModuleHandle(nullptr);cls.lpszClassName=L"SCT hidden single-instance probe";if(!RegisterClass(&cls))return 2;
@@ -106,6 +107,7 @@ public:static void Run(Check check,std::ofstream& log){
         check(main->SendMessage(message,1)==0&&main->SendMessage(message,0,1)==0&&calls==2,"activation rejects unexpected payloads without interpreting commands or paths");
         Group sender(1);
         services::SingleInstance live;CString error;check(live.Start(error,sender.base+L".Lock",0)==services::InstanceRole::Primary&&live.Publish(mainWindow,error),"owning guard publishes the real isolated MainFrame for cross-process activation");Set(sender.start.value);Set(sender.publish.value);sender.Launch(0,Executable());check(Until([&]{return Signaled(sender.roles[0].secondary.value)&&calls==3;})&&target==workspaceWindow,"real child duplicate is rejected and its posted message reaches native MainFrame routing");check(sender.Stop(),"native routing child exits without creating tray or hotkeys");live.Reset();
+        {Group request(1);services::SingleInstance receiver;CString requestError;check(receiver.Start(requestError,request.base+L".Lock",0)==services::InstanceRole::Primary&&receiver.Publish(mainWindow,requestError),"private existing owner is published for file forwarding");main->selecting_=true;Set(request.start.value);Set(request.publish.value);request.Launch(0,Executable(),L"open");check(Until([&]{return Signaled(request.roles[0].secondary.value)&&main->pendingFiles_.size()==1;})&&main->pendingFiles_[0]==L"C:\\SCT-private-open-image.png","real secondary process forwards an image path and receives queue acknowledgement during capture");check(request.Stop(),"file-request child exits normally without a second application instance");check(!main->job_.Busy(),"accepted busy-owner request does not start capture or decode prematurely");main->pendingFiles_.clear();main->selecting_=false;receiver.Reset();}
         check(workspace->pages_.size()==2&&workspace->active_==1&&a->dirty_&&b->dirty_&&a->document_.State().base==baseA&&b->document_.State().base==baseB&&b->revision_==revision,"repeat launch preserves both unsaved RAM pages, active tab, pixels and undo revision");
         main->instanceActivationAudit_=[main](HWND){main->DestroyWindow();};check(::SendMessage(mainWindow,message,0,0)==1&&!::IsWindow(mainWindow),"activation returns safely when a private presentation callback destroys its host");
         DWORD fg=0,clip=0;GetWindowThreadProcessId(GetForegroundWindow(),&fg);GetWindowThreadProcessId(GetClipboardOwner(),&clip);check(GetForegroundWindow()==foreground||fg!=GetCurrentProcessId(),"single-instance fixtures never take user foreground");check(GetClipboardSequenceNumber()==clipboard||clip!=GetCurrentProcessId(),"single-instance fixtures never publish clipboard images");log<<"INSTANCE native main/editor startup, target/dirty-page/modal/busy/capture/menu/payload/host-lifetime routing. Physical foreground presentation suppressed in private fixtures.\n";cleanup();

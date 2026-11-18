@@ -5,13 +5,11 @@
 #include "../services/PaletteService.h"
 #include "../services/RichTextService.h"
 namespace sct::ui {
-namespace {
-bool CopyHex(HWND owner,const CString& text,CString& error){
+bool CopyPlainText(HWND owner,const CString& text,CString& error){
     const size_t bytes=(static_cast<size_t>(text.GetLength())+1)*sizeof(wchar_t);HGLOBAL memory=GlobalAlloc(GMEM_MOVEABLE,bytes);if(!memory){error=Tr(Text::Failed);return false;}
     auto* buffer=GlobalLock(memory);if(!buffer){GlobalFree(memory);error=Tr(Text::Failed);return false;}memcpy(buffer,text.GetString(),bytes);GlobalUnlock(memory);
     if(!OpenClipboard(owner)){GlobalFree(memory);error=Tr(Text::Busy);return false;}
     const bool copied=EmptyClipboard()&&SetClipboardData(CF_UNICODETEXT,memory);CloseClipboard();if(!copied){GlobalFree(memory);error=Tr(Text::Failed);}return copied;
-}
 }
 bool EditorFrame::SetCurrentColor(COLORREF color,bool remember){
     if(screenColorModal_||objectGesture_||cropGesture_||canvasHandle_>=0||job_.Busy()&&activeAction_!=WorkRender){status_.SetWindowText(Tr(Text::Busy));return false;}
@@ -25,7 +23,7 @@ bool EditorFrame::SetCurrentColor(COLORREF color,bool remember){
 void EditorFrame::PaletteCommand(UINT id){
     if(objectGesture_||cropGesture_||canvasHandle_>=0||job_.Busy()&&activeAction_!=WorkRender){status_.SetWindowText(Tr(Text::Busy));return;}
     const COLORREF current=palette_.color;const HWND host=m_hWnd;const auto revision=revision_;const auto ids=Selection();const bool editing=textEditing_;const int textIndex=textIndex_;
-    if(id==CopyColorHex){if(copyTicket_||pasteTicket_){status_.SetWindowText(Tr(Text::Busy));return;}CString error;const CString value=services::HexColor(current);const bool copied=hexCopyAudit_?hexCopyAudit_(value,error):CopyHex(host,value,error);if(!copied)status_.SetWindowText(error);return;}
+    if(id==CopyColorHex){if(copyTicket_||pasteTicket_){status_.SetWindowText(Tr(Text::Busy));return;}CString error;const CString value=services::HexColor(current);const bool copied=hexCopyAudit_?hexCopyAudit_(value,error):CopyPlainText(host,value,error);if(!copied)status_.SetWindowText(error);return;}
     services::Settings settings;CString error;if(!services::ConfigService().Load(settings,error)){status_.SetWindowText(error);return;}services::PaletteData data;if(!services::DecodePalette(settings.palette,data,error)){status_.SetWindowText(error);return;}
     if(id==FavoriteColor){if(!services::ToggleFavorite(data,current)){status_.SetWindowText(Tr(Text::FavoriteLimit));return;}const auto encoded=services::EncodePalette(data);const bool saved=paletteSaveAudit_?paletteSaveAudit_(encoded,error):MainFrame::SavePalette(encoded,error);if(!saved)status_.SetWindowText(CString(Tr(Text::Failed))+L" "+error);return;}
     COLORREF chosen=current;INT_PTR result=IDCANCEL;const auto form=paletteFormAudit_;const auto popup=paletteMenuAudit_;

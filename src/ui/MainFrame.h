@@ -21,11 +21,14 @@ protected:
     afx_msg LRESULT OnTray(WPARAM,LPARAM);afx_msg LRESULT OnTaskbarCreated(WPARAM,LPARAM);afx_msg LRESULT OnDpiChanged(WPARAM,LPARAM);DECLARE_MESSAGE_MAP()
     afx_msg LRESULT OnLanguageChanged(WPARAM,LPARAM);
     afx_msg LRESULT OnBuildExit(WPARAM,LPARAM);
+    afx_msg BOOL OnCopyData(CWnd*,COPYDATASTRUCT*);
     afx_msg LRESULT OnActivateExisting(WPARAM,LPARAM);
     afx_msg LRESULT OnHotkey(WPARAM,LPARAM);afx_msg LRESULT OnDeferredHotkey(WPARAM,LPARAM);
     afx_msg void OnEnterMenuLoop(BOOL);afx_msg void OnExitMenuLoop(BOOL);
 private:
     native_tool_ui::BuildIdentityLabel buildIdentity_;
+    friend class DiscussionAccess;
+    bool QueueOpenFiles(const std::vector<CString>&);void OpenQueuedFile();std::vector<CString> pendingFiles_;
     friend class ReviewOptimizationAccess;
     friend class ReviewReliabilityAccess;
     bool pendingExit_=false;

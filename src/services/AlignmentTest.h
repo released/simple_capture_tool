@@ -1,4 +1,5 @@
 #pragma once
+namespace sct::services {void DiscussionChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 namespace sct::services {void ReviewRefinementsChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&,bool baseline=false);}
 namespace sct::services {void FlowDiagramChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 namespace sct::services {void ClipboardFeedbackChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}

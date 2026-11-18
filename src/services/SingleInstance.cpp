@@ -1,5 +1,7 @@
 #include "pch.h"
 #include "SingleInstance.h"
+#include "OpenRequest.h"
+#include "Strings.h"
 namespace sct::services {
 namespace {
 void Failure(CString& error,DWORD code){error.Format(L"Single-instance protection: Windows error %lu",code);}
@@ -13,7 +15,7 @@ HWND Find(const CString& property,DWORD& pid){
 }
 CString SingleInstance::Name(){return L"Local\\SimpleCaptureTool.9F89BC55-2C60-4A4A-9D21-01CC68814657.Instance.v1";}
 UINT SingleInstance::ActivationMessage(){static const UINT message=RegisterWindowMessage(L"SimpleCaptureTool.ActivateExisting.v1");return message;}
-InstanceRole SingleInstance::Start(CString& error,const CString& name,DWORD readyWait){
+InstanceRole SingleInstance::Start(CString& error,const CString& name,DWORD readyWait,const std::vector<CString>* files){
     error.Empty();if(mutex_){Failure(error,ERROR_ALREADY_INITIALIZED);return InstanceRole::Failed;}
     property_=name+L".Window";SetLastError(ERROR_SUCCESS);mutex_=CreateMutexEx(nullptr,name,CREATE_MUTEX_INITIAL_OWNER,SYNCHRONIZE|MUTEX_MODIFY_STATE);const DWORD status=GetLastError();
     if(!mutex_){Failure(error,status);return InstanceRole::Failed;}
@@ -25,9 +27,16 @@ InstanceRole SingleInstance::Start(CString& error,const CString& name,DWORD read
         if(wait==WAIT_FAILED){const DWORD code=GetLastError();Reset();Failure(error,code);return InstanceRole::Failed;}
         DWORD pid=0;const HWND existing=Find(property_,pid);DWORD current=0;
         if(existing&&Owner(existing,property_,current)&&current==pid){
+            if(files&&!files->empty()){
+                std::vector<wchar_t> packet;if(!PackOpenRequest(*files,packet,error))return InstanceRole::Failed;
+                HWND sender=CreateWindowEx(0,L"STATIC",L"",0,0,0,0,0,HWND_MESSAGE,nullptr,GetModuleHandle(nullptr),nullptr);if(!sender){error=Tr(Text::OpenRequestFailed);return InstanceRole::Failed;}
+                COPYDATASTRUCT data{OpenRequestTag,DWORD(packet.size()*sizeof(wchar_t)),packet.data()};DWORD_PTR answer=0;
+                const auto delivered=SendMessageTimeout(existing,WM_COPYDATA,reinterpret_cast<WPARAM>(sender),reinterpret_cast<LPARAM>(&data),SMTO_ABORTIFHUNG|SMTO_BLOCK,2000,&answer);DestroyWindow(sender);
+                if(!delivered||answer!=1){error=Tr(Text::OpenRequestFailed);return InstanceRole::Failed;}return InstanceRole::Secondary;
+            }
             AllowSetForegroundWindow(pid);const UINT message=ActivationMessage();if(message&&PostMessage(existing,message,0,0))return InstanceRole::Secondary;
         }
-        if(GetTickCount64()>=deadline)return InstanceRole::Secondary;
+        if(GetTickCount64()>=deadline){if(files&&!files->empty()){error=Tr(Text::OpenRequestFailed);return InstanceRole::Failed;}return InstanceRole::Secondary;}
         Sleep(10);
     }
 }

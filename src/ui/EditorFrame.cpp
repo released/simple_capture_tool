@@ -40,6 +40,7 @@ BEGIN_MESSAGE_MAP(EditorFrame,CFrameWnd)
     ON_MESSAGE(WM_DPICHANGED,&EditorFrame::OnDpiChanged)
     ON_MESSAGE(LanguageChanged,&EditorFrame::OnLanguageChanged)
     ON_COMMAND(InsertImageFit,&EditorFrame::OnInsertFit)
+    ON_COMMAND_RANGE(ZoomSelection,RerouteConnectors,&EditorFrame::OnAction)
     ON_COMMAND_RANGE(FlowPanelToggle,FlowShapeLast,&EditorFrame::OnAction)
     ON_COMMAND_RANGE(Command::Save,Command::Color,&EditorFrame::OnAction)
     ON_COMMAND_RANGE(Command::More,Command::JpegQuality,&EditorFrame::OnAction)
@@ -167,6 +168,7 @@ void EditorFrame::OnTimer(UINT_PTR)
         else if(r->action==WorkInsertFit){Insert(std::move(r->image));}
         else if(r->action==WorkClipboard){PublishClipboardResult(*r);}
         else if(r->action==WorkOpenPage){if(!r->state.base)r->state.base=std::make_shared<const core::Image>(std::move(r->image));EditorWorkspace::Open(std::move(r->state),r->path,r->path.IsEmpty(),r->command==NewDocument);}
+        else if(r->action==WorkDiscussion){const HWND host=m_hWnd;CompleteDiscussion(*r);if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;}
         else if(r->action==WorkDropOpen)CompleteDroppedImage(*r);
         else if(r->action==WorkComposition){if(r->revision&&r->revision!=revision_||r->mask&&r->maskEpoch!=maskEpoch_){status_.SetWindowText(Tr(Text::Busy));}else{document_.Commit(std::move(r->state));style_.tool=core::Tool::Select;selected_=-1;Changed();if(!r->selected.empty())SetSelection(std::move(r->selected));else Select(document_.State().objects.empty()?-1:static_cast<int>(document_.State().objects.size())-1);}}
         else if(r->action==WorkOutput){if(r->path.IsEmpty())status_.SetWindowText(Tr(Text::Saved));else ImageSaved(r->path);}

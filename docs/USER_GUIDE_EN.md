@@ -4,6 +4,31 @@
 
 The application starts in **Traditional Chinese by default**. To use the English interface, choose **Settings → General → Language**, select English, and save. The saved language choice is used on subsequent launches.
 
+## View and discussion tools
+
+### Selection zoom and matching sizes
+
+- **Zoom → Zoom to selection / objects** fits the crop region, pixel selection or selected objects into the viewport. **Return to previous view** switches back to the previous zoom and scroll position. Neither changes the image or Undo history.
+- Select two or more independent, visible, unlocked pictures, shapes or text objects, then choose **Objects → Match width / Match height / Match size** and explicitly select the reference object.
+- Pictures retain proportions by default; matching both dimensions fits them inside the reference bounds. Clear this option to match both dimensions exactly. Font sizes, rich-text styles and stroke widths remain unchanged. Ungroup objects first. The operation uses one Undo step.
+- **Flow diagram → Fit node height to text** preserves width and font size. If the text exceeds available canvas height, the original remains intact; enlarge the canvas first. Attached connectors follow the resized node.
+
+### Labels, shared comments and connectors
+
+- **Numbered markers → Step label format** offers numbers, uppercase or lowercase letters, and custom text of 1–16 characters. With markers selected, it updates those markers; without a selection, it sets the current page's new-marker format. Alphabet labels continue from Z to AA and AB using the marker number.
+- **Renumber steps** can retain existing text labels or explicitly use numbers, uppercase or lowercase letters. Custom labels are never inferred to be alphabet sequences.
+- Select 2–16 independent targets and choose **Shapes → One comment, multiple targets**. One editable text object and attached arrows form a group in one Undo step. Move the group together; ungroup before editing individual text or arrows. Target objects remain independent.
+- Select elbow arrows and choose **Flow diagram → Route elbow connectors around nodes** for a one-time route search. It uses existing one/two-bend paths, does not continuously reroute or eliminate all line crossings, and retains the original when no route is available. Limits are 32 selected connectors and 256 visible flow nodes.
+
+### Image colors and file entry points
+
+- **Colors → Extract colors from image / selection** proposes up to eight representative colors from the merged image or pixel selection. Pixels below 50% opacity are excluded; large images are sampled. Apply a chosen color and optionally add it to favorites; existing favorites are never replaced.
+- Right-click a saved image tab for **Open file location** or **Copy full path**. These are also available under the top **Edit → View** menu. Unsaved RAM images disable both actions. Copying publishes path text and replaces existing clipboard content. Project-primary pages use their project path.
+- `SimpleCaptureTool.exe --open "image.png" "another image.jpg"` accepts up to 16 images/projects. Bare file arguments also work with Windows **Open with**. No file association is registered automatically.
+- A running instance receives subsequent file requests. Capture, modal dialogs and active editing defer opening until safe; existing pages are not saved or closed automatically. If delivery is unconfirmed, check the existing tabs before opening again.
+- New commands can be added through **Customize Home**. Saved Home order and enabled items remain unchanged.
+
+
 ## Getting started
 
 1. Use Windows 10 1903 or later, x64. Put the tool in a writable folder and run [SimpleCaptureTool.exe](../build/SimpleCaptureTool.exe).

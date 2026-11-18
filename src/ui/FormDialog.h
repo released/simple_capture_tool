@@ -18,6 +18,9 @@ protected:
     afx_msg LRESULT OnDpiChanged(WPARAM,LPARAM);
     afx_msg LRESULT OnLanguageChanged(WPARAM,LPARAM);void Layout();
 private:
+#if SCT_ENABLE_SELFTESTS
+    friend class DiscussionAccess;inline static thread_local std::function<void(FormDialog&)> initObserver_;
+#endif
     CWnd* owner_;Text title_;std::vector<Field> fields_;std::vector<std::unique_ptr<CWnd>> controls_,labels_;CFont font_;CButton ok_,cancel_;
     std::function<void(CWnd&)> audit_;
     int dpi_=96;

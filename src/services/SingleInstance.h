@@ -7,7 +7,7 @@ public:
     ~SingleInstance(){Reset();}
     SingleInstance(const SingleInstance&)=delete;
     SingleInstance& operator=(const SingleInstance&)=delete;
-    InstanceRole Start(CString& error,const CString& name=Name(),DWORD readyWait=2000);
+    InstanceRole Start(CString& error,const CString& name=Name(),DWORD readyWait=2000,const std::vector<CString>* files=nullptr);
     bool Publish(HWND window,CString& error);
     void Reset();
     bool IsPrimary()const{return owned_;}

@@ -31,6 +31,10 @@ protected:
     void PostNcDestroy()override{if(owned_)delete this;}
     BOOL PreTranslateMessage(MSG*)override;DECLARE_MESSAGE_MAP()
 private:
+    friend class DiscussionAccess;
+#if SCT_ENABLE_SELFTESTS
+    std::function<UINT(CMenu&,EditorFrame*)> tabMenuAudit_;
+#endif
     friend class ReviewFollowupAccess;
     friend class ReviewRefinementsAccess;friend class ReviewOptimizationAccess;
     struct OutputSnapshot {std::vector<core::DocumentState> states;std::vector<CString> labels;std::vector<EditorFrame*> pages;std::vector<HWND> windows;std::vector<uint64_t> revisions;bool allowRender=false;};
@@ -63,7 +67,7 @@ private:
     class TabStrip final:public CTabCtrl {
     public:EditorWorkspace* owner=nullptr;void RefreshMetrics();CRect CloseRect(int)const;CRect LabelRect(int)const;
     protected:void DrawItem(LPDRAWITEMSTRUCT)override;
-        afx_msg void OnLButtonDown(UINT,CPoint);afx_msg void OnMouseMove(UINT,CPoint);afx_msg void OnLButtonUp(UINT,CPoint);afx_msg void OnCaptureChanged(CWnd*);afx_msg void OnKeyDown(UINT,UINT,UINT);afx_msg void OnMouseLeave();DECLARE_MESSAGE_MAP()
+        afx_msg void OnLButtonDown(UINT,CPoint);afx_msg void OnMouseMove(UINT,CPoint);afx_msg void OnLButtonUp(UINT,CPoint);afx_msg void OnCaptureChanged(CWnd*);afx_msg void OnKeyDown(UINT,UINT,UINT);afx_msg void OnMouseLeave();afx_msg void OnContextMenu(CWnd*,CPoint);DECLARE_MESSAGE_MAP()
     private:EditorFrame* dragged_=nullptr;EditorFrame* pressedClose_=nullptr;HWND closeWindow_=nullptr;CPoint pressed_;bool moving_=false,tracking_=false;int hotClose_=-1,dpi_=0;void Cancel();int CloseHit(CPoint)const;
     };
     bool Reorder(EditorFrame*,int);void ResumePage(EditorFrame*);void UpdateResources(bool reclaim=true,size_t limit=512ULL*1024*1024);void ReclaimInactive();CString ResourceSummary()const;

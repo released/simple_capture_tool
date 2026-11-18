@@ -3,7 +3,7 @@
 namespace sct::ui {
 UINT EditorFrame::CommandMenuFlags(UINT id)const
 {
-    UINT checked=AlignmentMenuFlags(id);
+    UINT checked=AlignmentMenuFlags(id);if(id>=ZoomSelection&&id<=RerouteConnectors)return DiscussionFlags(id);
     if((id==FlowPanelToggle&&flowPanel_.Open())||(id==FlowStraight&&!flowElbow_)||(id==FlowElbow&&flowElbow_)||(id==FlowLineMode&&!flowArrow_)||(id==FlowArrowMode&&flowArrow_)||(id>=FlowBlue&&id<=FlowPurple&&int(id-FlowBlue)==flowPreset_))checked|=MF_CHECKED;
     if(closing_)return checked|MF_GRAYED;
     if(id==CloseDocument||id==CloseAllDocuments)return checked;

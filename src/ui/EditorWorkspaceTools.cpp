@@ -45,6 +45,7 @@ void EditorFrame::WorkspaceCommand(UINT id){
     else if(id==ChooseDocument){const int index=dialog.Fields()[0].Integer();if(index>=0&&index<static_cast<int>(pages.size()))w->Activate(pages[index]);}
 }
 BEGIN_MESSAGE_MAP(EditorWorkspace::TabStrip,CTabCtrl)
+ ON_WM_CONTEXTMENU()
  ON_WM_LBUTTONDOWN()
  ON_WM_MOUSEMOVE()
  ON_WM_LBUTTONUP()

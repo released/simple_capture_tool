@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "EditorFrame.h"
+#include "../core/DiscussionTools.h"
 #include "FormDialog.h"
 #include "../core/ImageOperations.h"
 #include "../core/AnnotationGeometry.h"
@@ -58,7 +59,7 @@ void EditorFrame::OnLButtonDown(UINT flags,CPoint p)
     if(style_.tool==core::Tool::Select){handle_=Handle(p);if(handle_<0)Select(document_.HitTest(start_,std::max(2,static_cast<int>(5/zoom_))),false);
         if(selected_<0||!GuardSelection(true)){Layout();return;}draft_=original_=document_.State().objects[selected_];if(handle_<0)BeginSnapping({selected_});else ClearSnapping();
     }else {clickCandidate_=hit;selected_=-1;draft_=style_;draft_.sourceCrop={};if(draft_.tool==core::Tool::Callout){draft_.anchored=false;draft_.focus={};}if(draft_.tool!=core::Tool::Text&&draft_.tool!=core::Tool::Callout)draft_.textRuns.clear();draft_.id=draft_.sourceId=draft_.targetId=0;draft_.group=0;draft_.locked=false;draft_.points={start_};draft_.rect={start_.x,start_.y,start_.x,start_.y};text_.GetWindowText(draft_.text);draft_.width=style_.width;
-if(draft_.tool==core::Tool::Step){int next=1;for(const auto& a:document_.State().objects)if(a.tool==core::Tool::Step)next=std::max(next,a.number+1);if(next>100000){status_.SetWindowText(Tr(Text::StepLimit));return;}draft_.number=next;}}
+if(draft_.tool==core::Tool::Step){int next=1;for(const auto& a:document_.State().objects)if(a.tool==core::Tool::Step)next=std::max(next,a.number+1);if(next>100000){status_.SetWindowText(Tr(Text::StepLimit));return;}draft_.number=next;draft_.text=core::StepText(next,stepLabelMode_,stepCustom_);}}
     dragging_=true;SetCapture();
 }
 void EditorFrame::OnMouseMove(UINT,CPoint p)

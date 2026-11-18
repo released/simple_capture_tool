@@ -97,6 +97,7 @@ void MainFrame::OnTimer(UINT_PTR timer)
     if(timer==CapturePollTimer&&!capturePolling_)return;
     if(timer!=CapturePollTimer){
     DispatchPendingHotkey();
+    OpenQueuedFile();
     if(HWND external=ExternalWindow())lastExternal_=external;
     if(countdownMode_){if(GetAsyncKeyState(VK_ESCAPE)<0){RestoreEditors();countdownMode_=0;countdown_.Close();if(restore_)ShowWindow(SW_SHOW);}
         else{const auto left=std::chrono::duration_cast<std::chrono::milliseconds>(deadline_-std::chrono::steady_clock::now()).count();if(left<=0){UINT mode=countdownMode_;countdownMode_=0;countdown_.Close();LaunchFrozen(mode);}else countdown_.UpdateSeconds(static_cast<int>((left+999)/1000));}}

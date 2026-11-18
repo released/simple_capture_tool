@@ -25,7 +25,7 @@ void EditorFrame::OnAction(UINT id)
     const HWND commandOwner=m_hWnd;
     if((id==Copy||id==Cut)&&!copyTicket_)SetCopyNotice(CopyNotice::Blocked);
     if(CommandMenuFlags(id)&MF_GRAYED){status_.SetWindowText(Tr(job_.Busy()?Text::Busy:Text::CommandUnavailable));return;}
-    const bool viewportCommand=id>=ZoomFit&&id<=ToggleFullScreen;
+    const bool viewportCommand=(id>=ZoomFit&&id<=ToggleFullScreen)||id==ZoomSelection||id==ZoomPrevious;
     if(!viewportCommand&&id!=ChooseDocument)status_.ClearOperation();
     if(id>=BringToFront&&id<=ExportSelectedSvg&&(maskGesture_||maskPending_||dragging_||panning_||sidebar_.Dragging()||!IsWindowEnabled()||!::IsWindowEnabled(::GetAncestor(m_hWnd,GA_ROOT)))){status_.SetWindowText(Tr(Text::Busy));return;}
     if(flowGesture_||flowPaletteDrag_){status_.SetWindowText(Tr(Text::Busy));return;}
@@ -35,6 +35,7 @@ void EditorFrame::OnAction(UINT id)
     EditorPolling(true);
     if(id==CloseDocument||id==CloseAllDocuments){DocumentCommand(id);return;}
     if(canvasHandle_>=0||canvasPending_){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(id==ZoomSelection||id==ZoomPrevious){try{DiscussionCommand(id);}catch(const std::exception&){status_.SetWindowText(Tr(Text::InvalidValue));}return;}
     if(!FinishPropertyDraft()){SyncStyle();return;}
     if(id>=TextBold&&id<=AlignRight||id>=AlignLeftMiddle&&id<=EraseColor||id==ToggleFill||id==ToggleShadow||id==FillColor){StyleCommand(id);return;}
     if(id>=ColorHex&&id<=CopyColorHex){try{PaletteCommand(id);}catch(const std::exception& e){CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());status_.SetWindowText(error);}return;}
@@ -50,6 +51,7 @@ void EditorFrame::OnAction(UINT id)
     if(!PrepareClipboardAction(id))return;
     if(job_.Busy()&&!(activeAction_==WorkRender&&viewportCommand)){if(activeAction_==WorkRender){if(pendingAction_!=SelectPixels)QueueAction(id);}else status_.SetWindowText(Tr(Text::Busy));return;}
     try {
+        if(id>=MatchWidth&&id<=RerouteConnectors){DiscussionCommand(id);return;}
         if(id>=ReflowObjects&&id<=ExportSelectedSvg){RefinementCommand(id);return;}
         if(id>=ExportSelectedPng&&id<=PictureAlphaSelection){AssetCommand(id);return;}
         if(id>=CalloutTailPosition&&id<=StrokePixels){WorkflowCommand(id);return;}

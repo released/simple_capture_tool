@@ -6,6 +6,7 @@
 #include "GuideDialog.h"
 #include "HistogramDialog.h"
 #include "../core/DiscoveryTools.h"
+#include "../core/DiscussionTools.h"
 #include "../core/ImageOperations.h"
 #include "../services/DocumentRenderer.h"
 #include "../services/GuideService.h"
@@ -13,7 +14,7 @@
 namespace sct::ui {
 void EditorFrame::ChooseOverlap(){
     CPoint point=overlapPoint_;if(point.x<0||!canvas_.PtInRect(point)){if(cursorPointAudit_)point=cursorPointAudit_();else{GetCursorPos(&point);ScreenToClient(&point);}}overlapPoint_={-1,-1};if(!canvas_.PtInRect(point))return;
-    const auto hits=core::ObjectsAt(document_.State(),ImagePoint(point),std::max(2,static_cast<int>(5/zoom_)));if(hits.empty())return;CMenu menu;menu.CreatePopupMenu();const size_t count=std::min<size_t>(hits.size(),256);for(size_t i=0;i<count;++i){const auto& a=document_.State().objects[hits[i]];CString label=a.label;if(label.IsEmpty()){label=Tr(ToolLabels().at(static_cast<size_t>(a.tool)));if(!a.text.IsEmpty())label+=L" "+a.text.Left(40);}label.Replace(L"&",L"&&");menu.AppendMenu(MF_STRING|(selected_==hits[i]?MF_CHECKED:0),static_cast<UINT_PTR>(i+1),label);}
+    const auto hits=core::ObjectsAt(document_.State(),ImagePoint(point),std::max(2,static_cast<int>(5/zoom_)));if(hits.empty())return;CMenu menu;menu.CreatePopupMenu();const size_t count=std::min<size_t>(hits.size(),256);for(size_t i=0;i<count;++i){const auto& a=document_.State().objects[hits[i]];CString label=a.label;if(label.IsEmpty()){label=Tr(ToolLabels().at(static_cast<size_t>(a.tool)));const CString content=a.tool==core::Tool::Step&&core::HasStepLabel(a)?core::StepCaption(a):a.text;if(!content.IsEmpty())label+=L" "+content.Left(40);}label.Replace(L"&",L"&&");menu.AppendMenu(MF_STRING|(selected_==hits[i]?MF_CHECKED:0),static_cast<UINT_PTR>(i+1),label);}
     const HWND host=m_hWnd;const auto revision=revision_,epoch=maskEpoch_;const auto ids=Selection();const auto audit=overlapAudit_;screenColorModal_=true;CPoint screen=point;ClientToScreen(&screen);UINT chosen=0;try{chosen=audit?audit(menu):menu.TrackPopupMenu(TPM_RETURNCMD|TPM_RIGHTBUTTON,screen.x,screen.y,this);}catch(...){if(::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)screenColorModal_=false;throw;}if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;screenColorModal_=false;if(revision!=revision_||epoch!=maskEpoch_||ids!=Selection()||chosen<1||chosen>count)return;SetSelection({hits[chosen-1]});
 }
 void EditorFrame::ExportGuideCommand(){

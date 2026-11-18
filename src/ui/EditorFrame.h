@@ -64,6 +64,14 @@ protected:
     afx_msg LRESULT OnLanguageChanged(WPARAM,LPARAM);
     DECLARE_MESSAGE_MAP()
 private:
+    struct WorkResult;friend class DiscussionAccess;
+    void DiscussionCommand(UINT);void CompleteDiscussion(WorkResult&);UINT DiscussionFlags(UINT)const;
+    void FileCommand(UINT);CString CurrentFile()const;
+    struct ViewPosition {double zoom;int x,y;bool fit;};std::optional<ViewPosition> previousView_;
+    int stepLabelMode_=0;CString stepCustom_;
+#if SCT_ENABLE_SELFTESTS
+    std::function<bool(const CString&)> fileLocationAudit_;
+#endif
     friend class ReviewFollowupAccess;
     friend class ReviewRefinementsAccess;std::function<INT_PTR(CPrintDialog&)> printDialogAudit_;std::function<bool(CString&)> printOutputAudit_;std::function<int(Text)> exportConfirmAudit_;
     friend class FlowDiagramAccess;friend class FlowShapeButton;friend class FlowPanel;
@@ -193,7 +201,7 @@ private:
     std::function<void(CWnd&)> previewModalAudit_;
     friend class EditorRibbon;
     friend class EditorWorkspace;
-    struct WorkResult { std::optional<core::EffectRecipe> recipe;core::Image image,thumbnail,colorPreview,colorOriginal;core::DocumentState state,sourceState;std::shared_ptr<const core::SelectionMask> mask;std::array<uint64_t,256> histogram{};UINT command=0;uint64_t maskEpoch=0;core::composition::Indices selected,expected;std::vector<core::Image> pages;std::vector<services::ImageExportOutcome> exports;HWND workspaceWindow=nullptr;CWnd* workspaceOwner=nullptr;CString path,error;int action=WorkRender;uint64_t revision=0,preview=0;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<services::ImageComparison> comparison;unsigned clipboardAttempts=0;std::chrono::steady_clock::time_point clipboardDeadline{};bool cut=false,colorChanged=false;Text colorTitle=Text::ColorGamma;CRect colorCrop;core::Tool colorTool=core::Tool::Select;CSize dimensions{1280,720};RECT screen{}; };
+    struct WorkResult { std::vector<COLORREF> colors;int routeFailures=0;std::optional<core::EffectRecipe> recipe;core::Image image,thumbnail,colorPreview,colorOriginal;core::DocumentState state,sourceState;std::shared_ptr<const core::SelectionMask> mask;std::array<uint64_t,256> histogram{};UINT command=0;uint64_t maskEpoch=0;core::composition::Indices selected,expected;std::vector<core::Image> pages;std::vector<services::ImageExportOutcome> exports;HWND workspaceWindow=nullptr;CWnd* workspaceOwner=nullptr;CString path,error;int action=WorkRender;uint64_t revision=0,preview=0;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<services::ImageComparison> comparison;unsigned clipboardAttempts=0;std::chrono::steady_clock::time_point clipboardDeadline{};bool cut=false,colorChanged=false;Text colorTitle=Text::ColorGamma;CRect colorCrop;core::Tool colorTool=core::Tool::Select;CSize dimensions{1280,720};RECT screen{}; };
     void Layout();void Changed();void RequestRender();void ShowMore();void EditProperties();void ChooseFont();void Transform(UINT);void PaintContent(CDC&);
     bool FinishPropertyDraft();void ChangeTool(int);
     void CommandTools(UINT);void ReloadEditorShortcuts();UINT EditorShortcutCommand(UINT,UINT)const;bool RouteEditorShortcut(MSG*,bool);

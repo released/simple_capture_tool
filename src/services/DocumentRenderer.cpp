@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "StepGlyphs.h"
 #include "../core/Cancellation.h"
 #include "../core/AnnotationExtensions.h"
 #include "RichTextService.h"
@@ -88,7 +89,7 @@ bool RenderObject(core::Image& image,const core::Annotation& a,bool nativeText)
         g.ResetClip(); g.DrawEllipse(&pen,r);
     } else if(a.tool==Tool::Text || a.tool==Tool::Step||a.tool==Tool::Stamp) {
         CString text=a.text;
-        if(a.tool==Tool::Step) { g.FillEllipse(&brush,r); text.Format(L"%d",a.number); }
+        if(a.tool==Tool::Step) { g.FillEllipse(&brush,r); text=core::StepCaption(a); }
         const int style=(a.bold?FontStyleBold:0)|(a.italic?FontStyleItalic:0)|(a.underline?FontStyleUnderline:0);
         FontFamily family(a.font); FontFamily fallback(L"Arial"); const FontFamily* chosen=family.GetLastStatus()==Ok?&family:&fallback;
         StringFormat format; format.SetFormatFlags(StringFormatFlagsNoClip);
@@ -97,7 +98,7 @@ bool RenderObject(core::Image& image,const core::Annotation& a,bool nativeText)
         if(a.tool==Tool::Step) { format.SetAlignment(StringAlignmentCenter); format.SetLineAlignment(StringAlignmentCenter); }
         if(a.textBackground && a.tool==Tool::Text) { SolidBrush bg(Ink(a.background)); g.FillRectangle(&bg,r); }
         if(a.tool==Tool::Text&&(nativeText||!a.textRuns.empty()||a.textPadding||a.textLineSpacing!=100||a.textAutoHeight)){auto formatted=RenderRichText(a);Bitmap rendered(formatted.width,formatted.height,formatted.width*4,PixelFormat32bppARGB,formatted.pixels.data());if(a.textOutline){const int radius=std::clamp(a.width/2,1,16);core::Image outline=formatted;for(size_t i=0;i<outline.pixels.size();i+=4){outline.pixels[i]=GetBValue(a.outline);outline.pixels[i+1]=GetGValue(a.outline);outline.pixels[i+2]=GetRValue(a.outline);}Bitmap border(outline.width,outline.height,outline.width*4,PixelFormat32bppARGB,outline.pixels.data());for(int y=-radius;y<=radius;++y)for(int x=-radius;x<=radius;++x)if(x*x+y*y<=radius*radius)g.DrawImage(&border,r.X+x,r.Y+y);}g.DrawImage(&rendered,r.X,r.Y);return g.GetLastStatus()==Ok;}
-        GraphicsPath path; path.AddString(text,text.GetLength(),chosen,style,static_cast<REAL>(a.fontSize),r,&format);
+        GraphicsPath path;if(a.tool==Tool::Step){if(StepGlyphs(a,chosen,style,r,format,path)!=Ok)return false;}else path.AddString(text,text.GetLength(),chosen,style,static_cast<REAL>(a.fontSize),r,&format);
         if(a.textOutline) { Pen outline(Ink(a.outline),static_cast<REAL>(std::max(1,a.width))); outline.SetLineJoin(LineJoinRound); g.DrawPath(&outline,&path); }
         SolidBrush fg(a.tool==Tool::Step?Color(255,255,255,255):Ink(a.color,a.alpha)); g.FillPath(&fg,&path);
     } else if(a.tool==Tool::CursorStamp){PointF p[]={{r.X,r.Y},{r.X+r.Width*.2f,r.GetBottom()*.0f+r.Y+r.Height*.9f},{r.X+r.Width*.43f,r.Y+r.Height*.65f},{r.X+r.Width*.68f,r.GetBottom()},{r.X+r.Width*.85f,r.Y+r.Height*.87f},{r.X+r.Width*.6f,r.Y+r.Height*.55f},{r.GetRight(),r.Y+r.Height*.5f}};SolidBrush fill(Ink(a.background));g.FillPolygon(&fill,p,7);g.DrawPolygon(&pen,p,7);

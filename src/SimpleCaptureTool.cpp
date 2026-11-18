@@ -18,6 +18,7 @@
 #include "services/NativeTestDiagnostics.h"
 #include "services/WindowCaptureSession.h"
 #include "services/SingleInstance.h"
+#include "services/OpenRequest.h"
 #include "services/Strings.h"
 
 namespace {
@@ -51,7 +52,8 @@ public:
 #if SCT_ENABLE_SELFTESTS
         if(command.Find(L"--single-instance-child")>=0){sct::services::paths::UseTestData();sct::services::PrepareNativeTestDiagnostics();result_=sct::services::RunSingleInstanceChild();return FALSE;}
 #endif
-        if(!testing){CString error;const auto role=instance_.Start(error);if(role!=sct::services::InstanceRole::Primary){if(role==sct::services::InstanceRole::Failed){result_=2;::MessageBox(nullptr,CString(sct::Tr(sct::Text::InstanceFailed))+L"\n"+error,sct::Tr(sct::Text::App),MB_OK|MB_ICONERROR);}return FALSE;}}
+        std::vector<CString> openFiles;
+        if(!testing){CString error;if(!sct::services::ParseOpenArguments(command,openFiles,error)){result_=64;::MessageBox(nullptr,error,sct::Tr(sct::Text::App),MB_OK|MB_ICONERROR);return FALSE;}const auto role=instance_.Start(error,sct::services::SingleInstance::Name(),2000,&openFiles);if(role!=sct::services::InstanceRole::Primary){if(role==sct::services::InstanceRole::Failed){result_=2;::MessageBox(nullptr,CString(sct::Tr(sct::Text::InstanceFailed))+L"\n"+error,sct::Tr(sct::Text::App),MB_OK|MB_ICONERROR);}return FALSE;}}
         if(startupProbe){
             result_=2;
             probeActivation_=SetWindowsHookEx(WH_CBT,BlockProbeActivation,nullptr,GetCurrentThreadId());
@@ -78,6 +80,7 @@ public:
         if (!frame->GetSafeHwnd()) { delete frame; return FALSE; }
         m_pMainWnd = frame;
         if(!startupProbe){CString error;if(!instance_.Publish(frame->GetSafeHwnd(),error)){result_=2;::MessageBox(nullptr,CString(sct::Tr(sct::Text::InstanceFailed))+L"\n"+error,sct::Tr(sct::Text::App),MB_OK|MB_ICONERROR);frame->DestroyWindow();return FALSE;}}
+        if(!openFiles.empty()&&!frame->QueueOpenFiles(openFiles)){result_=2;frame->DestroyWindow();return FALSE;}
         result_=0;
         // MainFrame stays hidden; OnCreate already initialized the tray and hotkeys.
         return TRUE;

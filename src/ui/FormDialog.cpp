@@ -28,7 +28,11 @@ BOOL FormDialog::OnInitDialog()
     }
     ok_.Create(Tr(Text::ApplyGeneric),WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_DEFPUSHBUTTON,CRect(Px(m_hWnd,365),Px(m_hWnd,y),Px(m_hWnd,475),Px(m_hWnd,y+32)),this,IDOK);
     cancel_.Create(Tr(Text::Cancel),WS_CHILD|WS_VISIBLE|WS_TABSTOP,CRect(Px(m_hWnd,490),Px(m_hWnd,y),Px(m_hWnd,600),Px(m_hWnd,y+32)),this,IDCANCEL);
-    BindText(ok_,Text::ApplyGeneric);BindText(cancel_,Text::Cancel);ApplyFont(*this,font_);Layout();CenterWindow(owner_);if(audit_)SetTimer(99,100,nullptr);return TRUE;
+    BindText(ok_,Text::ApplyGeneric);BindText(cancel_,Text::Cancel);ApplyFont(*this,font_);Layout();CenterWindow(owner_);
+#if SCT_ENABLE_SELFTESTS
+    if(initObserver_){initObserver_(*this);return FALSE;}
+#endif
+    if(audit_)SetTimer(99,100,nullptr);return TRUE;
 }
 void FormDialog::OnOK(){for(size_t i=0;i<fields_.size();++i){auto& f=fields_[i];if(f.kind==FieldKind::Check)f.value=Number(static_cast<CButton*>(controls_[i].get())->GetCheck()==BST_CHECKED);else if(f.kind==FieldKind::Choice)f.value=Number(static_cast<CComboBox*>(controls_[i].get())->GetCurSel());else controls_[i]->GetWindowText(f.value);}CDialog::OnOK();}
 BOOL FormDialog::PreTranslateMessage(MSG* m){if(m->message==WM_KEYDOWN&&m->wParam=='A'&&GetKeyState(VK_CONTROL)<0){auto* focus=GetFocus();wchar_t cls[32]{};if(focus&&GetClassName(focus->GetSafeHwnd(),cls,32)&&CString(cls)==L"Edit"){focus->SendMessage(EM_SETSEL,0,-1);return TRUE;}}return CDialog::PreTranslateMessage(m);}
