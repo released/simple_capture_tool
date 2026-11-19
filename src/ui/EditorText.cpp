@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "EditorFrame.h"
 #include "FormDialog.h"
+#include "EditorOperationScope.h"
+#include "../core/DiscussionTools.h"
 #include "../services/RichTextService.h"
 namespace sct::ui {
 namespace {
@@ -9,7 +11,35 @@ bool SameFlowText(const core::Annotation& a,const core::Annotation& b){return a.
 void EditorFrame::Preview(){++previewGeneration_;renderPending_=true;EditorPolling(true);}
 void EditorFrame::OnMButtonDown(UINT,CPoint p){if(canvasHandle_>=0||canvasPending_||!canvas_.PtInRect(p))return;panning_=true;panStart_=p;panX_=offsetX_;panY_=offsetY_;SetCapture();}
 void EditorFrame::OnMButtonUp(UINT,CPoint){if(!panning_)return;panning_=false;ReleaseCapture();}
-void EditorFrame::OnLButtonDblClk(UINT,CPoint p){if(pathMode_){FinishPath();return;}if(style_.tool==core::Tool::Crop||job_.Busy()&&activeAction_!=WorkRender)return;CancelComposition();dragging_=false;if(GetCapture()==this)ReleaseCapture();int index=document_.HitTest(ImagePoint(p));if(index>=0){auto a=document_.State().objects[index];if(a.group||a.locked){Select(index);GuardSelection(true);return;}if(a.tool==core::Tool::Arrow||a.tool==core::Tool::ElbowArrow){if(!a.connectorLabel){a.text.Empty();a.textRuns.clear();a.textBackground=true;}a.connectorLabel=true;a.textAutoHeight=false;}if(core::HasEditableText(a))BeginText(a,index);}}
+void EditorFrame::OnLButtonDblClk(UINT,CPoint p){if(pathMode_){FinishPath();return;}if(style_.tool==core::Tool::Crop||job_.Busy()&&activeAction_!=WorkRender)return;CancelComposition();dragging_=false;if(GetCapture()==this)ReleaseCapture();int index=document_.HitTest(ImagePoint(p));if(index>=0){auto a=document_.State().objects[index];if(a.group||a.locked){Select(index);GuardSelection(true);return;}if(a.tool==core::Tool::Step){if(canvas_.PtInRect(p))EditStep(index);return;}if(a.tool==core::Tool::Arrow||a.tool==core::Tool::ElbowArrow){if(!a.connectorLabel){a.text.Empty();a.textRuns.clear();a.textBackground=true;}a.connectorLabel=true;a.textAutoHeight=false;}if(core::HasEditableText(a))BeginText(a,index);}}
+void EditorFrame::EditStep(int index){
+    const EditorOperationScope operation(*this);
+    try{
+    const HWND host=m_hWnd,root=::GetAncestor(host,GA_ROOT);
+    if(WorkingForBuild(true)||!IsWindowEnabled()||(root&&!::IsWindowEnabled(root))||panning_){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(!FinishPropertyDraft()||!operation.Live()||!FinishText(true)||!operation.Live())return;
+    if(index<0||index>=int(document_.State().objects.size()))return;
+    const auto original=document_.State().objects[index];
+    if(original.tool!=core::Tool::Step||original.hidden||original.locked||original.group)return;
+    Select(index);
+    const auto revision=revision_,mask=maskEpoch_,crop=cropGeneration_;const auto selected=Selection();
+    const bool labeled=core::HasStepLabel(original);
+    FormDialog dialog(this,Text::Step,{{Text::Number,Number(original.number)},
+        {Text::StepLabelMode,labeled?L"3":L"0",FieldKind::Choice,{Tr(Text::StepNumeric),Tr(Text::StepUpper),Tr(Text::StepLower),Tr(Text::StepCustom)}},
+        {Text::StepCustom,labeled?core::StepCaption(original):CString()}});
+    const auto form=commandFormAudit_;INT_PTR answer=IDCANCEL;screenColorModal_=true;
+    try{answer=form?form(dialog):dialog.Run();}
+    catch(...){if(::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)screenColorModal_=false;throw;}
+    if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;
+    screenColorModal_=false;
+    if(!operation.Live()||answer!=IDOK||revision!=revision_||mask!=maskEpoch_||crop!=cropGeneration_||selected!=Selection()||WorkingForBuild(true)||sidebar_.Dirty()||textEditing_)return;
+    auto edited=original;edited.number=Range(dialog.Fields()[0],1,100000);const int mode=Range(dialog.Fields()[1],0,3);
+    // Untagged legacy text remains ignored; tagged labels change only explicitly.
+    if(mode||labeled)edited.text=core::StepText(edited.number,mode,dialog.Fields()[2].value);
+    if(edited.number==original.number&&edited.text==original.text)return;
+    document_.Replace(index,edited);Changed();SyncStyle();
+    }catch(const std::exception&){if(operation.Live())status_.SetWindowText(Tr(Text::InvalidValue));}
+}
 void EditorFrame::OnCaptureChanged(CWnd*){if(flowGesture_||flowPaletteDrag_)CancelFlow();if(sweepGesture_)CancelSweep(false);if(maskGesture_)CancelMask();ClearSnapping();if(cropGesture_)CancelCrop(false);CancelComposition();CancelCanvasResize();if(dragging_){if(pixelMoving_)pixelSelection_=pixelOriginal_;pixelMoving_=false;dragging_=false;clickCandidate_=-1;Preview();Layout();InvalidateRect(canvas_,FALSE);}panning_=false;}
 void EditorFrame::BeginText(core::Annotation a,int index){if(index>=0&&(a.locked||core::composition::Expand(document_.State(),{index}).size()>1)){status_.SetWindowText(Tr(a.locked?Text::ObjectsLocked:Text::SingleObjectNeeded));return;}textDraft_=std::move(a);textIndex_=index;textEditing_=true;richSync_=true;services::SetRichText(text_.m_hWnd,textDraft_,zoom_);richScale_=zoom_;richDpi_=GetDpiForWindow(text_.m_hWnd);RememberRichFormat(textDraft_);richSync_=false;SyncStyle();Layout();TextPosition();if(text_.GetStyle()&WS_VISIBLE)text_.SetFocus();text_.SetSel(0,-1);status_.SetWindowText(Tr(Text::InlineTextHelp));if(core::HasFlowText(textDraft_))Preview();}
 void EditorFrame::OnInlineTextChanged(){if(!richSync_)richContentDirty_=true;if(textEditing_&&core::HasFlowText(textDraft_)&&!richSync_){TextPosition();Preview();}else if(textEditing_&&(textDraft_.alignment>=3||textDraft_.textAutoHeight))TextPosition();}

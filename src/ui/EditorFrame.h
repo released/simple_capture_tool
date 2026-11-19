@@ -66,7 +66,7 @@ protected:
 private:
     struct WorkResult;friend class DiscussionAccess;
     void DiscussionCommand(UINT);void CompleteDiscussion(WorkResult&);UINT DiscussionFlags(UINT)const;
-    void FileCommand(UINT);CString CurrentFile()const;
+    void FileCommand(UINT);CString CurrentFile()const;void EditStep(int);
     struct ViewPosition {double zoom;int x,y;bool fit;};std::optional<ViewPosition> previousView_;
     int stepLabelMode_=0;CString stepCustom_;
 #if SCT_ENABLE_SELFTESTS

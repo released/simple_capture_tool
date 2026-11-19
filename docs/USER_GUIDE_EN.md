@@ -507,6 +507,7 @@ Captures open in a maximized shared editor workspace. Each image has its own tab
 - Pen follows the mouse path; Highlight is a translucent rectangle with a selectable color.
 - Text supports fonts, sizes, bold, italic, underline, alignment, and transparent or opaque backgrounds. Click blank space or press Ctrl+Enter to finish; Esc cancels the draft. Double-click text to edit it again.
 - A straight arrow's two endpoints move independently. A curved arrow has two additional control points for its curvature.
+- Double-click an independent numbered marker to change its step number (1–100000) or explicitly choose numeric, alphabetic, or custom labels. Apply affects that marker only and supports Undo/Redo; Escape or Cancel keeps its previous value. Existing custom labels are retained by default. Locked or grouped markers remain protected.
 - Number stamps continue numbering. **Markers → Renumber steps** sets a starting number and creation, top-to-bottom, or left-to-right order. If stamps are selected, only those are changed; otherwise all visible stamps are considered. Locked objects are protected.
 - The mosaic strength slider ranges from 1–100% and controls block size rather than opacity.
 - Ordinary erasing defaults to transparency, with a selected-color alternative. Smart erasing repairs with a representative color sampled from nearby opaque pixels. It is not AI content-aware filling; complex backgrounds can require manual repair.

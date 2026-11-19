@@ -102,6 +102,14 @@ $result=Invoke-HubOwnedTest -ProjectRoot $project -Purpose '075 settings, modal,
             }
         }
         if($name -eq 'Discussion' -and $child.ExitCode -eq 0){
+            foreach($previewName in 'step-tw-96.png','step-en-144.png'){
+                $stepPreview=Join-Path $evidence ('alignment\'+$previewName)
+                if(!(Test-Path -LiteralPath $stepPreview) -or (Get-Item -LiteralPath $stepPreview).Length -gt 1MB){throw 'Missing or oversized step number dialog preview'}
+                [void][IO.Directory]::CreateDirectory($audit)
+                $stepDestination=Join-Path $audit ($config+'-'+$run.Id+'-'+$previewName)
+                if(Test-Path -LiteralPath $stepDestination){throw 'Unknown step preview destination'}
+                Copy-Item -LiteralPath $stepPreview -Destination $stepDestination
+            }
             $preview=Join-Path $evidence 'alignment\discussion.png'
             if(!(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1MB){throw 'Missing or oversized owned discussion preview'}
             [void][IO.Directory]::CreateDirectory($audit)
