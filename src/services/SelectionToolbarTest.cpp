@@ -56,7 +56,7 @@ class SelectionToolbarAccess {
         const auto old=s->ToolbarBounds(),shape=Rect(s->shape_,*s),ratio=Rect(s->ratio_,*s);const CPoint point(old.left+2,old.top+2);
         s->dragging_=true;check(PaintPoint(*s,point)==RGB(20,60,35),"actual buffered painter covers the old toolbar footprint before avoidance");
         s->AvoidToolbar(point);const auto moved=s->ToolbarBounds();const int delta=moved.top-old.top;
-        check(moved.top>old.bottom&&!moved.PtInRect(point)&&Inside(*s),"toolbar and full help move below the original footprint within negative-desktop work area");
+        check(moved.top>old.bottom&&!moved.PtInRect(point)&&Inside(*s),"compact toolbar moves below the original footprint within negative-desktop work area");
         check(PaintPoint(*s,point)==RGB(37,point.y%241,point.x%251),"actual repaint exposes original frozen RGB at the vacated toolbar location");
         CRect shiftedShape=shape,shiftedRatio=ratio;shiftedShape.OffsetRect(0,delta);shiftedRatio.OffsetRect(0,delta);
         check(Rect(s->shape_,*s)==shiftedShape&&Rect(s->ratio_,*s)==shiftedRatio,"native shape/ratio HWNDs move by exactly the same offset as the painted bar");
@@ -67,7 +67,7 @@ class SelectionToolbarAccess {
         bool bottom=false,clear=true;for(int n=0;n<12;++n){const auto before=s->ToolbarBounds();const auto p=before.CenterPoint();const bool changed=s->AvoidToolbar(p);const auto after=s->ToolbarBounds();bottom=bottom||after.top<before.top;clear=clear&&changed&&Inside(*s)&&!after.PtInRect(p);}
         check(bottom&&clear,"repeated entries move away on either side without leaving the work area");
         check(s->image_==source&&source->pixels==pixels&&s->selected_.IsRectEmpty(),"moving native toolbar never recaptures or changes frozen pixels/selection");
-        auto* shortViewport=Create(640,120);WindowGuard shortGuard{shortViewport->m_hWnd};const auto before=shortViewport->ToolbarBounds();shortViewport->dragging_=true;check(!shortViewport->AvoidToolbar(before.CenterPoint())&&shortViewport->ToolbarBounds()==before,"insufficient vertical space preserves controls and existing Tab escape without invalid geometry");
+        auto* shortViewport=Create(640,24);WindowGuard shortGuard{shortViewport->m_hWnd};const auto before=shortViewport->ToolbarBounds();shortViewport->dragging_=true;check(!shortViewport->AvoidToolbar(before.CenterPoint())&&shortViewport->ToolbarBounds()==before,"insufficient vertical space preserves controls and existing Tab escape without invalid geometry");
     }
     static void Directional(Check check){
         auto* s=Create();WindowGuard guard{s->m_hWnd};const auto frozen=s->image_;const auto pixels=frozen->pixels;
@@ -96,36 +96,36 @@ class SelectionToolbarAccess {
         check(s->ToolbarBounds()==previous,"Alt suspends directional proximity movement as well as actual overlap");Alt(false);
         s->SendMessage(WM_LBUTTONUP,0,MAKELPARAM(edge.x,edge.y));const auto released=s->ToolbarBounds();
         check(!s->dragging_&&s->locked_,"release ends avoidance and retains the staged selection");mouse(released.CenterPoint());
-        check(s->ToolbarBounds()==released&&!ChildEvent(*s,s->shape_,WM_MOUSEMOVE),"after release toolbar controls are reachable without Alt");
+        check(s->ToolbarBounds()==released&&!ChildEvent(*s,s->shape_,WM_MOUSEMOVE),"after release full-screen button is reachable without Alt");
         s->SendMessage(WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(100,500));s->SendMessage(WM_MOUSEMOVE,MK_LBUTTON,MAKELPARAM(300,600));const auto staged=s->selected_;
         s->SendMessage(WM_CAPTURECHANGED,0,0);if(::GetCapture()==s->m_hWnd)::ReleaseCapture();const auto interrupted=s->ToolbarBounds();mouse(interrupted.CenterPoint());
         check(!s->dragging_&&s->selected_==staged&&s->locked_&&s->ToolbarBounds()==interrupted,"capture loss preserves selection without accepting it and makes toolbar stationary");
     }
     static void NativeControls(Check check){
-        auto* s=Create();WindowGuard guard{s->m_hWnd};const auto first=s->ToolbarBounds();const auto frozen=s->image_;
-        bool pass=true;for(CWnd* child:std::initializer_list<CWnd*>{&s->shape_,&s->ratio_,s->buttons_[0].get(),s->buttons_[1].get(),s->buttons_[2].get(),s->buttons_[3].get()})
-            for(UINT message:{WM_MOUSEMOVE,WM_LBUTTONDOWN,WM_LBUTTONUP})pass=pass&&!ChildEvent(*s,*child,message);
-        check(pass&&s->ToolbarBounds()==first,"idle native hover/down/up pass through every toolbar control without Alt or relocation");
-        s->selected_={100,300,180,340};s->buttons_[2]->SendMessage(BM_CLICK);
-        check(s->regions_.size()==1&&s->selected_.IsRectEmpty()&&s->ToolbarBounds()==first,"native Add button click works without Alt and without moving");
-        s->buttons_[3]->SendMessage(BM_CLICK);check(s->regions_.empty()&&!s->locked_&&s->ToolbarBounds()==first,"native Clear button click works without Alt");
-        s->shape_.SetCurSel(1);s->SendMessage(WM_COMMAND,MAKEWPARAM(SelectShape,CBN_SELCHANGE),reinterpret_cast<LPARAM>(s->shape_.m_hWnd));
-        s->ratio_.SetCurSel(2);s->SendMessage(WM_COMMAND,MAKEWPARAM(SelectRatio,CBN_SELCHANGE),reinterpret_cast<LPARAM>(s->ratio_.m_hWnd));
-        check(s->shape_.GetCurSel()==1&&s->ratioX_==16&&s->ratioY_==9&&s->ToolbarBounds()==first,"idle shape/ratio notifications apply without Alt and preserve toolbar position");
-        MSG queued{};queued.hwnd=s->shape_.m_hWnd;queued.message=WM_MOUSEMOVE;queued.lParam=MAKELPARAM(4,4);queued.pt={4,4};s->shape_.ClientToScreen(&queued.pt);
-        s->dragging_=true;check(ChildEvent(*s,s->shape_,WM_MOUSEMOVE)&&s->ToolbarBounds()!=first,"active drag still routes native child avoidance events");
+        auto* s=Create();WindowGuard guard{s->m_hWnd};const auto first=s->ToolbarBounds();const auto frozen=s->image_;auto& full=*s->buttons_.front();
+        int visible=0;for(CWnd* child=s->GetWindow(GW_CHILD);child;child=child->GetNextWindow())if(child->GetStyle()&WS_VISIBLE)++visible;
+        check(visible==1&&full.GetDlgCtrlID()==SelectFull&&!(s->shape_.GetStyle()&(WS_VISIBLE|WS_TABSTOP))&&!(s->ratio_.GetStyle()&(WS_VISIBLE|WS_TABSTOP)),"compact selector exposes exactly one native full-screen control with no shape/ratio focus stops");
+        check(first.Height()<=Px(s->m_hWnd,40)&&first.Width()==Rect(full,*s).Width()+Px(s->m_hWnd,8)&&first.Width()<Px(s->m_hWnd,240),"toolbar bounds tightly enclose one measured button without a full-width background or help rows");
+        const CPoint right(s->image_->width-2,first.top+2),below(first.left+2,first.bottom+12);
+        check(PaintPoint(*s,right)==RGB(37,right.y%241,right.x%251)&&PaintPoint(*s,below)==RGB(37,below.y%241,below.x%251),"native painter leaves former right-hand toolbar space and lower help rows as original frozen pixels");
+        bool pass=true;for(UINT message:{WM_MOUSEMOVE,WM_LBUTTONDOWN,WM_LBUTTONUP})pass=pass&&!ChildEvent(*s,full,message);
+        check(pass&&s->ToolbarBounds()==first,"idle native full-screen hover/down/up pass through without Alt or relocation");
+        s->selected_={100,300,180,340};MSG key{};key.hwnd=s->m_hWnd;key.message=WM_KEYDOWN;key.wParam=VK_SPACE;s->PreTranslateMessage(&key);
+        check(s->regions_.size()==1&&s->selected_.IsRectEmpty()&&s->ToolbarBounds()==first,"Space retains region staging without an Add button");
+        s->SendMessage(WM_COMMAND,SelectClear);check(s->regions_.empty()&&!s->locked_,"existing internal clear command retains selection reset semantics");
+        s->shape_.SetCurSel(1);s->OnShape();s->ratio_.SetCurSel(2);s->OnRatio();
+        check(s->shape_.GetCurSel()==1&&s->ratioX_==16&&s->ratioY_==9&&s->ToolbarBounds()==first,"hidden legacy geometry state retains existing shape and ratio semantics");
+        MSG queued{};queued.hwnd=full.m_hWnd;queued.message=WM_MOUSEMOVE;CRect client;full.GetClientRect(client);queued.pt=client.CenterPoint();full.ClientToScreen(&queued.pt);queued.lParam=MAKELPARAM(client.CenterPoint().x,client.CenterPoint().y);
+        s->dragging_=true;check(ChildEvent(*s,full,WM_MOUSEMOVE)&&s->ToolbarBounds()!=first,"active drag still routes native full-button avoidance events");
         const auto stable=s->ToolbarBounds();s->dragging_=false;s->PreTranslateMessage(&queued);check(s->ToolbarBounds()==stable,"queued old hover cannot restart avoidance after drag release");
-        queued.message=WM_LBUTTONDOWN;check(s->PreTranslateMessage(&queued)&&s->ToolbarBounds()==stable,"old clicks at a vacated child position remain safely consumed");
-        check(!ChildEvent(*s,s->shape_,WM_LBUTTONDOWN)&&s->ToolbarBounds()==stable,"current relocated controls accept idle clicks without Alt");
-        s->EnableWindow(FALSE);s->dragging_=true;check(!s->AvoidToolbar(stable.CenterPoint())&&s->ToolbarBounds()==stable,"disabled/modal selector does not relocate even during drag");s->EnableWindow(TRUE);s->dragging_=false;
-        MSG key{};key.hwnd=s->m_hWnd;key.message=WM_KEYDOWN;key.wParam=VK_TAB;
-        check(s->PreTranslateMessage(&key)&&!s->toolbarVisible_,"Tab hides the stationary toolbar to start selection beneath it");
-        check(s->PreTranslateMessage(&key)&&s->toolbarVisible_&&s->ToolbarBounds()==stable,"Tab restores controls at their retained position");
-        s->ratioAudit_=[](FormDialog& form){form.Fields()[0].value=L"3";form.Fields()[1].value=L"2";return IDOK;};s->ratio_.SetCurSel(4);s->OnRatio();
-        check(s->ratioX_==3&&s->ratioY_==2,"owned custom ratio remains usable without Alt");
-        s->selected_={100,300,180,340};s->points_.clear();bool accepted=false;s->done_=[&](bool ok,SelectionResult r){accepted=ok&&r.frozen==frozen&&r.regions.size()==1;};
-        const HWND confirm=s->buttons_[0]->m_hWnd;::SendMessage(confirm,BM_CLICK,0,0);check(accepted,"native Confirm button accepts frozen selection without Alt");
-        auto* cancelled=Create();WindowGuard cancelGuard{cancelled->m_hWnd};bool cancel=false;cancelled->done_=[&](bool ok,SelectionResult){cancel=!ok;};key.hwnd=cancelled->m_hWnd;key.wParam=VK_ESCAPE;cancelled->PreTranslateMessage(&key);check(cancel,"Esc cancels the stationary selector normally");
+        queued.message=WM_LBUTTONDOWN;check(s->PreTranslateMessage(&queued)&&s->ToolbarBounds()==stable,"old clicks at a vacated full-button position remain safely consumed");
+        check(!ChildEvent(*s,full,WM_LBUTTONDOWN)&&s->ToolbarBounds()==stable,"current relocated full-screen button accepts idle input without Alt");
+        s->EnableWindow(FALSE);s->dragging_=true;check(!s->AvoidToolbar(stable.CenterPoint())&&s->ToolbarBounds()==stable,"disabled/modal selector does not relocate during a drag");s->EnableWindow(TRUE);s->dragging_=false;
+        key.wParam=VK_TAB;check(s->PreTranslateMessage(&key)&&!s->toolbarVisible_&&!(full.GetStyle()&WS_VISIBLE),"Tab hides the only visible button to start selection underneath");
+        check(s->PreTranslateMessage(&key)&&s->toolbarVisible_&&(full.GetStyle()&WS_VISIBLE)&&!(s->shape_.GetStyle()&WS_VISIBLE)&&!(s->ratio_.GetStyle()&WS_VISIBLE)&&s->ToolbarBounds()==stable,"Tab restores only the full-screen button without resurrecting removed controls");
+        s->ratioAudit_=[](FormDialog& form){form.Fields()[0].value=L"3";form.Fields()[1].value=L"2";return IDOK;};s->ratio_.SetCurSel(4);s->OnRatio();check(s->ratioX_==3&&s->ratioY_==2,"existing private ratio-state command remains bounded");
+        s->selected_={100,300,180,340};s->points_.clear();bool accepted=false;s->done_=[&](bool ok,SelectionResult r){accepted=ok&&r.frozen==frozen&&r.regions.size()==1;};key.wParam=VK_RETURN;s->PreTranslateMessage(&key);check(accepted,"Enter confirms a staged frozen selection without a Confirm button");
+        auto* cancelled=Create();WindowGuard cancelGuard{cancelled->m_hWnd};bool cancel=false;cancelled->done_=[&](bool ok,SelectionResult){cancel=!ok;};key.hwnd=cancelled->m_hWnd;key.wParam=VK_ESCAPE;cancelled->PreTranslateMessage(&key);check(cancel,"Esc cancels the compact selector normally");
     }
     static void Output(Check check,int shape,SelectionMode mode=SelectionMode::Region){
         auto* s=Create();WindowGuard guard{s->m_hWnd};s->shape_.SetCurSel(shape);s->mode_=mode;s->fixed_={120,80};
@@ -148,7 +148,7 @@ class SelectionToolbarAccess {
         for(auto mode:{SelectionMode::Region,SelectionMode::Fixed,SelectionMode::Window})for(int shape:{0,1,2,3})for(bool staged:{false,true}){
             auto* s=Create();const HWND host=s->m_hWnd;WindowGuard guard{host};s->mode_=mode;s->shape_.SetCurSel(shape);s->options_.finishOnRelease=true;s->ratioX_=16;s->ratioY_=9;s->ratio_.SetCurSel(2);s->clientOnly_=s->child_=true;s->selectedWindow_=reinterpret_cast<HWND>(UINT_PTR(123));
             const auto frozen=s->image_;const auto pixels=frozen->pixels;const CRect desktop=s->desktop_;if(staged){s->selected_={50,300,100,350};s->points_={{50,300},{100,350},{50,350}};core::Region old;old.rect={200,300,250,350};old.shape=core::RegionShape::Ellipse;s->regions_.push_back(old);s->locked_=true;}
-            const auto full=s->GetDlgItem(SelectFull);check(full&&s->buttons_.size()==5&&s->buttons_.back()->GetDlgCtrlID()==SelectFull,"full-screen button follows Clear regions without changing the existing button order");if(!full)throw std::runtime_error("Missing full-screen capture button");CString caption;full->GetWindowText(caption);const auto rect=Rect(*full,*s);check(caption==Tr(Text::CaptureFullDesktop)&&rect.Width()>=TextWidth(*full,caption)&&s->toolbarWork_.PtInRect(rect.TopLeft())&&s->toolbarWork_.PtInRect(rect.BottomRight()-CSize(1,1)),"localized full-screen caption fits its measured native button inside the work area");
+            const auto full=s->GetDlgItem(SelectFull);check(full&&s->buttons_.size()==1&&s->buttons_.front()->GetDlgCtrlID()==SelectFull,"full-screen button is the sole visible capture action with its unchanged command identity");if(!full)throw std::runtime_error("Missing full-screen capture button");CString caption;full->GetWindowText(caption);const auto rect=Rect(*full,*s);check(caption==Tr(Text::CaptureFullDesktop)&&rect.Width()>=TextWidth(*full,caption)&&s->toolbarWork_.PtInRect(rect.TopLeft())&&s->toolbarWork_.PtInRect(rect.BottomRight()-CSize(1,1)),"localized full-screen caption fits its measured native button inside the work area");
             int calls=0;bool accepted=false,closed=false;SelectionResult result;s->done_=[&](bool ok,SelectionResult r){++calls;accepted=ok;closed=!::IsWindow(host)&&::GetCapture()!=host;result=std::move(r);};
             s->SendMessage(WM_COMMAND,MAKEWPARAM(SelectFull,BN_SETFOCUS),reinterpret_cast<LPARAM>(full->m_hWnd));check(!calls&&::IsWindow(host),"native focus notification cannot execute full-screen capture");
             s->escapeKeyAudit_=[] {return false;};check(s->StartEscapeWatch(),"full-screen selection fixture starts its owned Escape timer");if(staged){s->dragging_=true;s->SetCapture();}
@@ -161,8 +161,8 @@ class SelectionToolbarAccess {
     }
     static void FullPreview(Check check,const std::filesystem::path& dir,const wchar_t* name){
         auto* s=Create();WindowGuard guard{s->m_hWnd};const int w=s->image_->width,h=std::min<int>(s->image_->height,s->ToolbarBounds().bottom+6);CClientDC source(s);CDC dc;CBitmap bitmap;if(!dc.CreateCompatibleDC(&source)||!bitmap.CreateCompatibleBitmap(&source,w,h))throw std::runtime_error("Cannot paint full-screen toolbar fixture");auto* previous=dc.SelectObject(&bitmap);s->PaintFrame(dc);
-        for(CWnd* child=s->GetWindow(GW_CHILD);child;child=child->GetNextWindow()){const auto rect=Rect(*child,*s);const int saved=dc.SaveDC();dc.SetViewportOrg(rect.TopLeft());child->SendMessage(WM_PRINTCLIENT,reinterpret_cast<WPARAM>(dc.m_hDC),PRF_CLIENT|PRF_ERASEBKGND);dc.RestoreDC(saved);}
-        dc.SelectObject(previous);core::Image image;image.Create(w,h);BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=w;info.bmiHeader.biHeight=-h;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;if(GetDIBits(source,bitmap,0,h,image.pixels.data(),&info,DIB_RGB_COLORS)!=h)throw std::runtime_error("Cannot read full-screen toolbar fixture");for(size_t i=3;i<image.pixels.size();i+=4)image.pixels[i]=255;std::vector<BYTE> png;CString error;check(services::EncodeImage(image,L"png",100,png,error)&&png.size()<=1048576&&services::WriteBytes((dir/name).c_str(),png,error),"actual native capture toolbar paints a bounded synthetic preview without desktop capture or invented combo labels");
+        for(CWnd* child=s->GetWindow(GW_CHILD);child;child=child->GetNextWindow()){if(!(child->GetStyle()&WS_VISIBLE))continue;const auto rect=Rect(*child,*s);const int saved=dc.SaveDC();dc.SetViewportOrg(rect.TopLeft());child->SendMessage(WM_PRINTCLIENT,reinterpret_cast<WPARAM>(dc.m_hDC),PRF_CLIENT|PRF_ERASEBKGND);dc.RestoreDC(saved);}
+        dc.SelectObject(previous);core::Image image;image.Create(w,h);BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=w;info.bmiHeader.biHeight=-h;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;if(GetDIBits(source,bitmap,0,h,image.pixels.data(),&info,DIB_RGB_COLORS)!=h)throw std::runtime_error("Cannot read full-screen toolbar fixture");for(size_t i=3;i<image.pixels.size();i+=4)image.pixels[i]=255;std::vector<BYTE> png;CString error;check(services::EncodeImage(image,L"png",100,png,error)&&png.size()<=1048576&&services::WriteBytes((dir/name).c_str(),png,error),"actual native compact toolbar paints only its real full-screen button on frozen synthetic pixels");
     }
     static void Escape(Check check){
         auto timer=[](SelectionWindow* s){s->SendMessage(WM_TIMER,SelectionWindow::EscapeTimer,0);};

@@ -19,14 +19,7 @@ bool ToolbarAltHeld(){
 
 CRect SelectionWindow::ToolbarBounds()const
 {
-    CRect bounds=toolbar_;bounds.bottom+=6+toolbarHelpHeight_;return bounds;
-}
-CString SelectionWindow::SelectionHint()const
-{
-    CString text;text.Format(L"%s  X=%ld Y=%ld W=%d H=%d\n%s",
-        Tr(mode_==SelectionMode::Window?Text::WindowHelp:options_.finishOnRelease?Text::QuickSelectionDetails:Text::SelectionDetails),
-        selected_.left+desktop_.left,selected_.top+desktop_.top,selected_.Width(),selected_.Height(),Tr(Text::CaptureToolbarDragOnly));
-    return text;
+    return toolbar_;
 }
 bool SelectionWindow::AvoidToolbar(CPoint point)
 {

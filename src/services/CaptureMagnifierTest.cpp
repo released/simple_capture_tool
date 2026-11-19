@@ -58,7 +58,7 @@ class CaptureMagnifierAccess {
         check(s.image_==source&&source->pixels==original,"all magnifier layout and painting leave the frozen source allocation/RGBA unchanged");s.selected_.SetRectEmpty();
     }
     static void ControlsAndOutput(Check check,SelectionWindow& s){
-        s.toolbarVisible_=true;const auto toolbar=s.ToolbarBounds();CRect rect;s.shape_.GetClientRect(rect);MSG message{};message.hwnd=s.shape_.m_hWnd;message.message=WM_MOUSEMOVE;message.pt=rect.CenterPoint();s.shape_.ClientToScreen(&message.pt);message.lParam=MAKELPARAM(rect.CenterPoint().x,rect.CenterPoint().y);CPoint expected=message.pt;s.ScreenToClient(&expected);
+        s.toolbarVisible_=true;const auto toolbar=s.ToolbarBounds();auto& full=*s.buttons_.front();CRect rect;full.GetClientRect(rect);MSG message{};message.hwnd=full.m_hWnd;message.message=WM_MOUSEMOVE;message.pt=rect.CenterPoint();full.ClientToScreen(&message.pt);message.lParam=MAKELPARAM(rect.CenterPoint().x,rect.CenterPoint().y);CPoint expected=message.pt;s.ScreenToClient(&expected);
         check(!s.PreTranslateMessage(&message)&&s.cursor_==expected&&s.ToolbarBounds()==toolbar&&s.selected_.IsRectEmpty(),"idle child hover updates magnifier tracking without consuming toolbar input or changing selection");
         const auto panel=s.MagnifierBounds();check(panel.IsRectEmpty()||!Intersects(panel,toolbar),"idle magnifier placement preserves access to toolbar controls/help");
         s.toolbarVisible_=false;s.SendMessage(WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(500,400));Move(s,{80,800});const auto during=s.MagnifierBounds();

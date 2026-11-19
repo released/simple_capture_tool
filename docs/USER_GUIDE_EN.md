@@ -227,11 +227,8 @@ All commands are available from the top **Edit** menu. Related dropdown groups a
 
 ### Capture ratio
 
-- The rectangle/ellipse capture toolbar offers Free, 1:1, 16:9, 4:3, and a custom integer ratio, with each component from 1 to 10000.
-- Drag or resize the selection; hold Ctrl to temporarily constrain it to a square.
-- Ratios do not apply to freehand, fixed-region, or window capture.
-- The choice lasts for the current capture session.
-- A normal single-region capture still finishes when the mouse is released.
+- Rectangle capture uses a free aspect ratio. Hold Ctrl to temporarily constrain it to a square.
+- Drag or adjust the region; ordinary single-region capture opens the editor when the mouse is released.
 
 ### Callout tail
 
@@ -436,7 +433,7 @@ Run `build\SimpleCaptureTool.exe` to start in the system tray. Right-click the i
 ### Choosing a capture area
 
 - **Full screen:** Capture all monitors, the current monitor, or a selected monitor.
-- **Region:** Choose rectangle, ellipse, freehand, or multiple regions.
+- **Region:** Drag a rectangle. Press Space to add it and continue selecting multiple regions.
 - **Window:** Select a window; capture options can target its client area or a child control.
 - **Fixed region:** Use a fixed width and height, repeat the previous region, or choose a named region preset.
 - **Delay:** Set a countdown for menus, tooltips, or other screens that need preparation time.
@@ -444,17 +441,16 @@ Run `build\SimpleCaptureTool.exe` to start in the system tray. Right-click the i
 A single-region selection opens in the editor when the mouse is released. To adjust it first, hold Shift while releasing, adjust the region, and press Enter. Multiple-region capture requires confirmation.
 
 - Press Esc to cancel capture, including during a drag, without creating an image.
-- If a toolbar dropdown is open, the first Esc closes it; release the key and press Esc again to cancel capture.
-- Esc inside the coordinates or custom-ratio dialog closes only that dialog.
 
-- Hold Ctrl while drawing a rectangle or ellipse to constrain it to a square or circle.
+- Hold Ctrl while drawing a rectangle to constrain it to a square.
 - Rectangles in multiple-region capture also support this.
-- Fixed-region, window, and freehand selection keep their usual behavior.
+- Fixed-region and window selection keep their usual behavior.
 - Ctrl constraints and Shift adjustment can be used together.
 
-- **Capture full screen**, after **Clear regions**, immediately captures all monitors without a selection. Existing regions, shapes, and ratios do not restrict the output. It uses the frozen image from capture start, excluding the toolbar and selection overlays.
+- The capture toolbar shows only **Capture full screen** in a button-sized panel, without a full-width background or instruction rows.
+- **Capture full screen** immediately captures all monitors without a selection. Existing regions do not restrict the output. It uses the frozen image from capture start, excluding the toolbar and selection overlays.
 
-- The toolbar stays still during ordinary hover, so buttons and dropdowns can be used directly without Alt.
+- The toolbar stays still during ordinary hover, so **Capture full screen** can be clicked directly without Alt.
 - It moves up or down away from the pointer only while drawing, moving, or resizing a region selection.
 - Releasing the mouse or interrupting the drag stops movement.
 - Fixed-region and window capture keep the toolbar stationary.
@@ -477,7 +473,7 @@ During selection:
 - Coordinates across monitors can be negative.
 - Configure the cursor, magnifier, pixel grid, and dimming outside the selection under **Settings → Capture options**.
 - Near monitor edges, the magnifier switches to the other side of the pointer and avoids the selection, added regions, and toolbar.
-- It temporarily hides when no clear space fits, or while the shape or ratio dropdown is open.
+- It temporarily hides when no clear space fits.
 
 ### Capture into the current image and editable cursors
 

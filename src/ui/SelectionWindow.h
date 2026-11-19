@@ -37,7 +37,7 @@ private:
     friend class SelectionToolbarAccess;
     friend class CaptureMagnifierAccess;
     void CreateToolbar(RECT);void Finish(bool,bool fullDesktop=false);void Coordinates();void Clamp();int Handle(CPoint)const;void AddCurrent();core::Region Current()const;void PaintFrame(CDC&);
-    CRect ToolbarBounds()const;CString SelectionHint()const;bool AvoidToolbar(CPoint);
+    CRect ToolbarBounds()const;bool AvoidToolbar(CPoint);
     void CollectMonitorBounds();CRect MagnifierBounds()const;void PaintMagnifier(CDC&);
     bool StartEscapeWatch();bool DropdownOpen()const;void PollEscape(bool);
     static constexpr UINT_PTR EscapeTimer=1;
@@ -45,7 +45,7 @@ private:
     std::shared_ptr<const core::Image> image_;
     CDC frameDc_;CBitmap frameBitmap_;
     CRect desktop_,selected_,original_,toolbar_;
-    CRect toolbarWork_;int toolbarHelpHeight_=0;
+    CRect toolbarWork_;
     std::vector<CRect> monitorBounds_;
     CPoint start_;SelectionMode mode_=SelectionMode::Region;CSize fixed_;
     bool dragging_=false,locked_=false,clientOnly_=false,child_=false,toolbarVisible_=true;

@@ -47,21 +47,21 @@ HWND SelectionWindow::Begin(CWnd* owner,core::Image image,SelectionMode mode,CSi
 }
 void SelectionWindow::CreateToolbar(RECT work)
 {
-    int left=work.left-desktop_.left+12,top=work.top-desktop_.top+12,x=left,y=top,h=Px(m_hWnd,30),gap=Px(m_hWnd,6);
-    shape_.Create(WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST|WS_VSCROLL,CRect(x,y,x+Px(m_hWnd,140),y+Px(m_hWnd,250)),this,SelectShape);
-    for(auto key:{Text::Rectangle,Text::Ellipse,Text::Freehand,Text::MultipleRegions})shape_.AddString(Tr(key));shape_.SetCurSel(0);x+=Px(m_hWnd,146);
-    const int ratioWidth=std::max({Px(m_hWnd,120),TextWidth(shape_,Tr(Text::RatioCustom),12),TextWidth(shape_,Tr(Text::RatioFree),12)});if(x+ratioWidth>work.right-desktop_.left-gap){x=left;y+=h+gap;}ratio_.Create(WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST|WS_VSCROLL,CRect(x,y,x+ratioWidth,y+Px(m_hWnd,230)),this,SelectRatio);for(const auto& text:{CString(Tr(Text::RatioFree)),CString(L"1:1"),CString(L"16:9"),CString(L"4:3"),CString(Tr(Text::RatioCustom))})ratio_.AddString(text);ratio_.SetCurSel(0);ratio_.EnableWindow(mode_==SelectionMode::Region);x+=ratioWidth+gap;
-    for(auto item:{std::pair<UINT,Text>{SelectConfirm,Text::ConfirmSelection},{SelectCoordinates,Text::Coordinates},{SelectAdd,Text::AddRegion},{SelectClear,Text::ClearRegions},{SelectFull,Text::CaptureFullDesktop}}){
-        auto b=std::make_unique<CButton>();b->Create(Tr(item.second),WS_CHILD|WS_VISIBLE|WS_TABSTOP,CRect(),this,item.first);buttons_.push_back(std::move(b));}
-    ApplyFont(*this,font_);
-    for(auto& b:buttons_){CString text;b->GetWindowText(text);int w=TextWidth(*b,text);if(x+w>work.right-desktop_.left-gap){x=left;y+=h+gap;}b->MoveWindow(x,y,w,h);x+=w+gap;}
-    toolbar_=CRect(left-gap,top-gap,work.right-desktop_.left-gap,y+h+gap);
-    toolbarWork_=work;toolbarWork_.OffsetRect(-desktop_.left,-desktop_.top);
-    toolbarWork_.IntersectRect(toolbarWork_,CRect(0,0,image_->width,image_->height));
-    CClientDC dc(this);auto* oldFont=dc.SelectObject(&font_);CRect hint(0,0,std::max(1,toolbar_.Width()-16),0);
-    dc.DrawText(SelectionHint()+L"  -999999, -999999, 999999, 999999",hint,DT_CALCRECT|DT_LEFT|DT_WORDBREAK);
-    toolbarHelpHeight_=std::max(Px(m_hWnd,52),hint.Height()+8);dc.SelectObject(oldFont);
-    if(mode_!=SelectionMode::Region)shape_.EnableWindow(FALSE);
+    // Retain nonvisual shape/ratio state for existing selection geometry and commands.
+    const int legacyLeft=work.left-desktop_.left+12,legacyTop=work.top-desktop_.top+12;
+    shape_.Create(WS_CHILD|CBS_DROPDOWNLIST|WS_VSCROLL,CRect(legacyLeft,legacyTop,legacyLeft+Px(m_hWnd,140),legacyTop+Px(m_hWnd,250)),this,SelectShape);
+    for(auto key:{Text::Rectangle,Text::Ellipse,Text::Freehand,Text::MultipleRegions})shape_.AddString(Tr(key));shape_.SetCurSel(0);
+    const int ratioLeft=legacyLeft+Px(m_hWnd,146);
+    ratio_.Create(WS_CHILD|CBS_DROPDOWNLIST|WS_VSCROLL,CRect(ratioLeft,legacyTop,ratioLeft+Px(m_hWnd,120),legacyTop+Px(m_hWnd,230)),this,SelectRatio);
+    for(const auto& text:{CString(Tr(Text::RatioFree)),CString(L"1:1"),CString(L"16:9"),CString(L"4:3"),CString(Tr(Text::RatioCustom))})ratio_.AddString(text);ratio_.SetCurSel(0);
+    auto button=std::make_unique<CButton>();button->Create(Tr(Text::CaptureFullDesktop),WS_CHILD|WS_VISIBLE|WS_TABSTOP,CRect(),this,SelectFull);buttons_.push_back(std::move(button));ApplyFont(*this,font_);
+    toolbarWork_=work;toolbarWork_.OffsetRect(-desktop_.left,-desktop_.top);toolbarWork_.IntersectRect(toolbarWork_,CRect(0,0,image_->width,image_->height));
+    const int gap=std::min({Px(m_hWnd,4),std::max(0,(toolbarWork_.Width()-1)/2),std::max(0,(toolbarWork_.Height()-1)/2)});
+    auto& full=*buttons_.front();const int width=std::min(TextWidth(full,Tr(Text::CaptureFullDesktop)),std::max(1,toolbarWork_.Width()-gap*2));
+    const int height=std::min(Px(m_hWnd,28),std::max(1,toolbarWork_.Height()-gap*2));
+    const int left=std::clamp<int>(toolbarWork_.left+Px(m_hWnd,6),toolbarWork_.left,std::max<int>(toolbarWork_.left,toolbarWork_.right-width-gap*2));
+    const int top=std::clamp<int>(toolbarWork_.top+Px(m_hWnd,6),toolbarWork_.top,std::max<int>(toolbarWork_.top,toolbarWork_.bottom-height-gap*2));
+    full.MoveWindow(left+gap,top+gap,width,height);toolbar_={left,top,left+width+gap*2,top+height+gap*2};
 }
 void SelectionWindow::OnPaint()
 {
@@ -84,9 +84,7 @@ void SelectionWindow::PaintFrame(CDC& dc)
         if(locked_&&mode_!=SelectionMode::Window)for(int yy=0;yy<3;++yy)for(int xx=0;xx<3;++xx)if(xx!=1||yy!=1){int x=selected_.left+selected_.Width()*xx/2,y=selected_.top+selected_.Height()*yy/2;dc.FillSolidRect(x-4,y-4,9,9,RGB(30,240,90));}}
     dc.SelectObject(brush);dc.SelectObject(old);
     PaintMagnifier(dc);
-    if(!toolbarVisible_)return;dc.FillSolidRect(toolbar_,RGB(20,60,35));
-    CRect label=ToolbarBounds();label.top=toolbar_.bottom+6;dc.FillSolidRect(label,RGB(20,60,35));dc.SetBkMode(TRANSPARENT);dc.SetTextColor(RGB(255,255,255));dc.SelectObject(&font_);
-    label.DeflateRect(8,4);dc.DrawText(SelectionHint(),label,DT_LEFT|DT_WORDBREAK);
+    if(toolbarVisible_)dc.FillSolidRect(toolbar_,RGB(20,60,35));
 }
 int SelectionWindow::Handle(CPoint p)const
 {
@@ -156,7 +154,7 @@ BOOL SelectionWindow::PreTranslateMessage(MSG* m)
         if(m->message==WM_MOUSEMOVE){cursor_=point;Invalidate(FALSE);}
         if(AvoidToolbar(point)){OnMouseMove(static_cast<UINT>(m->wParam),point);return TRUE;}
     }
-    if(m->message==WM_KEYDOWN){if(DropdownOpen())return CWnd::PreTranslateMessage(m);if(m->wParam==VK_TAB){toolbarVisible_=!toolbarVisible_;if(ratio_.GetSafeHwnd())ratio_.ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);shape_.ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);for(auto& b:buttons_)b->ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);SetFocus();Invalidate(FALSE);return TRUE;}if(m->wParam==VK_RETURN){Finish(true);return TRUE;}if(m->wParam==VK_SPACE){AddCurrent();return TRUE;}
+    if(m->message==WM_KEYDOWN){if(DropdownOpen())return CWnd::PreTranslateMessage(m);if(m->wParam==VK_TAB){toolbarVisible_=!toolbarVisible_;for(auto& b:buttons_)b->ShowWindow(toolbarVisible_?SW_SHOW:SW_HIDE);SetFocus();Invalidate(FALSE);return TRUE;}if(m->wParam==VK_RETURN){Finish(true);return TRUE;}if(m->wParam==VK_SPACE){AddCurrent();return TRUE;}
         if(GetFocus()!=&shape_&&GetFocus()!=&ratio_&&!selected_.IsRectEmpty()&&m->wParam>=VK_LEFT&&m->wParam<=VK_DOWN){const int step=GetKeyState(VK_SHIFT)<0?10:1;int dx=m->wParam==VK_LEFT?-step:m->wParam==VK_RIGHT?step:0,dy=m->wParam==VK_UP?-step:m->wParam==VK_DOWN?step:0;CRect old=selected_;
             if(GetKeyState(VK_CONTROL)<0){selected_.right=std::clamp<LONG>(selected_.right+dx,selected_.left+1,image_->width);selected_.bottom=std::clamp<LONG>(selected_.bottom+dy,selected_.top+1,image_->height);if(ratioX_>0&&shape_.GetCurSel()!=2){CPoint end=selected_.BottomRight();if(dx)end.y=selected_.top+LONG(std::lround(double(selected_.Width())*ratioY_/ratioX_));else end.x=selected_.left+LONG(std::lround(double(selected_.Height())*ratioX_/ratioY_));selected_=core::RatioSelection(selected_.TopLeft(),end,image_->width,image_->height,ratioX_,ratioY_);}}else{dx=std::clamp<int>(dx,-selected_.left,image_->width-selected_.right);dy=std::clamp<int>(dy,-selected_.top,image_->height-selected_.bottom);selected_.OffsetRect(dx,dy);}core::Annotation a;a.rect=old;a.points=points_;core::Document::Fit(a,selected_);points_=std::move(a.points);locked_=true;Invalidate(FALSE);return TRUE;}}
     return CWnd::PreTranslateMessage(m);

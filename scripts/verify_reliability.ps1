@@ -1,6 +1,6 @@
 ﻿param(
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Both',
-    [ValidateSet('Discussion','Sidebar','Discovery','FlowDiagram','ObjectAlignment','CommandTools','EditorMenus','WheelNavigation','Instance','ReviewFollowup','ReviewRefinements','EditableLayout','ObjectPayload','NoticeAlignment','Status','ReviewReliability','ReviewOptimization','SaveDirectory','EditorTransitions','Composition','ClipboardFeedback','SelectionToolbar','CaptureLatency','Startup')]
+    [ValidateSet('Discussion','Sidebar','Discovery','FlowDiagram','ObjectAlignment','CommandTools','EditorMenus','WheelNavigation','Instance','ReviewFollowup','ReviewRefinements','EditableLayout','ObjectPayload','NoticeAlignment','Status','ReviewReliability','ReviewOptimization','SaveDirectory','EditorTransitions','Composition','ClipboardFeedback','SelectionToolbar','CaptureMagnifier','CaptureLatency','Startup')]
     [string[]]$Scope=@('ReviewReliability'),
     [string]$HubRoot='',
     [ValidatePattern('^[a-z][a-z0-9-]{0,63}$')][string]$AuditName='reliability-075'
@@ -14,7 +14,7 @@ $audit=Join-Path $project ('artifacts\audits\'+$AuditName)
 $records=New-Object 'Collections.Generic.List[object]'
 $producers=New-Object 'Collections.Generic.List[object]'
 $workers=New-Object 'Collections.Generic.List[object]'
-$arguments=@{Discussion='discussion';Sidebar='sidebar';Discovery='discovery';FlowDiagram='flow-diagram';ObjectAlignment='object-alignment';CommandTools='command-tools';EditorMenus='editor-menus';WheelNavigation='wheel-navigation';Instance='instance';ReviewFollowup='review-followup';ReviewRefinements='review-refinements';EditableLayout='editable-layout';ObjectPayload='object-payload';NoticeAlignment='notice-alignment';Status='status';ReviewReliability='review-reliability';ReviewOptimization='review-optimization';SaveDirectory='save-directory';EditorTransitions='editor-transitions';Composition='composition';ClipboardFeedback='clipboard-feedback';SelectionToolbar='selection-toolbar';CaptureLatency='capture-latency'}
+$arguments=@{Discussion='discussion';Sidebar='sidebar';Discovery='discovery';FlowDiagram='flow-diagram';ObjectAlignment='object-alignment';CommandTools='command-tools';EditorMenus='editor-menus';WheelNavigation='wheel-navigation';Instance='instance';ReviewFollowup='review-followup';ReviewRefinements='review-refinements';EditableLayout='editable-layout';ObjectPayload='object-payload';NoticeAlignment='notice-alignment';Status='status';ReviewReliability='review-reliability';ReviewOptimization='review-optimization';SaveDirectory='save-directory';EditorTransitions='editor-transitions';Composition='composition';ClipboardFeedback='clipboard-feedback';SelectionToolbar='selection-toolbar';CaptureMagnifier='capture-magnifier';CaptureLatency='capture-latency'}
 if(-not('SctReliability.Native' -as [type])){Add-Type -TypeDefinition @'
 using System;
 using System.Text;
@@ -91,6 +91,16 @@ $result=Invoke-HubOwnedTest -ProjectRoot $project -Purpose '075 settings, modal,
         $trace=Join-Path $evidence 'alignment\save-keys.log'
         if(Test-Path -LiteralPath $trace){$summary+=@([IO.File]::ReadAllLines($trace))}
         $records.Add([pscustomobject]@{Configuration=$config;Scope=$name;Exit=$child.ExitCode;Summary=$summary;BuildStamp=$stamp;IdentityResourceMatch=$true;BinaryHash=(Get-FileHash -LiteralPath $source).Hash})
+        if($name -eq 'SelectionToolbar' -and $child.ExitCode -eq 0){
+            foreach($previewName in 'full-tw-96.png','full-en-144.png'){
+                $preview=Join-Path $evidence ('alignment\'+$previewName)
+                if(!(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1MB){throw 'Missing or oversized compact-toolbar native preview'}
+                [void][IO.Directory]::CreateDirectory($audit)
+                $destination=Join-Path $audit ('toolbar-'+$config+'-'+$run.Id+'-'+$previewName)
+                if(Test-Path -LiteralPath $destination){throw 'Unknown toolbar preview destination'}
+                Copy-Item -LiteralPath $preview -Destination $destination
+            }
+        }
         if($name -eq 'Discussion' -and $child.ExitCode -eq 0){
             $preview=Join-Path $evidence 'alignment\discussion.png'
             if(!(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1MB){throw 'Missing or oversized owned discussion preview'}
