@@ -27,6 +27,7 @@ void EditorFrame::EditStep(int index){
     FormDialog dialog(this,Text::Step,{{Text::Number,Number(original.number)},
         {Text::StepLabelMode,labeled?L"3":L"0",FieldKind::Choice,{Tr(Text::StepNumeric),Tr(Text::StepUpper),Tr(Text::StepLower),Tr(Text::StepCustom)}},
         {Text::StepCustom,labeled?core::StepCaption(original):CString()}});
+    dialog.SetValidator([](const auto& fields)->std::optional<FormIssue>{if(auto issue=IntegerIssue(fields,0,1,100000))return issue;if(auto issue=IntegerIssue(fields,1,0,3))return issue;try{core::StepLabel(fields[0].Integer(),fields[1].Integer(),fields[2].value);}catch(const std::exception&){return FormIssue{2,CString(Tr(Text::InvalidValue))+L": "+Tr(fields[2].label)};}return {};});
     const auto form=commandFormAudit_;INT_PTR answer=IDCANCEL;screenColorModal_=true;
     try{answer=form?form(dialog):dialog.Run();}
     catch(...){if(::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)screenColorModal_=false;throw;}
@@ -58,7 +59,7 @@ bool EditorFrame::FinishText(bool commit)
 }
 void EditorFrame::StyleCommand(UINT id){if(textEditing_&&(id==TextBold||id==TextItalic||id==TextUnderline)){FormatTextRun(id==TextBold?RunBold:id==TextItalic?RunItalic:RunUnderline);return;}if(!GuardSelection(true)){SyncStyle();return;}if(job_.Busy()&&activeAction_!=WorkRender){SyncStyle();status_.SetWindowText(Tr(Text::Busy));return;}auto a=textEditing_?textDraft_:selected_>=0?document_.State().objects[selected_]:style_;if(id==TextBold)a.bold=!a.bold;else if(id==TextItalic)a.italic=!a.italic;else if(id==TextUnderline)a.underline=!a.underline;else if(id==ToggleFill)a.filled=!a.filled;else if(id==ToggleShadow)a.shadow=!a.shadow;else if(id==TextTransparent||id==TextOpaque)a.textBackground=id==TextOpaque;else if(id>=EraseTransparent&&id<=EraseColor)a.eraseMode=id==EraseColor?1:0;else if(id>=AlignLeft&&id<=AlignRight)a.alignment=id-AlignLeft;else if(id>=AlignLeftMiddle&&id<=AlignRightMiddle)a.alignment=3+id-AlignLeftMiddle;else if(id==FillColor){CColorDialog dlg(a.background,CC_FULLOPEN,this);if(dlg.DoModal()!=IDOK)return;a.background=dlg.GetColor();}
     if(!textEditing_)for(auto& run:a.textRuns){if(id==TextBold)run.bold=a.bold;else if(id==TextItalic)run.italic=a.italic;else if(id==TextUnderline)run.underline=a.underline;}
-    if(textEditing_){textDraft_=a;TextPosition();if(core::HasFlowText(a))Preview();}else if(selected_>=0){document_.Replace(selected_,a);Changed();}const auto tool=style_.tool;style_=a;style_.tool=tool;
+    if(textEditing_){textDraft_=a;TextPosition();if(core::HasFlowText(a))Preview();}else if(selected_>=0&&!core::SameAnnotation(document_.State().objects[selected_],a)){document_.Replace(selected_,a);Changed();}const auto tool=style_.tool;style_=a;style_.tool=tool;
     SyncStyle();}
 void EditorFrame::SyncStyle(){
     style_.hidden=false;style_.label.Empty();ribbon_.RefreshEnabled();

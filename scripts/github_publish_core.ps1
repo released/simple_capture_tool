@@ -7,7 +7,8 @@ function Invoke-PcGit {
     if ($env:GIT_CONFIG_COUNT -and $env:GIT_CONFIG_COUNT -ne '0') { throw 'Git environment override refused: GIT_CONFIG_COUNT' }
     $info = New-Object Diagnostics.ProcessStartInfo
     $info.FileName = (Get-Command git -CommandType Application -ErrorAction Stop).Source
-    $info.Arguments = (@('--literal-pathspecs','-C',$Root,'-c','core.quotepath=false') + $Arguments | ForEach-Object {
+    $prefix=@('-C',$Root,'-c','core.quotepath=false');if($Arguments[0] -cne 'check-ignore'){$prefix=@('--literal-pathspecs')+$prefix}
+    $info.Arguments = ($prefix + $Arguments | ForEach-Object {
         '"' + [regex]::Replace([regex]::Replace($_,'(\\*)"','$1$1\"'),'(\\+)$','$1$1') + '"'
     }) -join ' '
     $info.UseShellExecute = $false
@@ -75,6 +76,8 @@ function Get-PcIndex([string]$Root) {
 }
 
 function Get-CapturePrivateReason([string]$Path) {
+    if ($Path -match '^docs/internal/') { return 'local engineering record' }
+    if ($Path -ieq 'github_push.bat') { return 'local publication entry' }
     if ($Path -match '(^|/)(AGENTS|CLAUDE|WORKSPACE_RULES|HANDOFF|CODEX_HANDOFF|SELF_CHECK|MANUAL_CLEANUP|SPEC)\.md$') { return 'local engineering record' }
     if ($Path -match '^(artifacts|runtime|dist|dependencies/downloads|\.vs|\.verify|node_modules)/|^docs/(verification/|OPEN_SOURCE_FEATURE_REVIEW\.md$)') { return 'private/generated output' }
     if ($Path -match '(^|/)\.env($|\.)|\.(ini|log|dmp|obj|pch|pdb|ilk|idb|zip|sctproj|scteffect|pem|key|sqlite|db|bak|tmp|user|suo)$') { return 'runtime, credential or generated file' }
@@ -136,6 +139,24 @@ function Assert-CaptureUnpublishedHistory($Target,[string]$Remote,[string]$Head)
     }
 }
 
+function Assert-CaptureTaskScope($Plan,[string]$ScopeFile) {
+    $full=Assert-PcPath $Plan.Target.Path $ScopeFile
+    if (!(Test-Path -LiteralPath $full -PathType Leaf) -or (Get-Item -LiteralPath $full).Length -gt 131072) {throw 'Missing or oversized task scope.'}
+    $relative=$full.Substring($Plan.Target.Path.Length+1).Replace('\','/')
+    if ((Invoke-PcGit $Plan.Target.Path @('ls-files','--',$relative)).Text -or (Invoke-PcGit $Plan.Target.Path @('check-ignore','--quiet','--',$relative) @(0,1)).Code -ne 0) {throw 'Task scope must be local-only and ignored.'}
+    $scope=[IO.File]::ReadAllText($full) | ConvertFrom-Json
+    if ($scope.schema -ne 1 -or $scope.base_head -cne $Plan.Head -or $Plan.Remote -cne $Plan.Head) {throw 'Task scope baseline/remote mismatch; no prior commits may be bundled.'}
+    $files=@($scope.files);if (!$files.Count -or $files.Count -gt 256 -or $files.Count -ne $Plan.Rows.Count) {throw 'Task scope path count mismatch.'}
+    $owned=@{};foreach($file in $files){
+        $path=[string]$file.path
+        if (!$path -or $path.Contains('\') -or [IO.Path]::IsPathRooted($path) -or $path -match '(^|/)(\.\.?|\.git)(/|$)' -or $owned.ContainsKey($path)) {throw 'Invalid or duplicate task path.'}
+        [void](Assert-PcPath $Plan.Target.Path $path);$owned[$path]=[string]$file.sha256
+    }
+    foreach($row in $Plan.Rows){$expected=if($row.Kind -eq 'Delete'){'deleted'}else{$row.Hash.ToLowerInvariant()}
+        if (!$owned.ContainsKey($row.Path) -or $owned[$row.Path] -cne $expected) {throw ('Task scope content mismatch: '+$row.Path)}
+    }
+}
+
 function Get-CapturePublishPlan($Target) {
     $remote=Get-CaptureRemote $Target
     $root=$Target.Path;$head=(Invoke-PcGit $root @('rev-parse','HEAD')).Text
@@ -168,7 +189,9 @@ function Get-CapturePublishPlan($Target) {
         $rows+=@{Path=$path;Kind=$(if($index.ContainsKey($path)){'Modify'}else{'Add'});PrivateDelete=$false;Hash=(Get-FileHash -LiteralPath $full).Hash;Blob=(Invoke-PcGit $root @('hash-object',('--path='+$path),'--',$full)).Text;Mode=$mode}
     }
     $fingerprint=$head+'|'+$remote+'|'+(($rows | ForEach-Object {$_.Path+':'+$_.Hash+':'+$_.Mode}) -join '|')
-    return @{Target=$Target;Head=$head;Remote=$remote;Rows=$rows;Index=$publicIndex;Fingerprint=$fingerprint}
+    $plan=@{Target=$Target;Head=$head;Remote=$remote;Rows=$rows;Index=$publicIndex;Fingerprint=$fingerprint}
+    if ($Target.ContainsKey('TaskScopeFile') -and $Target.TaskScopeFile) {Assert-CaptureTaskScope $plan $Target.TaskScopeFile}
+    return $plan
 }
 
 function Invoke-CapturePublish($Plan,[string]$Message) {

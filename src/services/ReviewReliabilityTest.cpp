@@ -16,7 +16,7 @@ template<class F>void Wait(F ready){const auto end=std::chrono::steady_clock::no
 class ActivationBlock {HHOOK hook_;public:ActivationBlock():hook_(SetWindowsHookEx(WH_CBT,[](int c,WPARAM w,LPARAM l)->LRESULT{return c==HCBT_ACTIVATE?1:CallNextHookEx(nullptr,c,w,l);},nullptr,GetCurrentThreadId())){if(!hook_)throw std::runtime_error("Cannot isolate reliability fixture");}~ActivationBlock(){UnhookWindowsHookEx(hook_);}};
 sct::core::Image Pixels(int w=64,int h=48){sct::core::Image image;image.Create(w,h);for(size_t i=0;i<image.pixels.size();++i)image.pixels[i]=BYTE(i*37+19);return image;}
 std::vector<BYTE> Read(const CString& path){std::ifstream input(std::filesystem::path(path.GetString()),std::ios::binary);if(!input)throw std::runtime_error("Cannot open private fixture");std::vector<BYTE> bytes(std::istreambuf_iterator<char>(input),{});if(input.bad())throw std::runtime_error("Cannot read private fixture");return bytes;}
-void Write(const CString& path,const std::string& text){CString error;if(!sct::services::WriteBytes(path,{text.begin(),text.end()},error))throw std::runtime_error("Cannot write private fixture");}
+void Write(const CString& path,const std::string& text){CString error;if(!sct::services::WriteBytes(path,{text.begin(),text.end()},error))throw std::runtime_error(CStringA(CString(L"Private fixture setup: ")+error).GetString());}
 void ConfigChecks(Check check,const std::filesystem::path& dir){
     using namespace sct::services;const CString path=(dir/L"reliability.ini").c_str();CString error;
     const std::string bads[]={"","unrecognized file content\n","[Unrelated]\nDelay=abc\n","[Capture]\nDelay=bad\n","[ScreenshotOptions]\nFilePattern={unknown}\n","[Interface]\nToolStyles=broken\n","[Interface]\nLanguageFile=../bad.ini\n"};

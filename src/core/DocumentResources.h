@@ -12,4 +12,5 @@ struct DocumentResources {
 };
 void AccountAnnotation(const Annotation&,DocumentResources&);
 void AccountState(const DocumentState&,DocumentResources&);
+size_t HistoryRetentionStart(const std::vector<DocumentState>&,const DocumentState&,size_t byteLimit=256ULL*1024*1024,size_t countLimit=20);
 }

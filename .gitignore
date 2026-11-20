@@ -65,3 +65,9 @@ runtime/
 # Local comparison and historical verification records
 /docs/OPEN_SOURCE_FEATURE_REVIEW.md
 /docs/verification/
+
+# Local publication entry; reusable scripts remain tracked
+/github_push.bat
+
+# Local engineering notes and reviewed task publication manifests
+/docs/internal/

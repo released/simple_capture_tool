@@ -2,6 +2,7 @@
 #include "EditorFrame.h"
 #include "../core/DiscussionTools.h"
 #include "FormDialog.h"
+#include "EditorOperationScope.h"
 #include "../core/ImageOperations.h"
 #include "../core/AnnotationGeometry.h"
 #include "../core/InteractionGeometry.h"
@@ -113,23 +114,33 @@ void EditorFrame::OnLButtonUp(UINT f,CPoint p)
 void EditorFrame::OnToolChanged(){ChangeTool(tools_.GetCurSel());}
 void EditorFrame::EditProperties()
 {
-    auto a=selected_>=0?document_.State().objects[selected_]:style_;
+    const EditorOperationScope operation(*this);const auto revision=revision_,mask=maskEpoch_,crop=cropGeneration_;const auto selection=Selection();
+    auto a=selected_>=0?document_.State().objects[selected_]:style_;const auto original=a;
     std::vector<Field> fields{{Text::ImageX,Number(a.rect.left)},{Text::ImageY,Number(a.rect.top)},{Text::WidthPixels,Number(std::max<LONG>(1,a.rect.right-a.rect.left))},{Text::HeightPixels,Number(std::max<LONG>(1,a.rect.bottom-a.rect.top))},
         {Text::FontSize,Number(a.fontSize)},{Text::Opacity,Number(a.opacity)},{Text::Number,Number(a.number)},{Text::Magnification,Number(a.magnification)},
         {Text::TextBackground,Number(a.textBackground),FieldKind::Check},{Text::TextOutline,Number(a.textOutline),FieldKind::Check},{Text::BackgroundColor,ColorText(a.background)},{Text::OutlineColor,ColorText(a.outline)}};
     if(a.tool==core::Tool::Magnifier){fields.push_back({Text::FocusX,Number(a.anchored?a.focus.x:(a.rect.left+a.rect.right)/2)});fields.push_back({Text::FocusY,Number(a.anchored?a.focus.y:(a.rect.top+a.rect.bottom)/2)});}
     FormDialog dlg(this,Text::Properties,std::move(fields));
-    if(dlg.Run()!=IDOK)return;try{const auto& f=dlg.Fields();int x=Range(f[0],-100000,100000),y=Range(f[1],-100000,100000);core::Document::Fit(a,{x,y,x+Range(f[2],1,100000),y+Range(f[3],1,100000)});
+    const int imageWidth=document_.Width(),imageHeight=document_.Height();dlg.SetValidator([imageWidth,imageHeight](const auto& f)->std::optional<FormIssue>{
+        const int low[]{-100000,-100000,1,1,6,0,1,2},high[]{100000,100000,100000,100000,512,255,100000,8};for(size_t i=0;i<8;++i)if(auto issue=IntegerIssue(f,i,low[i],high[i]))return issue;
+        for(size_t i:{size_t(10),size_t(11)})if(auto issue=ColorIssue(f,i))return issue;
+        if(f.size()>12){if(auto issue=IntegerIssue(f,12,0,imageWidth-1))return issue;if(auto issue=IntegerIssue(f,13,0,imageHeight-1))return issue;}return {};});
+    const auto answer=commandFormAudit_?commandFormAudit_(dlg):dlg.Run();if(!operation.Live()||answer!=IDOK||revision!=revision_||mask!=maskEpoch_||crop!=cropGeneration_||selection!=Selection())return;
+    try{const auto& f=dlg.Fields();int x=Range(f[0],-100000,100000),y=Range(f[1],-100000,100000),w=Range(f[2],1,100000),h=Range(f[3],1,100000);
+        // An unchanged displayed minimum must not inflate a zero-width/height path.
+        const bool resize=w!=std::max<LONG>(1,a.rect.right-a.rect.left)||h!=std::max<LONG>(1,a.rect.bottom-a.rect.top);
+        if(resize)core::Document::Fit(a,{x,y,x+w,y+h});else if(x!=a.rect.left||y!=a.rect.top)core::Document::Translate(a,x-a.rect.left,y-a.rect.top);
         a.fontSize=Range(f[4],6,512);a.opacity=Range(f[5],0,255);a.number=Range(f[6],1,100000);a.magnification=Range(f[7],2,8);a.textBackground=f[8].Checked();a.textOutline=f[9].Checked();a.background=ParseColor(f[10].value);a.outline=ParseColor(f[11].value);
-        if(a.tool==core::Tool::Magnifier){a.focus={Range(f[12],0,document_.Width()-1),Range(f[13],0,document_.Height()-1)};a.anchored=true;}
-        if(selected_>=0){document_.Replace(selected_,a);Changed();}style_=a;style_.tool=static_cast<core::Tool>(tools_.GetCurSel());
+        if(a.tool==core::Tool::Magnifier){const POINT focus{Range(f[12],0,document_.Width()-1),Range(f[13],0,document_.Height()-1)};if(a.anchored||focus.x!=(original.rect.left+original.rect.right)/2||focus.y!=(original.rect.top+original.rect.bottom)/2){a.focus=focus;a.anchored=true;}}
+        if(selected_>=0&&!core::SameAnnotation(original,a)){document_.Replace(selected_,a);Changed();}style_=a;style_.tool=static_cast<core::Tool>(tools_.GetCurSel());
     }catch(const std::exception&){AfxMessageBox(Tr(Text::InvalidValue));}
 }
 void EditorFrame::ChooseFont()
 {
-    auto a=selected_>=0?document_.State().objects[selected_]:style_;LOGFONT lf{};lf.lfHeight=-a.fontSize;lf.lfWeight=a.bold?FW_BOLD:FW_NORMAL;lf.lfItalic=a.italic;lf.lfUnderline=a.underline;wcscpy_s(lf.lfFaceName,a.font);
-    CFontDialog dlg(&lf,CF_SCREENFONTS|CF_INITTOLOGFONTSTRUCT|CF_EFFECTS,nullptr,this);dlg.m_cf.rgbColors=core::HasFlowText(a)?a.outline:a.color;if(dlg.DoModal()!=IDOK)return;dlg.GetCurrentFont(&lf);a.font=lf.lfFaceName;a.fontSize=std::clamp<int>(abs(lf.lfHeight),6,512);a.bold=lf.lfWeight>=FW_BOLD;a.italic=lf.lfItalic!=0;a.underline=lf.lfUnderline!=0;if(core::HasFlowText(a))a.outline=dlg.GetColor();else a.color=dlg.GetColor();a.textRuns.clear();
-    if(selected_>=0){document_.Replace(selected_,a);Changed();}style_=a;style_.tool=static_cast<core::Tool>(tools_.GetCurSel());
+    const EditorOperationScope operation(*this);const auto revision=revision_,mask=maskEpoch_,crop=cropGeneration_;const auto selection=Selection();
+    auto a=selected_>=0?document_.State().objects[selected_]:style_;const auto original=a;LOGFONT lf{};lf.lfHeight=-a.fontSize;lf.lfWeight=a.bold?FW_BOLD:FW_NORMAL;lf.lfItalic=a.italic;lf.lfUnderline=a.underline;wcscpy_s(lf.lfFaceName,a.font);
+    CFontDialog dlg(&lf,CF_SCREENFONTS|CF_INITTOLOGFONTSTRUCT|CF_EFFECTS,nullptr,this);dlg.m_cf.rgbColors=core::HasFlowText(a)?a.outline:a.color;const auto answer=dlg.DoModal();if(!operation.Live()||answer!=IDOK||revision!=revision_||mask!=maskEpoch_||crop!=cropGeneration_||selection!=Selection())return;dlg.GetCurrentFont(&lf);a.font=lf.lfFaceName;a.fontSize=std::clamp<int>(abs(lf.lfHeight),6,512);a.bold=lf.lfWeight>=FW_BOLD;a.italic=lf.lfItalic!=0;a.underline=lf.lfUnderline!=0;if(core::HasFlowText(a))a.outline=dlg.GetColor();else a.color=dlg.GetColor();if(!core::SameAnnotation(original,a))a.textRuns.clear();
+    if(selected_>=0&&!core::SameAnnotation(original,a)){document_.Replace(selected_,a);Changed();}style_=a;style_.tool=static_cast<core::Tool>(tools_.GetCurSel());
 }
 BOOL EditorFrame::PreTranslateMessage(MSG* m)
 {

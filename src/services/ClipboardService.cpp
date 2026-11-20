@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "ClipboardService.h"
+#include "ClipboardTransfer.h"
 #include "ImageCodec.h"
 #include "ProjectService.h"
 #include "../core/ImageOperations.h"
@@ -35,18 +36,22 @@ std::shared_ptr<ClipboardPacket> PrepareClipboardImage(const core::Image& image,
 }
 ClipboardApiAudit::ClipboardApiAudit(const ClipboardApi& api):previous_(clipboardApi){clipboardApi=&api;}
 ClipboardApiAudit::~ClipboardApiAudit(){clipboardApi=previous_;}
-bool PublishClipboardImage(ClipboardPacket& packet,HWND owner,CString& error,bool* busy,ClipboardPublication* publication)
+bool PublishClipboardImage(ClipboardPacket& packet,HWND owner,CString& error,bool* busy,ClipboardPublication* publication,std::optional<uint32_t> expectedSequence)
 {
     if(busy)*busy=false;ClipboardPublication detail;auto done=[&](bool ok){if(publication)*publication=detail;return ok;};
     if(!packet.dib||!packet.png){error=L"Clipboard packet is empty";return done(false);}
     if(clipboardApi&&(!clipboardApi->open||!clipboardApi->empty||!clipboardApi->set||!clipboardApi->close)){error=L"Incomplete private clipboard sink";return done(false);}
     if(!(clipboardApi?clipboardApi->open(owner):OpenClipboard(owner)!=FALSE)){if(busy)*busy=true;error=L"Clipboard is busy";return done(false);}
     struct Close {~Close(){if(clipboardApi)clipboardApi->close();else CloseClipboard();}} close;
+    auto sequence=[] {return clipboardApi&&clipboardApi->sequence?clipboardApi->sequence():ClipboardSequenceNumber();};
+    // Lock out other writers before checking the generation that authorized this copy.
+    if(expectedSequence&&sequence()!=*expectedSequence){detail.superseded=true;error=L"Clipboard was superseded";return done(false);}
     bool ok=clipboardApi?clipboardApi->empty():EmptyClipboard()!=FALSE;
     auto publish=[&](UINT format,HGLOBAL& handle){if(!(clipboardApi?clipboardApi->set(format,handle):SetClipboardData(format,handle)!=nullptr))return false;handle=nullptr;return true;};
     if(ok){ok=publish(CF_DIB,packet.dib);detail.imagePublished=ok;}
     if(ok){ok=publish(RegisterClipboardFormat(L"PNG"),packet.png);detail.imagePublished=detail.imagePublished||ok;}
     if(ok&&packet.objects){ok=publish(RegisterClipboardFormat(EditableClipboardFormat),packet.objects);detail.editablePublished=ok;}
+    if(detail.imagePublished)detail.sequence=sequence();
     if(!ok)error=L"Cannot publish every clipboard representation";return done(ok);
 }
 bool AddClipboardObjects(ClipboardPacket& packet,const core::DocumentState& state,CString& error){std::vector<BYTE> data;if(!EncodeProject(state,data,error))return false;HGLOBAL handle=GlobalAlloc(GMEM_MOVEABLE,data.size());void* dest=handle?GlobalLock(handle):nullptr;if(!dest){if(handle)GlobalFree(handle);error=L"Cannot allocate editable clipboard";return false;}memcpy(dest,data.data(),data.size());GlobalUnlock(handle);packet.objects=handle;return true;}

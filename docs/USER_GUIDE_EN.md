@@ -4,6 +4,12 @@
 
 The application starts in **Traditional Chinese by default**. To use the English interface, choose **Settings → General → Language**, select English, and save. The saved language choice is used on subsequent launches.
 
+## Property dialogs and Undo
+
+- Long property dialogs fit the monitor work area and scroll their fields. Apply and Cancel stay at the bottom. Tab navigation brings the focused field into view.
+- Invalid marker numbers, object properties, image dimensions and canvas margins remain in the dialog with a field-specific error and range. Correct the value and apply again.
+- Unchanged object properties, fonts and text alignment preserve Undo and Redo history.
+
 ## View and discussion tools
 
 ### Selection zoom and matching sizes

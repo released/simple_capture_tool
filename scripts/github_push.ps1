@@ -1,10 +1,11 @@
-[CmdletBinding()]
-param([switch]$DryRun,[switch]$Yes,[switch]$InitialPush,[string]$Message='Update screenshot editor and documentation')
+﻿[CmdletBinding()]
+param([switch]$DryRun,[switch]$Yes,[switch]$InitialPush,[string]$Message='Update screenshot editor and documentation',[string]$TaskScopeFile='')
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version 2.0
 . (Join-Path $PSScriptRoot 'github_publish_core.ps1')
 $project=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot)).TrimEnd('\')
 $target=@{
+    TaskScopeFile=$TaskScopeFile
     Path=$project;Branch='main';Remote='https://github.com/released/simple_capture_tool.git'
     InitialPush=[bool]$InitialPush;IdentityFiles=@('SimpleCaptureTool.vcxproj','src/version.h')
     TitlePattern='Simple Capture Tool'

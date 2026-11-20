@@ -34,6 +34,7 @@ struct Annotation {
     uint32_t id=0,sourceId=0,targetId=0;
     int flowKind=0;bool connectorLabel=false;
 };
+bool SameAnnotation(const Annotation&,const Annotation&);
 int MosaicBlockSize(const Annotation&);
 int MosaicStrengthPercent(const Annotation&);
 struct DocumentState {

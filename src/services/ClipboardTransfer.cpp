@@ -7,7 +7,8 @@ ClipboardSequenceAudit::ClipboardSequenceAudit(std::function<uint32_t()> query):
 ClipboardSequenceAudit::~ClipboardSequenceAudit(){sequenceAudit=std::move(previous_);}
 uint64_t BeginClipboardTransfer(){++latest;phase=ClipboardTransferState::Pending;sequence=ClipboardSequenceNumber();return latest;}
 bool CanPublishClipboardTransfer(uint64_t ticket){return ticket&&ticket==latest&&phase==ClipboardTransferState::Pending&&sequence==ClipboardSequenceNumber();}
-void CompleteClipboardTransfer(uint64_t ticket,bool success){if(!ticket||ticket!=latest)return;phase=success?ClipboardTransferState::Ready:ClipboardTransferState::Failed;if(success)sequence=ClipboardSequenceNumber();}
+std::optional<uint32_t> PendingClipboardSequence(uint64_t ticket){return ticket&&ticket==latest&&phase==ClipboardTransferState::Pending?std::optional<uint32_t>(sequence):std::nullopt;}
+void CompleteClipboardTransfer(uint64_t ticket,bool success,std::optional<uint32_t> publishedSequence){if(!ticket||ticket!=latest)return;phase=success?ClipboardTransferState::Ready:ClipboardTransferState::Failed;if(success)sequence=publishedSequence?*publishedSequence:ClipboardSequenceNumber();}
 uint64_t ClipboardTransferForPaste(){return phase==ClipboardTransferState::Pending||(phase==ClipboardTransferState::Failed&&sequence==ClipboardSequenceNumber())?latest:0;}
 ClipboardTransferState InspectClipboardTransfer(uint64_t ticket){if(!ticket||ticket!=latest||sequence!=ClipboardSequenceNumber())return ClipboardTransferState::Failed;return phase;}
 }
