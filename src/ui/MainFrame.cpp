@@ -83,7 +83,7 @@ void MainFrame::BuildTrayMenu(CMenu& menu)
 void MainFrame::TrayMenu(){CMenu menu;BuildTrayMenu(menu);CPoint p;GetCursorPos(&p);SetForegroundWindow();UINT id=menu.TrackPopupMenu(TPM_RETURNCMD|TPM_RIGHTBUTTON,p.x,p.y,this);if(id)OnAction(id);PostMessage(WM_NULL);}
 LRESULT MainFrame::OnTray(WPARAM,LPARAM p){if(p==WM_LBUTTONDBLCLK)OnAction(HasTrayEditor()?RestoreEditor:Open);else if(p==WM_RBUTTONUP||p==WM_CONTEXTMENU)TrayMenu();return 0;}
 void MainFrame::OnClose(){if(settings_.closeToTray&&!exiting_){CloseEditors();ShowWindow(SW_HIDE);}else ExitApplication();}
-void MainFrame::OnDestroy(){KillTimer(CapturePollTimer);capturePolling_=false;RestoreEditors();countdown_.Close();if(!isolated_){for(UINT i=1;i<=HotkeyCatalog().size();++i)UnregisterHotKey(m_hWnd,i);Shell_NotifyIcon(NIM_DELETE,&tray_);}SetMenu(nullptr);menu_.DestroyMenu();CFrameWnd::OnDestroy();}
+void MainFrame::OnDestroy(){CancelAutomaticOutput();KillTimer(CapturePollTimer);capturePolling_=false;RestoreEditors();countdown_.Close();if(!isolated_){for(UINT i=1;i<=HotkeyCatalog().size();++i)UnregisterHotKey(m_hWnd,i);Shell_NotifyIcon(NIM_DELETE,&tray_);}SetMenu(nullptr);menu_.DestroyMenu();CFrameWnd::OnDestroy();}
 void MainFrame::ExitApplication()
 {
     pendingExit_=true;deferredHotkey_=0;

@@ -1,6 +1,6 @@
 ﻿param(
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Both',
-    [ValidateSet('ReviewPolish','Discussion','Sidebar','Discovery','FlowDiagram','ObjectAlignment','CommandTools','EditorMenus','WheelNavigation','Instance','ReviewFollowup','ReviewRefinements','EditableLayout','ObjectPayload','NoticeAlignment','Status','ReviewReliability','ReviewOptimization','SaveDirectory','EditorTransitions','Composition','ClipboardFeedback','SelectionToolbar','CaptureMagnifier','CaptureLatency','Startup')]
+    [ValidateSet('RuntimeContracts','ReviewPolish','Discussion','Sidebar','Discovery','FlowDiagram','ObjectAlignment','CommandTools','EditorMenus','WheelNavigation','Instance','ReviewFollowup','ReviewRefinements','EditableLayout','ObjectPayload','NoticeAlignment','Status','ReviewReliability','ReviewOptimization','SaveDirectory','EditorTransitions','Composition','ClipboardFeedback','SelectionToolbar','CaptureMagnifier','CaptureLatency','Startup')]
     [string[]]$Scope=@('ReviewReliability'),
     [string]$HubRoot='',
     [ValidatePattern('^[a-z][a-z0-9-]{0,63}$')][string]$AuditName='reliability-075'
@@ -14,7 +14,7 @@ $audit=Join-Path $project ('artifacts\audits\'+$AuditName)
 $records=New-Object 'Collections.Generic.List[object]'
 $producers=New-Object 'Collections.Generic.List[object]'
 $workers=New-Object 'Collections.Generic.List[object]'
-$arguments=@{ReviewPolish='review-polish';Discussion='discussion';Sidebar='sidebar';Discovery='discovery';FlowDiagram='flow-diagram';ObjectAlignment='object-alignment';CommandTools='command-tools';EditorMenus='editor-menus';WheelNavigation='wheel-navigation';Instance='instance';ReviewFollowup='review-followup';ReviewRefinements='review-refinements';EditableLayout='editable-layout';ObjectPayload='object-payload';NoticeAlignment='notice-alignment';Status='status';ReviewReliability='review-reliability';ReviewOptimization='review-optimization';SaveDirectory='save-directory';EditorTransitions='editor-transitions';Composition='composition';ClipboardFeedback='clipboard-feedback';SelectionToolbar='selection-toolbar';CaptureMagnifier='capture-magnifier';CaptureLatency='capture-latency'}
+$arguments=@{RuntimeContracts='runtime-contracts';ReviewPolish='review-polish';Discussion='discussion';Sidebar='sidebar';Discovery='discovery';FlowDiagram='flow-diagram';ObjectAlignment='object-alignment';CommandTools='command-tools';EditorMenus='editor-menus';WheelNavigation='wheel-navigation';Instance='instance';ReviewFollowup='review-followup';ReviewRefinements='review-refinements';EditableLayout='editable-layout';ObjectPayload='object-payload';NoticeAlignment='notice-alignment';Status='status';ReviewReliability='review-reliability';ReviewOptimization='review-optimization';SaveDirectory='save-directory';EditorTransitions='editor-transitions';Composition='composition';ClipboardFeedback='clipboard-feedback';SelectionToolbar='selection-toolbar';CaptureMagnifier='capture-magnifier';CaptureLatency='capture-latency'}
 if(-not('SctReliability.Native' -as [type])){Add-Type -TypeDefinition @'
 using System;
 using System.Text;
@@ -36,7 +36,7 @@ namespace SctReliability {public static class Native {
  public static IntPtr Find(uint id){IntPtr result=IntPtr.Zero;EnumWindows((window,value)=>{uint owner;GetWindowThreadProcessId(window,out owner);if(owner==id&&GetMenu(window)!=IntPtr.Zero){result=window;return false;}return true;},IntPtr.Zero);return result;}
 }}
 '@}
-$result=Invoke-HubOwnedTest -ProjectRoot $project -Purpose '075 settings, modal, history, capture and clipboard reliability checks' -MaxBytes 536870912 -Action {
+$result=Invoke-HubOwnedTest -ProjectRoot $project -Purpose 'selected native ownership, model, output and lifecycle checks' -MaxBytes 536870912 -Action {
     param($run)
     $configs=if($Configuration -eq 'Both'){@('Release','Debug')}else{@($Configuration)}
     $index=0

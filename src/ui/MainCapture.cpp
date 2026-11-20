@@ -5,15 +5,7 @@
 #include "EditorWorkspace.h"
 #include "ManualScrollFrame.h"
 #include "../services/ScrollCapture.h"
-#include "../services/DocumentRenderer.h"
 namespace sct::ui {
-namespace {
-template<class Result>void SaveOutput(Result& r,const services::Settings& settings)
-{
-    if(settings.copyAfter)try{CString error;r.clipboard=services::PrepareClipboardImage(*r.source,error);if(!error.IsEmpty())r.error+=L"\r\n"+error;}
-        catch(const std::exception& e){CString error;error.Format(L"Clipboard preparation: %hs",e.what());r.error+=L"\r\n"+error;}
-}
-}
 bool MainFrame::QueueCaptureWork(std::function<WorkResult()> work,bool captureCancelable)
 {
     WorkResult failure;failure.action=-1;if(!job_.Start(std::move(work),std::move(failure)))return false;captureCancelable_=captureCancelable;captureEscapeDown_=captureCancelable&&(captureEscapeAudit_?captureEscapeAudit_():GetAsyncKeyState(VK_ESCAPE)<0);capturePolling_=SetTimer(CapturePollTimer,CapturePollInterval,nullptr)!=0;return true;
@@ -75,21 +67,17 @@ void MainFrame::CompleteOutput(WorkResult& result)
 {
     if(deliveryAudit_){deliveryAudit_(result);return;}
     if(result.action==5){ShowNewImage(result.dimensions,result.editor,result.imageOwner);return;}
-    if(result.action==4){
-        if(result.clipboard){CString error;if(!services::PublishClipboardImage(*result.clipboard,m_hWnd,error))result.error+=L"\r\n"+error;}
-        if(auto* editor=dynamic_cast<EditorFrame*>(CWnd::FromHandlePermanent(result.editor)))editor->AutomaticOutput(result.source,result.path,result.error);
-        status_.SetWindowText(!result.error.IsEmpty()?CString(Tr(Text::Failed))+result.error:result.path.IsEmpty()?Tr(Text::Ready):CString(Tr(Text::Saved))+result.path);return;
-    }
+    if(result.action==4){FinishAutomaticOutput(result);return;}
     RestoreEditors();if(restore_)ShowWindow(SW_SHOWNOACTIVATE);
     if(!result.document.base&&!result.image.Empty())result.document.base=std::make_shared<const core::Image>(std::move(result.image));
     if(!result.document.base){captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;status_.SetWindowText(CString(Tr(Text::Failed))+result.error);ShowWindow(SW_SHOW);return;}
     if(captureIntoEditor_){const HWND target=captureIntoEditor_;auto* page=captureIntoOwner_;captureIntoEditor_=nullptr;captureIntoOwner_=nullptr;const bool valid=result.error.IsEmpty()&&::IsWindow(target)&&CWnd::FromHandlePermanent(target)==page&&page->cropGeneration_==captureIntoCrop_&&page->ReceiveCaptured(std::move(result.document),captureIntoRevision_,captureIntoEpoch_,captureIntoSelection_);status_.SetWindowText(Tr(valid?Text::Ready:Text::CaptureTargetChanged));if(!valid&&!isolated_)ShowWindow(SW_SHOWNOACTIVATE);return;}
     const auto outputState=result.document;const auto source=result.document.base;const bool captureSucceeded=result.error.IsEmpty();auto* editor=EditorWorkspace::Open(std::move(result.document),result.path,result.action==2||result.path.IsEmpty(),result.blankCanvas);editors_.push_back(editor->GetSafeHwnd());
-    const HWND editorWindow=editor->GetSafeHwnd();if(result.action==2)editor->Captured();editor->SetForegroundWindow();editor->SetFocus();
+    const auto outputRevision=editor->revision_;if(result.action==2)editor->Captured();editor->SetForegroundWindow();editor->SetFocus();
     if(result.action==2&&!IsRectEmpty(&result.target.rect)){auto draft=settings_;draft.lastRegion=result.target.rect;CString error;if(config_.Save(draft,error))settings_=draft;else result.error+=L"\r\n"+error;}
     if(!result.error.IsEmpty()){editor->AutomaticOutput(source,L"",result.error);status_.SetWindowText(CString(Tr(Text::Failed))+result.error);if(!captureSucceeded)return;}
     if(result.action==2&&settings_.copyAfter){
-        const auto settings=settings_;const CString priorError=result.error;status_.SetWindowText(Tr(Text::AutomaticOutput));job_.Start([source,outputState,editorWindow,settings,priorError]{WorkResult r;r.action=4;r.source=source;r.editor=editorWindow;if(!outputState.objects.empty()){core::Image composed;if(!services::RenderDocument(outputState,composed,r.error))return r;r.source=std::make_shared<core::Image>(std::move(composed));}SaveOutput(r,settings);if(!priorError.IsEmpty())r.error+=L"\r\n"+priorError;return r;});
+        QueueAutomaticOutput(editor,outputState,source,result.error,outputRevision);
     }else status_.SetWindowText(Tr(Text::Ready));
 }
 void MainFrame::OnTimer(UINT_PTR timer)

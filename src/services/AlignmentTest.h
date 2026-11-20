@@ -42,3 +42,5 @@ namespace sct::services {void EditorRefinementsChecks(const std::function<void(b
 namespace sct::services {void RibbonClarityChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 
 namespace sct::services {void ReviewPolishChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+
+namespace sct::services {void RuntimeContractsChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}

@@ -37,6 +37,9 @@ private:
     friend class AssetSelectionAccess;
     friend class ShellAccess;
     friend class CaptureLatencyAccess;
+#if SCT_ENABLE_SELFTESTS
+    friend class RuntimeContractsAccess;std::function<void()> automaticPrepareAudit_;
+#endif
     friend class ImageHomeAccess;
     friend class InstanceAccess;
     friend class ToolStyleAccess;
@@ -49,7 +52,7 @@ private:
     friend class PreferenceAccess;
     friend class CaptureAlignmentAccess;
     friend class SavePaintAccess;friend class SaveDirectoryAccess;friend class ScreenshotOnlyAccess;
-    struct WorkResult {RECT frozenDesktop{};core::Image image;core::DocumentState document;CString path,error;int action=0;bool horizontal=false,blankCanvas=false;services::CaptureTarget target;std::shared_ptr<const services::CapturedCursor> cursor;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<const core::Image> source;HWND editor=nullptr;CSize dimensions{1280,720};CWnd* imageOwner=nullptr;};
+    struct WorkResult {RECT frozenDesktop{};core::Image image;core::DocumentState document;CString path,error;int action=0;bool horizontal=false,blankCanvas=false;services::CaptureTarget target;std::shared_ptr<const services::CapturedCursor> cursor;std::shared_ptr<services::ClipboardPacket> clipboard;std::shared_ptr<const core::Image> source;HWND editor=nullptr;CWnd* editorOwner=nullptr;std::weak_ptr<const BYTE> editorLife;std::shared_ptr<const core::Image> editorSource;uint64_t editorRevision=0,editorEpoch=0,editorCrop=0,copyTicket=0;CSize dimensions{1280,720};CWnd* imageOwner=nullptr;};
     HWND captureIntoEditor_=nullptr;EditorFrame* captureIntoOwner_=nullptr;uint64_t captureIntoRevision_=0,captureIntoEpoch_=0,captureIntoCrop_=0;bool captureIntoRequested_=false;std::vector<int> captureIntoSelection_;std::function<void()> captureIntoAudit_;
     bool QueueCaptureWork(std::function<WorkResult()>,bool captureCancelable=false);
     void FrozenLayoutChanged();RECT CaptureDesktop()const;bool ValidateFrozen(RECT,const core::Image* image=nullptr);
@@ -59,6 +62,7 @@ private:
     void StartCapture(services::CaptureTarget,bool scroll=false);
     void DeliverFrozen(SelectionResult);void DeliverImage(core::Image,RECT region={});
     void CompleteOutput(WorkResult&);
+    void QueueAutomaticOutput(EditorFrame*,const core::DocumentState&,const std::shared_ptr<const core::Image>&,const CString&,uint64_t);void FinishAutomaticOutput(WorkResult&);bool AutomaticOutputCurrent(const WorkResult&)const;void CancelAutomaticOutput();uint64_t automaticCopyTicket_=0;bool automaticCompleting_=false;
     void ShowNewImage(CSize,HWND,CWnd*);
     std::function<bool(HWND,core::Image&,CString&)> newImageReadAudit_;
     std::function<INT_PTR(FormDialog&)> newImageFormAudit_;

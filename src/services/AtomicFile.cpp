@@ -1,9 +1,19 @@
 #include "pch.h"
 #include "AtomicFile.h"
 #include "AtomicWriteAudit.h"
+#include "../core/Cancellation.h"
 namespace sct::services {
+namespace {void Checkpoint(int phase){
+#if SCT_ENABLE_SELFTESTS
+    if(atomicWriteFaults&&atomicWriteFaults->checkpoint)atomicWriteFaults->checkpoint(phase);
+#else
+    (void)phase;
+#endif
+}}
+
 bool WriteBytes(const CString& path,const std::vector<BYTE>& bytes,CString& error,bool replace)
 {
+    if(core::CancellationRequested()){error=L"Operation cancelled before output staging";return false;}
     GUID id{};if(FAILED(CoCreateGuid(&id))){error=L"Cannot allocate temporary filename";return false;}wchar_t guid[40]{};StringFromGUID2(id,guid,_countof(guid));
     const CString temp=path+L"."+guid+L".partial";
     struct OwnedFile {HANDLE handle=INVALID_HANDLE_VALUE;CString path;bool owned=false;
@@ -21,11 +31,13 @@ bool WriteBytes(const CString& path,const std::vector<BYTE>& bytes,CString& erro
 #if SCT_ENABLE_SELFTESTS
     if(atomicWriteFaults){atomicWriteFaults->temporary=temp;if(atomicWriteFaults->write)return failed(atomicWriteFaults->write,L"write temporary");}
 #endif
-    size_t at=0;while(at<bytes.size()){DWORD written=0;const DWORD count=static_cast<DWORD>(std::min<size_t>(bytes.size()-at,1024*1024));if(!WriteFile(file.handle,bytes.data()+at,count,&written,nullptr))return failed(GetLastError(),L"write temporary");if(!written)return failed(ERROR_WRITE_FAULT,L"write temporary");at+=written;}
+    Checkpoint(0);size_t at=0;while(at<bytes.size()){if(core::CancellationRequested())return failed(ERROR_CANCELLED,L"cancelled before write");DWORD written=0;const DWORD count=static_cast<DWORD>(std::min<size_t>(bytes.size()-at,1024*1024));if(!WriteFile(file.handle,bytes.data()+at,count,&written,nullptr))return failed(GetLastError(),L"write temporary");if(!written)return failed(ERROR_WRITE_FAULT,L"write temporary");at+=written;}
+    Checkpoint(1);if(core::CancellationRequested())return failed(ERROR_CANCELLED,L"cancelled before flush");
     if(!FlushFileBuffers(file.handle))return failed(GetLastError(),L"flush temporary");file.Close();
 #if SCT_ENABLE_SELFTESTS
     if(atomicWriteFaults&&atomicWriteFaults->promote)return failed(atomicWriteFaults->promote,L"promote temporary");
 #endif
-    if(!MoveFileEx(temp,path,(replace?MOVEFILE_REPLACE_EXISTING:0)|MOVEFILE_WRITE_THROUGH))return failed(GetLastError(),L"promote temporary");file.owned=false;return true;
+    Checkpoint(2);if(core::CancellationRequested())return failed(ERROR_CANCELLED,L"cancelled before publish");
+    if(!MoveFileEx(temp,path,(replace?MOVEFILE_REPLACE_EXISTING:0)|MOVEFILE_WRITE_THROUGH))return failed(GetLastError(),L"promote temporary");file.owned=false;Checkpoint(3);return true;
 }
 }
