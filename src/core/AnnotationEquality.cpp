@@ -8,7 +8,8 @@ auto Values(const Annotation& a){return std::tie(a.tool,a.focus.x,a.focus.y,a.te
     a.filled,a.shadow,a.lineStyle,a.alignment,a.alpha,a.mosaicStrength,a.eraseMode,a.group,a.locked,a.label,a.hidden,a.asset,
     a.mosaicMode,a.sampling,a.brightness,a.contrast,a.elbowBends,a.pictureAdjust,a.elbowVertical,a.textPadding,a.textLineSpacing,
     a.pictureMask,a.pictureRadius,a.startHead,a.endHead,a.headSize,a.textAutoHeight,a.highlightBlend,a.effectBrush,
-    a.strokeOpacity,a.fillOpacity,a.sourceAnchor,a.targetAnchor,a.id,a.sourceId,a.targetId,a.flowKind,a.connectorLabel);}
+    a.strokeOpacity,a.fillOpacity,a.sourceAnchor,a.targetAnchor,a.id,a.sourceId,a.targetId,a.flowKind,a.connectorLabel,
+    a.labelAlong,a.labelOffset.x,a.labelOffset.y);}
 }
 bool SameAnnotation(const Annotation& a,const Annotation& b){
     return Values(a)==Values(b)&&EqualRect(&a.rect,&b.rect)&&EqualRect(&a.sourceCrop,&b.sourceCrop)&&a.points.size()==b.points.size()&&

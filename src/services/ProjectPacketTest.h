@@ -1,7 +1,7 @@
 #pragma once
 #include "ProjectFormat.h"
 namespace sct::services::testing {
-enum class PacketField {Group,EffectBrush,FlowKind,ConnectorLabel};
+enum class PacketField {Group,EffectBrush,FlowKind,ConnectorLabel,LabelAlong,LabelOffsetX,LabelOffsetY};
 inline void SealPacket(std::vector<BYTE>& bytes){
     if(bytes.size()<16)throw std::runtime_error("Fixture packet too short");uint32_t crc=~0u;
     for(size_t i=0;i<bytes.size()-4;++i){crc^=bytes[i];for(int bit=0;bit<8;++bit)crc=(crc>>1)^(0xEDB88320u&uint32_t(-int(crc&1)));}crc=~crc;memcpy(bytes.data()+bytes.size()-4,&crc,4);
@@ -12,7 +12,7 @@ inline size_t LastPacketField(const std::vector<BYTE>& bytes,PacketField field){
     auto skip=[&](size_t n){if(at>bytes.size()-4||n>bytes.size()-4-at)throw std::runtime_error("Fixture layout truncated");at+=n;};
     auto integer=[&]{int32_t n;const size_t old=at;skip(4);memcpy(&n,bytes.data()+old,4);return n;};
     auto counted=[&](size_t size,int maximum){const auto n=integer();if(n<0||n>maximum)throw std::runtime_error("Fixture layout count");skip(size_t(n)*size);};
-    const int version=integer();if(version<1||version>14)throw std::runtime_error("Fixture layout version");counted(1,512*1024*1024);const int count=integer();if(count<1||count>10000)throw std::runtime_error("Fixture object count");size_t found=SIZE_MAX;
+    const int version=integer();if(version<1||version>CurrentProjectVersion)throw std::runtime_error("Fixture layout version");counted(1,512*1024*1024);const int count=integer();if(count<1||count>10000)throw std::runtime_error("Fixture object count");size_t found=SIZE_MAX;
     for(int i=0;i<count;++i){
         skip(4+sizeof(RECT));counted(sizeof(POINT),1000000);counted(2,65536);counted(2,65536);skip(9*4);if(version>=2)skip(sizeof(POINT));counted(1,512*1024*1024);
         if(version>=3)skip(4*4);if(version>=4)skip(4);if(version>=5)skip(4);if(version>=7){counted(2,80);skip(4);}
@@ -21,6 +21,7 @@ inline size_t LastPacketField(const std::vector<BYTE>& bytes,PacketField field){
         if(version>=9)skip(7*4);if(version>=10)skip(11*4);if(version>=11)skip(4);if(version>=12)skip(4*4);
         if(version>=13){if(i==count-1&&field==PacketField::EffectBrush)found=at;skip(4);}
         if(version>=14){if(i==count-1&&field==PacketField::FlowKind)found=at;skip(4);if(i==count-1&&field==PacketField::ConnectorLabel)found=at;skip(4);}
+        if(version>=15){if(i==count-1&&field==PacketField::LabelAlong)found=at;skip(4);if(i==count-1&&field==PacketField::LabelOffsetX)found=at;skip(4);if(i==count-1&&field==PacketField::LabelOffsetY)found=at;skip(4);}
     }
     if(at!=bytes.size()-4||found==SIZE_MAX)throw std::runtime_error("Fixture field unavailable or trailing layout");return found;
 }

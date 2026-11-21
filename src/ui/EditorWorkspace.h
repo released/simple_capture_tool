@@ -31,6 +31,7 @@ protected:
     void PostNcDestroy()override{if(owned_)delete this;}
     BOOL PreTranslateMessage(MSG*)override;DECLARE_MESSAGE_MAP()
 private:
+    friend class EditorEfficiencyAccess;
     friend class DiscussionAccess;
 #if SCT_ENABLE_SELFTESTS
     std::function<UINT(CMenu&,EditorFrame*)> tabMenuAudit_;

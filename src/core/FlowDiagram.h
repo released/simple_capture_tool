@@ -12,6 +12,7 @@ bool FlowContains(const Annotation&,POINT,int tolerance=0);
 POINT FlowAnchor(const Annotation&,POINT toward,int mode,bool source);
 CRect FlowTextBounds(const Annotation&);
 CRect FlowLabelEnvelope(const Annotation&);
+POINT FlowLabelCenter(const Annotation&);void PlaceFlowLabel(Annotation&,POINT);
 Annotation FlowTextObject(const Annotation&);
 Annotation MakeFlowNode(int kind,RECT bounds,int preset=0);
 void ApplyFlowPreset(Annotation&,int);

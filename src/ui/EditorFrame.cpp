@@ -41,6 +41,7 @@ BEGIN_MESSAGE_MAP(EditorFrame,CFrameWnd)
     ON_MESSAGE(LanguageChanged,&EditorFrame::OnLanguageChanged)
     ON_COMMAND(InsertImageFit,&EditorFrame::OnInsertFit)
     ON_COMMAND_RANGE(ZoomSelection,RerouteConnectors,&EditorFrame::OnAction)
+    ON_COMMAND_RANGE(PasteAtView,ResetFlowLabel,&EditorFrame::OnAction)
     ON_COMMAND_RANGE(FlowPanelToggle,FlowShapeLast,&EditorFrame::OnAction)
     ON_COMMAND_RANGE(Command::Save,Command::Color,&EditorFrame::OnAction)
     ON_COMMAND_RANGE(Command::More,Command::JpegQuality,&EditorFrame::OnAction)
@@ -105,7 +106,7 @@ int EditorFrame::OnCreate(LPCREATESTRUCT cs)
 }
 void EditorFrame::OnSize(UINT t,int x,int y){CancelFlow();CancelCanvasResize();CFrameWnd::OnSize(t,x,y);Layout();}
 void EditorFrame::OnGetMinMaxInfo(MINMAXINFO* i){CFrameWnd::OnGetMinMaxInfo(i);i->ptMinTrackSize={Px(m_hWnd,680),Px(m_hWnd,480)};}
-LRESULT EditorFrame::OnDpiChanged(WPARAM,LPARAM value){const RECT& r=*reinterpret_cast<RECT*>(value);SetWindowPos(nullptr,r.left,r.top,r.right-r.left,r.bottom-r.top,SWP_NOZORDER);ApplyFont(*this,font_);sidebar_.RefreshLanguage();flowPanel_.Refresh();Layout();return 0;}
+LRESULT EditorFrame::OnDpiChanged(WPARAM,LPARAM value){const RECT& r=*reinterpret_cast<RECT*>(value);SetWindowPos(nullptr,r.left,r.top,r.right-r.left,r.bottom-r.top,SWP_NOZORDER);ApplyFont(*this,font_);sidebar_.RefreshLanguage();flowPanel_.Refresh();navigator_.Arrange();Layout();return 0;}
 LRESULT EditorFrame::OnLanguageChanged(WPARAM,LPARAM)
 {
     SetWindowText(Caption()+L" - "+Tr(Text::Editor));RefreshBoundText(m_hWnd);const int selected=tools_.GetCurSel();tools_.ResetContent();
@@ -163,12 +164,13 @@ void EditorFrame::OnTimer(UINT_PTR)
     const EditorOperationScope operation(*this);
     RefreshCopyNotice();
     auto r=job_.TakeOwned();try{if(r){if(!r->error.IsEmpty()){if(r->action==WorkCanvas||(canvasPending_&&activeAction_==WorkCanvas)){canvasPending_=false;InvalidateRect(canvas_,FALSE);}const bool copying=copyTicket_!=0;status_.SetWindowText(r->error);pendingAction_=0;CompleteClipboardCopy(false);if(copying)SetCopyNotice(CopyNotice::Failed,r->error);}
-        else if(r->action==WorkRender){if(r->revision==revision_&&r->preview==previewGeneration_){image_=std::move(r->image);if(!r->thumbnail.Empty()){thumbnail_=std::move(r->thumbnail);rendered_=r->revision;NotifyWorkspace();}InvalidateRect(canvas_,FALSE);}}
+        else if(r->action==WorkRender){if(r->revision==revision_&&r->preview==previewGeneration_){image_=std::move(r->image);if(!r->thumbnail.Empty()){thumbnail_=std::move(r->thumbnail);rendered_=r->revision;navigator_.Refresh();NotifyWorkspace();}InvalidateRect(canvas_,FALSE);}}
         else if(r->action==WorkImageSave||r->action==WorkProjectSave){if(r->action==WorkImageSave)path_=r->path;else projectPath_=r->path;projectPrimary_=r->action==WorkProjectSave;dirty_=r->revision!=revision_;status_.SetWindowText(CString(Tr(Text::Saved))+r->path);if(r->action==WorkImageSave)ImageSaved(r->path);NotifyWorkspace(false);}
         else if(r->action==WorkTransform){if((r->transformSource!=document_.State().base||r->revision!=revision_||r->maskEpoch!=maskEpoch_||r->preview!=cropGeneration_||r->expected!=Selection())||r->command==Effects&&(r->revision!=revision_||r->maskEpoch!=maskEpoch_||r->preview!=cropGeneration_||r->expected!=Selection()||CRect(r->screen)!=pixelSelection_||r->colorCrop!=cropRegion_||r->colorTool!=style_.tool||textEditing_||sidebar_.Dirty())){status_.SetWindowText(Tr(Text::Busy));}else if(r->command==Effects&&!r->colorChanged){status_.SetWindowText(Tr(Text::RefinementUnchanged));}else{document_.Commit(std::move(r->state));selected_=-1;pixelSelection_.SetRectEmpty();offsetX_=offsetY_=0;SyncStyle();Layout();Changed();if(r->recipe)RememberRecipe(*r->recipe);}}
         else if(r->action==WorkInsertFit){Insert(std::move(r->image));}
         else if(r->action==WorkClipboard){PublishClipboardResult(*r);}
         else if(r->action==WorkOpenPage){if(!r->state.base)r->state.base=std::make_shared<const core::Image>(std::move(r->image));EditorWorkspace::Open(std::move(r->state),r->path,r->path.IsEmpty(),r->command==NewDocument);}
+        else if(r->action==WorkPerspectivePreview){const HWND host=m_hWnd;CompletePerspectivePreview(*r);if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;}
         else if(r->action==WorkDiscussion){const HWND host=m_hWnd;CompleteDiscussion(*r);if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;}
         else if(r->action==WorkDropOpen)CompleteDroppedImage(*r);
         else if(r->action==WorkComposition){if(r->revision&&r->revision!=revision_||r->mask&&r->maskEpoch!=maskEpoch_){status_.SetWindowText(Tr(Text::Busy));}else{document_.Commit(std::move(r->state));style_.tool=core::Tool::Select;selected_=-1;Changed();if(!r->selected.empty())SetSelection(std::move(r->selected));else Select(document_.State().objects.empty()?-1:static_cast<int>(document_.State().objects.size())-1);}}
@@ -207,7 +209,7 @@ void EditorFrame::OnClose(){
         EnumThreadWindows(GetCurrentThreadId(),[](HWND dialog,LPARAM value)->BOOL{const auto& owners=*reinterpret_cast<Owners*>(value);wchar_t name[32]{};::GetClassName(dialog,name,_countof(name));if(wcscmp(name,L"#32770"))return TRUE;
             for(HWND owner=::GetWindow(dialog,GW_OWNER);owner;owner=::GetWindow(owner,GW_OWNER))if(owner==owners.page||owner==owners.root){::PostMessage(dialog,WM_CLOSE,0,0);break;}return TRUE;},reinterpret_cast<LPARAM>(&owners));}
 
-    if(width_.GetSafeHwnd())width_.SetModify(FALSE);CancelSweep();openQueue_.clear();pendingLayoutPaths_.clear();pendingAction_=0;
+    if(width_.GetSafeHwnd())width_.SetModify(FALSE);CancelSweep();openQueue_.clear();pendingLayoutPaths_.clear();pendingAction_=0;positionedPaste_.reset();contextPastePoint_.reset();
     job_.cancel=true;dragging_=false;canvasHandle_=-1;textEditing_=false;CompleteClipboardCopy(false);pasteTicket_=0;
     if(GetCapture()==this)ReleaseCapture();
     if(job_.Busy()||operationDepth_){EnableWindow(FALSE);status_.SetWindowText(Tr(Text::ClosingWork));EditorPolling(true);return;}

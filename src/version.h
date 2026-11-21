@@ -1,4 +1,4 @@
 #pragma once
-#define SCT_VERSION "1.0.0.083"
-#define SCT_VERSION_W L"1.0.0.083"
-#define SCT_VERSION_NUM 1,0,0,83
+#define SCT_VERSION "1.0.0.084"
+#define SCT_VERSION_W L"1.0.0.084"
+#define SCT_VERSION_NUM 1,0,0,84

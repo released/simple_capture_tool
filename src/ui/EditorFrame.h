@@ -13,6 +13,7 @@
 #include "../core/ObjectAlignment.h"
 #include "../services/PreviewRenderCache.h"
 #include "EditorSidebar.h"
+#include "NavigatorPanel.h"
 #include "InlineTextEdit.h"
 #include "../core/EditableLayout.h"
 #include "../services/EditorShortcutService.h"
@@ -26,6 +27,7 @@ class FormDialog;
 class ScreenColorDialog;
 class CommandSearchDialog;
 class ImageCompareDialog;
+class PerspectiveDialog;
 class BatchExportDialog;class StickerLibraryDialog;class StyleGalleryDialog;
 class GuideDialog;class HistogramDialog;class MainFrame;class ImageDragDialog;
 class EditorFrame final : public CFrameWnd {
@@ -66,8 +68,19 @@ protected:
 private:
     struct WorkResult;friend class DiscussionAccess;
 #if SCT_ENABLE_SELFTESTS
-    friend class ReviewPolishAccess;friend class RuntimeContractsAccess;
+    friend class ReviewPolishAccess;friend class RuntimeContractsAccess;friend class EditorEfficiencyAccess;
 #endif
+    struct PositionedPaste {UINT command=0;CPoint point;bool centered=false;uint64_t revision=0,epoch=0,crop=0;
+        std::shared_ptr<const core::Image> source;core::composition::Indices selected;};
+    std::optional<PositionedPaste> positionedPaste_;std::optional<CPoint> contextPastePoint_;UINT waitingPasteCommand_=PasteImage;
+    bool PreparePastePosition(UINT);bool PastePositionCurrent(const PositionedPaste&)const;CPoint PasteAnchor(CPoint)const;
+    friend class NavigatorPanel;NavigatorPanel navigator_;void EfficiencyCommand(UINT);
+    void BeginPerspective();void CompletePerspectivePreview(WorkResult&);const PerspectiveDialog* perspectiveDialog_=nullptr;
+#if SCT_ENABLE_SELFTESTS
+    std::function<void(PerspectiveDialog&)> perspectiveInitAudit_,perspectiveReadyAudit_;
+#endif
+    bool LabelDown(CPoint,UINT);bool MoveLabel(CPoint);bool labelGesture_=false;uint64_t labelRevision_=0;
+    int stepWheelRemainder_=0,stepWheelIndex_=-1;uint64_t stepWheelRevision_=0;bool StepWheel(short);
     void DiscussionCommand(UINT);void CompleteDiscussion(WorkResult&);UINT DiscussionFlags(UINT)const;
     void FileCommand(UINT);CString CurrentFile()const;void EditStep(int);
     struct ViewPosition {double zoom;int x,y;bool fit;};std::optional<ViewPosition> previousView_;
@@ -232,7 +245,7 @@ private:
     std::function<bool(const CString&,CString&)> hexCopyAudit_;
     std::function<bool()> historyConfirmAudit_;
     void Export(bool project,bool useImagePath=false);void OutputCommand(UINT);void InsertFile(const CString&,bool fit=false);void Insert(core::Image);
-    int JpegPreview();std::shared_ptr<const core::Image> modalImage_;
+    int JpegPreview();std::shared_ptr<const core::Image> modalImage_;const services::ImageComparison* modalComparison_=nullptr;
     CPoint ImagePoint(CPoint) const;CRect ScreenRect(RECT) const;
     LPCTSTR CanvasCursor(CPoint)const;void ApplyCanvasCursor(CPoint);void RefreshCanvasCursor();
     std::function<CPoint()> cursorPointAudit_;std::function<void(LPCTSTR)> cursorApplyAudit_;

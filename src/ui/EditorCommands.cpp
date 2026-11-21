@@ -25,7 +25,7 @@ void EditorFrame::OnAction(UINT id)
     const HWND commandOwner=m_hWnd;
     if((id==Copy||id==Cut)&&!copyTicket_)SetCopyNotice(CopyNotice::Blocked);
     if(CommandMenuFlags(id)&MF_GRAYED){status_.SetWindowText(Tr(job_.Busy()?Text::Busy:Text::CommandUnavailable));return;}
-    const bool viewportCommand=(id>=ZoomFit&&id<=ToggleFullScreen)||id==ZoomSelection||id==ZoomPrevious;
+    const bool viewportCommand=(id>=ZoomFit&&id<=ToggleFullScreen)||id==ZoomSelection||id==ZoomPrevious||id==NavigatorToggle;
     if(!viewportCommand&&id!=ChooseDocument)status_.ClearOperation();
     if(id>=BringToFront&&id<=ExportSelectedSvg&&(maskGesture_||maskPending_||dragging_||panning_||sidebar_.Dragging()||!IsWindowEnabled()||!::IsWindowEnabled(::GetAncestor(m_hWnd,GA_ROOT)))){status_.SetWindowText(Tr(Text::Busy));return;}
     if(flowGesture_||flowPaletteDrag_){status_.SetWindowText(Tr(Text::Busy));return;}
@@ -35,6 +35,7 @@ void EditorFrame::OnAction(UINT id)
     EditorPolling(true);
     if(id==CloseDocument||id==CloseAllDocuments){DocumentCommand(id);return;}
     if(canvasHandle_>=0||canvasPending_){status_.SetWindowText(Tr(Text::Busy));return;}
+    if(id==NavigatorToggle){EfficiencyCommand(id);return;}
     if(id==ZoomSelection||id==ZoomPrevious){try{DiscussionCommand(id);}catch(const std::exception&){status_.SetWindowText(Tr(Text::InvalidValue));}return;}
     if(!FinishPropertyDraft()){SyncStyle();return;}
     if(id>=TextBold&&id<=AlignRight||id>=AlignLeftMiddle&&id<=EraseColor||id==ToggleFill||id==ToggleShadow||id==FillColor){StyleCommand(id);return;}
@@ -42,6 +43,7 @@ void EditorFrame::OnAction(UINT id)
     if(id>=RunFont&&id<=RunClear){FormatTextRun(id);return;}
     renderSuspended_=false;
     if(!FinishText(true))return;
+    if((id==PasteImage||id==PasteAtView||id==PasteHere)&&!PreparePastePosition(id))return;
     if(id>=FlowPanelToggle&&id<=FlowShapeLast){try{FlowCommand(id);}catch(const std::exception& e){CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());status_.SetWindowText(error);}return;}
     if(id==CancelCropSelection){CropCommand(id);return;}
     if(id==More){ShowMore();return;}
@@ -51,6 +53,7 @@ void EditorFrame::OnAction(UINT id)
     if(!PrepareClipboardAction(id))return;
     if(job_.Busy()&&!(activeAction_==WorkRender&&viewportCommand)){if(activeAction_==WorkRender){if(pendingAction_!=SelectPixels)QueueAction(id);}else status_.SetWindowText(Tr(Text::Busy));return;}
     try {
+        if(id==FilterObjects||id==FlowLabelPosition||id==ResetFlowLabel){EfficiencyCommand(id);return;}
         if(id>=MatchWidth&&id<=RerouteConnectors){DiscussionCommand(id);return;}
         if(id>=ReflowObjects&&id<=ExportSelectedSvg){RefinementCommand(id);return;}
         if(id>=ExportSelectedPng&&id<=PictureAlphaSelection){AssetCommand(id);return;}
@@ -76,7 +79,7 @@ void EditorFrame::OnAction(UINT id)
         if(id==StampGallery||id==CursorGallery){StampMenu(id==CursorGallery);return;}
         if(id==SaveAs||id==SaveAllPdf||id==PrintImage||id==PrintPreview){OutputCommand(id);return;}
         if((id>=Effects&&id<=BackgroundEffect)||id==EffectPresets||id==SaveEffectPreset){EffectCommand(id);return;}
-        if(id==Copy||id==Cut||id==SelectPixels||id==SelectAllPixels||id==DeselectPixels||id==PasteImage||(id==DeleteObject&&!pixelSelection_.IsRectEmpty())){ClipboardCommand(id);return;}
+        if(id==Copy||id==Cut||id==SelectPixels||id==SelectAllPixels||id==DeselectPixels||id==PasteImage||id==PasteAtView||id==PasteHere||(id==DeleteObject&&!pixelSelection_.IsRectEmpty())){ClipboardCommand(id);return;}
         if(id>=NewDocument&&id<=SaveEffectPreset){DocumentCommand(id);return;}
         if(id==Save||id==SaveProject){Export(id==SaveProject||(id==Save&&projectPrimary_),id==Save);return;}
         if(id==Undo||id==Redo){if(id==Undo?document_.Undo():document_.Redo()){selected_=-1;SyncStyle();Layout();Changed();}return;}

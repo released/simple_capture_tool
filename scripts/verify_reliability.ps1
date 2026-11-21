@@ -1,6 +1,6 @@
 ﻿param(
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Both',
-    [ValidateSet('RuntimeContracts','ReviewPolish','Discussion','Sidebar','Discovery','FlowDiagram','ObjectAlignment','CommandTools','EditorMenus','WheelNavigation','Instance','ReviewFollowup','ReviewRefinements','EditableLayout','ObjectPayload','NoticeAlignment','Status','ReviewReliability','ReviewOptimization','SaveDirectory','EditorTransitions','Composition','ClipboardFeedback','SelectionToolbar','CaptureMagnifier','CaptureLatency','Startup')]
+    [ValidateSet('EditorEfficiencyProperties','EditorEfficiency','ImagePrecision','PasteOriginal','RuntimeContracts','ReviewPolish','Discussion','Sidebar','Discovery','FlowDiagram','ObjectAlignment','CommandTools','EditorMenus','WheelNavigation','Instance','ReviewFollowup','ReviewRefinements','EditableLayout','ObjectPayload','NoticeAlignment','Status','ReviewReliability','ReviewOptimization','SaveDirectory','EditorTransitions','Composition','ClipboardFeedback','SelectionToolbar','CaptureMagnifier','CaptureLatency','Startup')]
     [string[]]$Scope=@('ReviewReliability'),
     [string]$HubRoot='',
     [ValidatePattern('^[a-z][a-z0-9-]{0,63}$')][string]$AuditName='reliability-075'
@@ -14,7 +14,7 @@ $audit=Join-Path $project ('artifacts\audits\'+$AuditName)
 $records=New-Object 'Collections.Generic.List[object]'
 $producers=New-Object 'Collections.Generic.List[object]'
 $workers=New-Object 'Collections.Generic.List[object]'
-$arguments=@{RuntimeContracts='runtime-contracts';ReviewPolish='review-polish';Discussion='discussion';Sidebar='sidebar';Discovery='discovery';FlowDiagram='flow-diagram';ObjectAlignment='object-alignment';CommandTools='command-tools';EditorMenus='editor-menus';WheelNavigation='wheel-navigation';Instance='instance';ReviewFollowup='review-followup';ReviewRefinements='review-refinements';EditableLayout='editable-layout';ObjectPayload='object-payload';NoticeAlignment='notice-alignment';Status='status';ReviewReliability='review-reliability';ReviewOptimization='review-optimization';SaveDirectory='save-directory';EditorTransitions='editor-transitions';Composition='composition';ClipboardFeedback='clipboard-feedback';SelectionToolbar='selection-toolbar';CaptureMagnifier='capture-magnifier';CaptureLatency='capture-latency'}
+$arguments=@{EditorEfficiencyProperties='editor-efficiency-properties';EditorEfficiency='editor-efficiency';ImagePrecision='image-precision';PasteOriginal='paste-original';RuntimeContracts='runtime-contracts';ReviewPolish='review-polish';Discussion='discussion';Sidebar='sidebar';Discovery='discovery';FlowDiagram='flow-diagram';ObjectAlignment='object-alignment';CommandTools='command-tools';EditorMenus='editor-menus';WheelNavigation='wheel-navigation';Instance='instance';ReviewFollowup='review-followup';ReviewRefinements='review-refinements';EditableLayout='editable-layout';ObjectPayload='object-payload';NoticeAlignment='notice-alignment';Status='status';ReviewReliability='review-reliability';ReviewOptimization='review-optimization';SaveDirectory='save-directory';EditorTransitions='editor-transitions';Composition='composition';ClipboardFeedback='clipboard-feedback';SelectionToolbar='selection-toolbar';CaptureMagnifier='capture-magnifier';CaptureLatency='capture-latency'}
 if(-not('SctReliability.Native' -as [type])){Add-Type -TypeDefinition @'
 using System;
 using System.Text;
@@ -89,6 +89,7 @@ $result=Invoke-HubOwnedTest -ProjectRoot $project -Purpose 'selected native owne
         $log=Join-Path $evidence 'alignment\alignment-test.log'
         $lines=if($name -eq 'Startup'){@("TOTAL 1 FAIL $(if($probePass){0}else{1})")}elseif(Test-Path -LiteralPath $log){[IO.File]::ReadAllLines($log)}else{@('MISSING result log')}
         $summary=@($lines | Where-Object {$_ -notmatch '^PASS '} | Select-Object -Last 80)
+        if($child.ExitCode -ne 0){$summary+=@($lines|Select-Object -Last 18)}
         $trace=Join-Path $evidence 'alignment\save-keys.log'
         if(Test-Path -LiteralPath $trace){$summary+=@([IO.File]::ReadAllLines($trace))}
         $records.Add([pscustomobject]@{Configuration=$config;Scope=$name;Exit=$child.ExitCode;Summary=$summary;BuildStamp=$stamp;IdentityResourceMatch=$true;BinaryHash=$binaryHash})
@@ -99,6 +100,16 @@ $result=Invoke-HubOwnedTest -ProjectRoot $project -Purpose 'selected native owne
                 [void][IO.Directory]::CreateDirectory($audit)
                 $destination=Join-Path $audit ('toolbar-'+$config+'-'+$run.Id+'-'+$previewName)
                 if(Test-Path -LiteralPath $destination){throw 'Unknown toolbar preview destination'}
+                Copy-Item -LiteralPath $preview -Destination $destination
+            }
+        }
+        if($name -eq 'EditorEfficiency' -and $child.ExitCode -eq 0 -and $config -eq 'Release'){
+            foreach($previewName in 'compare-tw-96.png','compare-en-144.png','perspective-tw-96.png','perspective-en-144.png','filter-tw-96.png','filter-en-144.png','properties-tw-96.png','properties-en-144.png','navigator-tw-96.png','navigator-en-144.png'){
+                $preview=Join-Path $evidence ('alignment\'+$previewName)
+                if(!(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1MB){throw 'Missing or oversized owned editor preview'}
+                [void][IO.Directory]::CreateDirectory($audit)
+                $destination=Join-Path $audit ($config+'-'+$run.Id+'-'+$previewName)
+                if(Test-Path -LiteralPath $destination){throw 'Unknown editor preview destination'}
                 Copy-Item -LiteralPath $preview -Destination $destination
             }
         }

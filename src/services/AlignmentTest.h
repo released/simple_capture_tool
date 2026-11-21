@@ -44,3 +44,6 @@ namespace sct::services {void RibbonClarityChecks(const std::function<void(bool,
 namespace sct::services {void ReviewPolishChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
 
 namespace sct::services {void RuntimeContractsChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}
+namespace sct::services {void EditorEfficiencyChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);void EditorEfficiencyCoreChecks(const std::function<void(bool,const char*)>&);}
+
+namespace sct::services {void EditorEfficiencyPropertyChecks(const std::function<void(bool,const char*)>&,std::ofstream&,const std::filesystem::path&);}

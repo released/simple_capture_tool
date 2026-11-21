@@ -2,8 +2,9 @@
 #include "EditorSidebar.h"
 #include "EditorFrame.h"
 #include "FormDialog.h"
+#include "../core/EditorEfficiency.h"
 namespace sct::ui {
-void EditorSidebar::OnValueChanged(UINT){if(!syncing_)propertyDirty_=true;}
+void EditorSidebar::OnValueChanged(UINT id){if(!syncing_){propertyDirty_=true;if(id>=SidebarValueFirst&&id<=SidebarValueLast)edited_[id-SidebarValueFirst]=true;}}
 BEGIN_MESSAGE_MAP(EditorSidebar::PropertyPane,CWnd)
  ON_WM_VSCROLL()
 END_MESSAGE_MAP()
@@ -17,9 +18,25 @@ void EditorSidebar::PropertyPane::OnVScroll(UINT code,UINT position,CScrollBar*)
 void EditorSidebar::OnApply(){
     lastApplySucceeded_=false;
     if(!LiveSelection()||!owner->GuardSelection()){owner->status_.SetWindowText(Tr(Text::LayoutStale));Refresh(true);return;}
-    try{std::array<Field,7> fields;for(size_t i=0;i<fields.size();++i)values_[i].GetWindowText(fields[i].value);const int x=Range(fields[0],-1000000,1000000),y=Range(fields[1],-1000000,1000000),width=Range(fields[2],0,1000000),height=Range(fields[3],0,1000000);const auto& source=owner->document_.State();const auto box=core::composition::Bounds(source,selection_);const RECT target{x,y,x+width,y+height};bool changed=EqualRect(&box,&target)==FALSE;auto state=changed?core::composition::Transform(source,selection_,target,true):source;
-        if(selection_.size()==1){auto& a=state.objects[selection_.front()];if(values_[4].IsWindowEnabled()){const int value=Range(fields[4],6,512);if(a.fontSize!=value){changed=true;const double factor=double(value)/a.fontSize;for(auto& run:a.textRuns)run.size=std::clamp(static_cast<int>(std::lround(run.size*factor)),6,512);}a.fontSize=value;}if(values_[5].IsWindowEnabled()){const int value=Range(fields[5],1,128);changed=changed||a.width!=value;a.width=value;}if(values_[6].IsWindowEnabled()){const int value=Range(fields[6],0,255);changed=changed||(a.tool==core::Tool::Highlight?a.opacity:a.alpha)!=value;a.alpha=value;a.opacity=value;}if(values_[7].IsWindowEnabled()){CString text;values_[7].GetWindowText(text);if(a.text!=text){changed=true;a.textRuns.clear();}a.text=text;}}
-        if(changed)owner->CommitComposition(std::move(state),selection_,false);Refresh(true);owner->ClampViewport();owner->InvalidateRect(owner->canvas_,FALSE);lastApplySucceeded_=true;owner->SetFocus();
+    try{
+        std::array<Field,7> fields;for(size_t i=0;i<fields.size();++i)values_[i].GetWindowText(fields[i].value);
+        const auto& source=owner->document_.State();auto state=source;bool changed=false;
+        if(std::any_of(edited_.begin(),edited_.begin()+4,[](bool value){return value;})){
+            const int x=Range(fields[0],-1000000,1000000),y=Range(fields[1],-1000000,1000000),width=Range(fields[2],0,1000000),height=Range(fields[3],0,1000000);
+            const auto box=core::composition::Bounds(source,selection_);const RECT target{x,y,x+width,y+height};changed=EqualRect(&box,&target)==FALSE;
+            if(changed)state=core::composition::Transform(source,selection_,target,true);
+        }
+        std::optional<int> font,width,opacity;
+        if(edited_[4]&&values_[4].IsWindowEnabled())font=Range(fields[4],6,512);
+        if(edited_[5]&&values_[5].IsWindowEnabled())width=Range(fields[5],1,128);
+        if(edited_[6]&&values_[6].IsWindowEnabled())opacity=Range(fields[6],0,255);
+        if(font||width||opacity){bool commonChanged=false;state=core::ApplyCommonProperties(state,selection_,font,width,opacity,commonChanged);changed=changed||commonChanged;}
+        if(selection_.size()==1&&values_[7].IsWindowEnabled()){
+            auto& a=state.objects[selection_.front()];CString text;values_[7].GetWindowText(text);
+            if(a.text!=text){changed=true;a.textRuns.clear();a.text=text;}
+        }
+        if(changed)owner->CommitComposition(std::move(state),selection_,false);
+        Refresh(true);owner->ClampViewport();owner->InvalidateRect(owner->canvas_,FALSE);lastApplySucceeded_=true;owner->SetFocus();
     }catch(const std::exception& e){Fail(e);}
 }
 }

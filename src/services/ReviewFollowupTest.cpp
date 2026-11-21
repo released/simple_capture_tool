@@ -24,7 +24,7 @@ void ProjectChecks(Check check,const std::filesystem::path& dir){
     CString expected;expected.Format(Tr(Text::ProjectImageBudget),static_cast<unsigned long long>(bytes*3-1));error.Empty();check(!services::PreflightProject(state,error,bytes*3-1)&&error==expected,"one-byte decoded-budget overflow is rejected with a concrete localized diagnostic");
     std::vector<BYTE> packet;check(services::EncodeProject(state,packet,error),"normal repeated assets still encode through the unchanged project writer");
     core::DocumentState restored;check(services::DecodeProject(packet,restored,error)&&restored.objects.size()==2&&restored.objects[1].asset->pixels==state.base->pixels,"current project round trip preserves repeated picture pixels");
-    int version=0;if(packet.size()>=12)memcpy(&version,packet.data()+8,4);check(version==14,"project preflight does not change the persisted format version");
+    int version=0;if(packet.size()>=12)memcpy(&version,packet.data()+8,4);check(version==sct::services::CurrentProjectVersion,"project preflight preserves the current writer version");
     const std::vector<BYTE> sentinel{1,2,3};packet=sentinel;auto invalid=state;invalid.base.reset();check(!services::EncodeProject(invalid,packet,error)&&packet==sentinel,"rejected project leaves prior output bytes unchanged");
     const CString path=(dir/L"pre.sctproj").c_str();check(services::SaveProject(state,path,error),"prepared valid project writes through the existing atomic path");std::vector<BYTE> before,after;services::ReadBytes(path,before,error);check(!services::SaveProject(invalid,path,error)&&services::ReadBytes(path,after,error)&&before==after,"project preflight failure preserves an existing destination");
 }

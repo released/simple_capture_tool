@@ -16,16 +16,18 @@ POINT Center(RECT r){return {r.left+(r.right-r.left)/2,r.top+(r.bottom-r.top)/2}
 POINT Middle(const Annotation& a){
     const auto& p=a.points;if(p.size()<2)return Center(a.rect);
     double total=0;for(size_t i=1;i<p.size();++i)total+=std::hypot(double(p[i].x)-p[i-1].x,double(p[i].y)-p[i-1].y);
-    double left=total/2;for(size_t i=1;i<p.size();++i){const double n=std::hypot(double(p[i].x)-p[i-1].x,double(p[i].y)-p[i-1].y);if(n>0&&left<=n)return {Coord(p[i-1].x+(p[i].x-p[i-1].x)*left/n),Coord(p[i-1].y+(p[i].y-p[i-1].y)*left/n)};left-=n;}return p.back();
+    double left=total*a.labelAlong/1000.;for(size_t i=1;i<p.size();++i){const double n=std::hypot(double(p[i].x)-p[i-1].x,double(p[i].y)-p[i-1].y);if(n>0&&left<=n)return {Coord(p[i-1].x+(p[i].x-p[i-1].x)*left/n),Coord(p[i-1].y+(p[i].y-p[i-1].y)*left/n)};left-=n;}return p.back();
 }
 }
 bool IsFlowNode(const Annotation& a){return a.flowKind!=0;}
 bool HasFlowText(const Annotation& a){return IsFlowNode(a)||a.connectorLabel;}
 bool HasEditableText(const Annotation& a){return a.tool==Tool::Text||a.tool==Tool::Callout||HasFlowText(a);}
 void ValidateFlow(const Annotation& a){
+    if(a.labelAlong<0||a.labelAlong>1000||std::abs(int64_t(a.labelOffset.x))>32768||std::abs(int64_t(a.labelOffset.y))>32768)throw std::runtime_error("Invalid connector label position");
     if(a.flowKind<0||a.flowKind>static_cast<int>(FlowShape::Computer)||a.flowKind&&a.tool!=Tool::Rectangle||a.connectorLabel&&(a.tool!=Tool::Arrow&&a.tool!=Tool::ElbowArrow))throw std::runtime_error("Invalid flow object kind");
     if(a.flowKind){Box(a.rect);if(a.sourceId||a.targetId||a.connectorLabel)throw std::runtime_error("Invalid flow node links");}
     if(HasFlowText(a)&&(a.text.GetLength()>65536||a.textAutoHeight||a.fontSize<6||a.fontSize>512||a.font.IsEmpty()||a.font.GetLength()>128||a.outline>0xFFFFFF||a.width<1||a.width>128||a.alignment<0||a.alignment>5))throw std::runtime_error("Invalid flow text layout");
+    if(a.connectorLabel){const auto middle=Middle(a);Coord(double(middle.x)+a.labelOffset.x);Coord(double(middle.y)+a.labelOffset.y);}
 }
 std::vector<POINT> FlowOutline(const Annotation& a){
     ValidateFlow(a);if(!IsFlowNode(a))throw std::runtime_error("Expected a flow node");const double l=a.rect.left,t=a.rect.top,r=a.rect.right,b=a.rect.bottom,w=r-l,h=b-t;std::vector<POINT> out;
@@ -56,11 +58,21 @@ POINT FlowAnchor(const Annotation& a,POINT toward,int mode,bool source){
     for(size_t i=0;i<v.size();++i){const auto q=v[i],next=v[(i+1)%v.size()];const double ex=double(next.x)-q.x,ey=double(next.y)-q.y,det=dx*ey-dy*ex;if(std::abs(det)<1e-9)continue;const double x=double(q.x)-c.x,y=double(q.y)-c.y,t=(x*ey-y*ex)/det,u=(x*dy-y*dx)/det;if(t>=0&&u>=0&&u<=1&&t<best){best=t;result={Coord(c.x+t*dx),Coord(c.y+t*dy)};}}
     return result;
 }
-CRect FlowLabelEnvelope(const Annotation& a){ValidateFlow(a);const auto c=Middle(a);return {c.x-180,c.y-120,c.x+180,c.y+120};}
+POINT FlowLabelCenter(const Annotation& a){ValidateFlow(a);const auto p=Middle(a);return {Coord(double(p.x)+a.labelOffset.x),Coord(double(p.y)+a.labelOffset.y)};}
+void PlaceFlowLabel(Annotation& a,POINT point){
+    ValidateFlow(a);if(!a.connectorLabel)throw std::runtime_error("Expected connector label");
+    double total=0;for(size_t i=1;i<a.points.size();++i)total+=std::hypot(double(a.points[i].x)-a.points[i-1].x,double(a.points[i].y)-a.points[i-1].y);
+    double distance=std::numeric_limits<double>::infinity(),along=0,passed=0;
+    for(size_t i=1;i<a.points.size();++i){const auto p=a.points[i-1],q=a.points[i];const double dx=double(q.x)-p.x,dy=double(q.y)-p.y,n=dx*dx+dy*dy,u=n?std::clamp(((point.x-p.x)*dx+(point.y-p.y)*dy)/n,0.,1.):0;
+        const double error=std::hypot(point.x-p.x-u*dx,point.y-p.y-u*dy);if(error<distance){distance=error;along=passed+std::sqrt(n)*u;}passed+=std::sqrt(n);}
+    auto candidate=a;candidate.labelAlong=total>0?std::clamp(int(std::lround(along*1000/total)),0,1000):500;candidate.labelOffset={};const auto anchor=FlowLabelCenter(candidate);
+    candidate.labelOffset={Coord(double(point.x)-anchor.x),Coord(double(point.y)-anchor.y)};ValidateFlow(candidate);a=std::move(candidate);
+}
+CRect FlowLabelEnvelope(const Annotation& a){const auto c=FlowLabelCenter(a);return {c.x-180,c.y-120,c.x+180,c.y+120};}
 CRect FlowTextBounds(const Annotation& a){
     ValidateFlow(a);
     if(IsFlowNode(a)){CRect r=a.rect;const int pad=std::max(8,a.textPadding)+a.width;r.DeflateRect(std::min(pad,std::max(0,(r.Width()-1)/2)),std::min(pad,std::max(0,(r.Height()-1)/2)));if(a.flowKind==int(FlowShape::Decision)){r.DeflateRect(std::max(0,r.Width()/5),std::max(0,r.Height()/6));}if(a.flowKind==int(FlowShape::Database)||a.flowKind==int(FlowShape::Person)||a.flowKind==int(FlowShape::Computer))r.top=std::min(r.bottom-1,r.top+std::min(24,r.Height()/3));return r;}
-    if(!a.connectorLabel)throw std::runtime_error("Expected flow text");const auto c=Middle(a);int longest=0,line=0,size=a.fontSize;for(const auto& run:a.textRuns)size=std::max(size,run.size);for(int i=0;i<a.text.GetLength();++i){if(a.text[i]==L'\n'||a.text[i]==L'\r'){longest=std::max(longest,line);line=0;}else ++line;}longest=std::max(longest,line);const int w=std::clamp(longest*size,80,360),h=std::clamp(NativeTextHeight(a,w,240),32,240);return {c.x-w/2,c.y-h/2,c.x+(w-w/2),c.y+(h-h/2)};
+    if(!a.connectorLabel)throw std::runtime_error("Expected flow text");const auto c=FlowLabelCenter(a);int longest=0,line=0,size=a.fontSize;for(const auto& run:a.textRuns)size=std::max(size,run.size);for(int i=0;i<a.text.GetLength();++i){if(a.text[i]==L'\n'||a.text[i]==L'\r'){longest=std::max(longest,line);line=0;}else ++line;}longest=std::max(longest,line);const int w=std::clamp(longest*size,80,360),h=std::clamp(NativeTextHeight(a,w,240),32,240);return {c.x-w/2,c.y-h/2,c.x+(w-w/2),c.y+(h-h/2)};
 }
 Annotation FlowTextObject(const Annotation& a){
     auto text=a;text.rect=FlowTextBounds(a);text.tool=Tool::Text;text.flowKind=0;text.connectorLabel=false;text.points.clear();text.id=text.sourceId=text.targetId=0;text.sourceAnchor=text.targetAnchor=0;text.asset.reset();text.color=a.outline;text.textBackground=a.connectorLabel&&a.textBackground;text.shadow=false;text.textPadding=0;text.textAutoHeight=false;return text;

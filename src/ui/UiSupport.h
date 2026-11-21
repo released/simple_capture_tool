@@ -86,7 +86,11 @@ enum Command : UINT {
     BatchList=44900,BatchNameEdit,BatchFolderEdit,BatchBrowse,BatchFormatChoice,BatchQualityEdit,SelectRatio=44920,StickerList=44950,StickerAdd,StickerRename,StickerRemove,StickerSave,
     FlowPanelToggle=45000,FlowStraight,FlowElbow,FlowBlue,FlowGreen,FlowAmber,FlowPurple,FlowArrangeHorizontal,FlowArrangeVertical,FlowEditLabel,FlowLineMode,FlowArrowMode,
     FlowShapeFirst=45040,FlowShapeLast=45048,FlowPaneControl=45060,
-    ZoomSelection=45100,ZoomPrevious,MatchWidth,MatchHeight,MatchSize,FitFlowText,FileLocation,CopyFilePath,StepLabels,ExtractPalette,MultiCallout,RerouteConnectors
+    ZoomSelection=45100,ZoomPrevious,MatchWidth,MatchHeight,MatchSize,FitFlowText,FileLocation,CopyFilePath,StepLabels,ExtractPalette,MultiCallout,RerouteConnectors,
+    PasteAtView=45200,PasteHere,NavigatorToggle,FilterObjects,FlowLabelPosition,ResetFlowLabel,
+    NavigatorClose=45220,NavigatorPane,SidebarSearch,SidebarType,SidebarLock,
+    CompareRegions=45240,ComparePrevious,CompareNext,CompareOverview,CompareFocus,
+    PerspectivePreview=45260,PerspectiveReset,PerspectiveCornerFirst=45270
 };
 bool CopyPlainText(HWND,const CString&,CString&);
 constexpr UINT TrayMessage = WM_APP + 21;

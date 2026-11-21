@@ -1,7 +1,7 @@
 #pragma once
 #include "../core/Document.h"
 namespace sct::services {
-struct ImageComparison {core::Image before,after,difference;uint64_t changed=0,total=0;};
+struct ImageComparison {core::Image before,after,difference;uint64_t changed=0,total=0;std::vector<RECT> regions;bool regionsCombined=false;};
 struct CompareOptions {int tolerance=0,offsetX=0,offsetY=0;};
 bool CompareImages(core::Image,core::Image,ImageComparison&,CString&,CompareOptions={});
 bool CompareDocuments(const core::DocumentState&,const core::DocumentState&,ImageComparison&,CString&,CompareOptions={});

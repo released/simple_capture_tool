@@ -9,7 +9,7 @@ void EditorFrame::OnContextMenu(CWnd* source,CPoint point){
     CMenu menu;if(!menu.CreatePopupMenu())return;std::vector<UINT> allowed;const auto selected=Selection();const bool objects=!selected.empty(),editable=objects&&!SelectionLocked(),crop=cropRevision_==revision_&&!cropRegion_.IsRectEmpty();
     auto add=[&](UINT command,Text label,bool enabled=true){menu.AppendMenu(MF_STRING|(enabled?0:MF_GRAYED),command,Tr(label));if(enabled)allowed.push_back(command);};
     add(Undo,Text::Undo,document_.UndoCount()>0);add(Redo,Text::Redo,document_.RedoCount()>0);menu.AppendMenu(MF_SEPARATOR);
-    add(Copy,Text::Copy);add(Cut,Text::Cut,!SelectionLocked());add(PasteImage,Text::PasteImage);add(SelectAllPixels,Text::SelectAll);add(SelectAllObjects,Text::SelectAllObjects,!document_.State().objects.empty());
+    add(Copy,Text::Copy);add(Cut,Text::Cut,!SelectionLocked());add(PasteImage,Text::PasteImage);add(PasteHere,Text::PasteHere);add(PasteAtView,Text::PasteAtView);add(SelectAllPixels,Text::SelectAll);add(SelectAllObjects,Text::SelectAllObjects,!document_.State().objects.empty());
     add(DeselectPixels,Text::Deselect,!pixelSelection_.IsRectEmpty()||crop);add(ObjectsHere,Text::ObjectsHere,!document_.State().objects.empty());add(SelectionNewImage,Text::SelectionNewImage,!pixelSelection_.IsRectEmpty()||crop);menu.AppendMenu(MF_SEPARATOR);
     add(Properties,Text::Properties,editable&&selected.size()==1);add(Duplicate,Text::Duplicate,editable);add(DeleteObject,Text::DeleteObject,editable||(!objects&&!pixelSelection_.IsRectEmpty()));
     add(Forward,Text::Forward,editable);add(Backward,Text::Backward,editable);add(BringToFront,Text::BringToFront,editable);add(SendToBack,Text::SendToBack,editable);add(GroupObjects,Text::GroupObjects,editable&&selected.size()>1);add(UngroupObjects,Text::UngroupObjects,editable&&std::any_of(selected.begin(),selected.end(),[&](int i){return document_.State().objects[i].group!=0;}));add(LockObjects,Text::LockObjects,editable);add(UnlockObjects,Text::UnlockObjects,objects&&SelectionLocked());
@@ -18,6 +18,7 @@ void EditorFrame::OnContextMenu(CWnd* source,CPoint point){
     try{command=audit?audit(menu):menu.TrackPopupMenu(TPM_RETURNCMD|TPM_RIGHTBUTTON,point.x,point.y,this);}catch(...){if(::IsWindow(host)&&CWnd::FromHandlePermanent(host)==this)screenColorModal_=false;throw;}
     if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;screenColorModal_=false;
     if(revision!=revision_||selected!=Selection()||generation!=cropGeneration_||pixels!=pixelSelection_||!IsWindowEnabled()||(root&&!::IsWindowEnabled(root))||std::find(allowed.begin(),allowed.end(),command)==allowed.end())return;
-    if(command==ObjectsHere){overlapPoint_=point;ScreenToClient(&overlapPoint_);}SendMessage(WM_COMMAND,command);
+    if(command==ObjectsHere){overlapPoint_=point;ScreenToClient(&overlapPoint_);}
+    if(command==PasteHere){auto client=point;ScreenToClient(&client);contextPastePoint_=PasteAnchor(client);}SendMessage(WM_COMMAND,command);
 }
 }

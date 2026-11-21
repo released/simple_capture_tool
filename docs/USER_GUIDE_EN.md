@@ -791,7 +791,7 @@ Effect preview offers original-image and split-comparison views. Drag the divide
 - Apply to the current pixel/crop selection if desired, preview, and apply or cancel.
 - This differs from reducing the number of levels per channel.
 
-- **Edit → Rotate / flip → Four-corner perspective to new image** accepts source corners in top-left, top-right, bottom-right, bottom-left order, for example `10,5;900,20;880,600;15,580`, plus output dimensions.
+- **Edit → Rotate / flip → Four-corner perspective to new image** provides draggable source corners and a corrected preview. Numeric fields also accept corners in top-left, top-right, bottom-right, bottom-left order, for example `10,5;900,20;880,600;15,580`, plus output dimensions.
 - Corners must lie within the image and form a convex quadrilateral.
 - The result is a new raster page at 100%, preserving the source and editable annotations.
 - It is not automatically saved.
@@ -839,7 +839,7 @@ Effect preview offers original-image and split-comparison views. Drag the divide
 - PNG retains transparency. JPG, BMP, GIF, PDF, and printing composite onto white. The transparency checkerboard is an editor preview only.
 - GIF is a static 256-color image. PDF contains image pages rather than editable vectors. Print preview uses A4 as a reference; actual paper and orientation follow the printer dialog.
 - Project saves check the decoded embedded-image total before encoding. The current format counts reused assets once per occurrence, unlike shared RAM accounting. A rejected project leaves the destination unchanged.
-- `.sctproj` embeds the original image, assets, and editable objects. The current v14 format can read v1–v13 projects. Older application versions may not read newer files. Fonts are not embedded; another computer needs the same fonts.
+- `.sctproj` embeds the original image, assets, and editable objects. The current v15 format can read v1–v14 projects. Older application versions may not read newer files. Fonts are not embedded; another computer needs the same fonts.
 
 For sensitive content, apply solid redaction and export a composed image. Editable projects retain the source before redaction. Blur and mosaic are not equivalent to securely removing the information.
 
@@ -891,6 +891,35 @@ Other common operations:
 - Narrow windows put items that do not fit under **Collapsed tools**.
 - The complete top **Edit** menu remains available.
 - Configure main-window buttons separately under **Settings → Home features**.
+
+## Placement, navigation, and common properties
+
+| Entry | Behavior |
+| --- | --- |
+| Clipboard → Paste at view center | Uses the current zoom and scroll position as the placement center and retains original pixel dimensions. |
+| Canvas context menu → Paste here | Places the content's top-left at the context point, expanding the canvas right/down when necessary. |
+| Zoom → Canvas navigator | Opens an optional thumbnail and viewport rectangle. Click or drag to navigate, use arrow keys to move, or Esc to close. |
+| View → Filter object list | Filters sidebar rows by name / first 128 text characters, type, and lock state. |
+
+- Ordinary `Ctrl+V` retains original dimensions, 100% display, and top-left placement.
+- The navigator waits for the current render and is excluded from image output.
+- `Ctrl+A` in a filtered object list selects matching rows. A group stays one row if any member matches.
+- Compatible unlocked, ungrouped objects can share font-size, stroke-width, and opacity edits in the property sidebar. Mixed values use an empty field with a Mixed cue.
+- Only edited fields apply. Text content and positions remain intact, and one Undo reverses the operation. Invalid drafts remain editable.
+
+### Connector labels and quick numbering
+
+- Select an independent connector and drag its label to move text without moving its path or endpoints.
+- **Flow diagram → Connector label position** sets distance along the path in percent and X/Y pixel offsets. **Reset label position** returns to the midpoint.
+- Stored label placement uses project format 15. Earlier project formats remain readable with midpoint labels; older application versions cannot read format 15.
+- Hold `Alt` and turn the wheel with one numeric or explicitly alphabetic step selected to adjust its number within 1–100000. Each adjustment supports Undo.
+- Custom labels and labels without stored sequence metadata are not inferred to be alphabet sequences. Double-click and explicitly choose an alphabet mode to enable quick adjustment.
+
+### Difference navigation
+
+- Choose a region from the comparison list or use Previous / Next difference.
+- Zoom to difference focuses the chosen region; Whole image restores the overview. Side-by-side, difference, and swipe modes remain available.
+- A bounded block index groups nearby changes into up to 256 regions. Excess regions are combined with a notice; the detailed difference image and changed-pixel count remain complete.
 
 ## Language and portable settings
 

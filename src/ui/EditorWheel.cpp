@@ -10,6 +10,7 @@ BOOL EditorFrame::OnMouseWheel(UINT flags,short delta,CPoint point)
     ScreenToClient(&point);
     if(!canvas_.PtInRect(point))return FALSE;
     if(!delta)return TRUE;
+    if(!(flags&(MK_CONTROL|MK_SHIFT))&&GetKeyState(VK_MENU)<0&&StepWheel(delta))return TRUE;
     if(flags&MK_CONTROL){
         const double next=std::clamp(zoom_*std::pow(1.2,static_cast<double>(delta)/WHEEL_DELTA),.01,8.0);
         if(next==zoom_&&!fit_)return TRUE;

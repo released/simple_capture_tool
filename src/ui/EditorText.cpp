@@ -25,7 +25,7 @@ void EditorFrame::EditStep(int index){
     const auto revision=revision_,mask=maskEpoch_,crop=cropGeneration_;const auto selected=Selection();
     const bool labeled=core::HasStepLabel(original);
     FormDialog dialog(this,Text::Step,{{Text::Number,Number(original.number)},
-        {Text::StepLabelMode,labeled?L"3":L"0",FieldKind::Choice,{Tr(Text::StepNumeric),Tr(Text::StepUpper),Tr(Text::StepLower),Tr(Text::StepCustom)}},
+        {Text::StepLabelMode,Number(labeled?(core::ExplicitStepMode(original)<0?3:core::ExplicitStepMode(original)):0),FieldKind::Choice,{Tr(Text::StepNumeric),Tr(Text::StepUpper),Tr(Text::StepLower),Tr(Text::StepCustom)}},
         {Text::StepCustom,labeled?core::StepCaption(original):CString()}});
     dialog.SetValidator([](const auto& fields)->std::optional<FormIssue>{if(auto issue=IntegerIssue(fields,0,1,100000))return issue;if(auto issue=IntegerIssue(fields,1,0,3))return issue;try{core::StepLabel(fields[0].Integer(),fields[1].Integer(),fields[2].value);}catch(const std::exception&){return FormIssue{2,CString(Tr(Text::InvalidValue))+L": "+Tr(fields[2].label)};}return {};});
     const auto form=commandFormAudit_;INT_PTR answer=IDCANCEL;screenColorModal_=true;
@@ -36,7 +36,7 @@ void EditorFrame::EditStep(int index){
     if(!operation.Live()||answer!=IDOK||revision!=revision_||mask!=maskEpoch_||crop!=cropGeneration_||selected!=Selection()||WorkingForBuild(true)||sidebar_.Dirty()||textEditing_)return;
     auto edited=original;edited.number=Range(dialog.Fields()[0],1,100000);const int mode=Range(dialog.Fields()[1],0,3);
     // Untagged legacy text remains ignored; tagged labels change only explicitly.
-    if(mode||labeled)edited.text=core::StepText(edited.number,mode,dialog.Fields()[2].value);
+    if(mode||labeled){const int initialMode=labeled?(core::ExplicitStepMode(original)<0?3:core::ExplicitStepMode(original)):0;const bool keepCustom=mode==3&&initialMode==3&&dialog.Fields()[2].value==core::StepCaption(original);if(!keepCustom&&(mode!=initialMode||edited.number!=original.number||mode==3&&dialog.Fields()[2].value!=core::StepCaption(original)))edited.text=core::StepText(edited.number,mode,dialog.Fields()[2].value);}
     if(edited.number==original.number&&edited.text==original.text)return;
     document_.Replace(index,edited);Changed();SyncStyle();
     }catch(const std::exception&){if(operation.Live())status_.SetWindowText(Tr(Text::InvalidValue));}

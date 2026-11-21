@@ -57,9 +57,19 @@ CString StepLabel(int number,int mode,const CString& custom){
     if(mode==3){CString visible=custom;visible.Trim();if(visible.IsEmpty()||custom.GetLength()>16||std::any_of(custom.GetString(),custom.GetString()+custom.GetLength(),[](wchar_t c){return c<32||c==127;}))throw std::runtime_error("Use1..16 visible label characters");return custom;}
     CString text;for(int n=number;n;n=(n-1)/26)text.Insert(0,wchar_t((mode==1?L'A':L'a')+(n-1)%26));return text;
 }
-CString StepText(int number,int mode,const CString& custom){const auto label=StepLabel(number,mode,custom);return label.IsEmpty()?CString():CString(L"\x001FSCT.STEP.1:")+label;}
-bool HasStepLabel(const Annotation& a){const CString prefix=L"\x001FSCT.STEP.1:";if(a.text.Left(prefix.GetLength())!=prefix)return false;const auto label=a.text.Mid(prefix.GetLength());return !label.IsEmpty()&&label.GetLength()<=16&&std::none_of(label.GetString(),label.GetString()+label.GetLength(),[](wchar_t c){return c<32||c==127;});}
-CString StepCaption(const Annotation& a){if(HasStepLabel(a))return a.text.Mid(CString(L"\x001FSCT.STEP.1:").GetLength());CString numeric;numeric.Format(L"%d",a.number);return numeric;}
+CString StepText(int number,int mode,const CString& custom){const auto label=StepLabel(number,mode,custom);if(label.IsEmpty())return {};CString tag;tag.Format(L"\x001FSCT.STEP.2:%d:",mode);return tag+label;}
+namespace {
+int StepPrefix(const CString& text){const CString old=L"\x001FSCT.STEP.1:",current=L"\x001FSCT.STEP.2:";
+    if(text.Left(old.GetLength())==old)return old.GetLength();const int n=current.GetLength();
+    return text.Left(n)==current&&text.GetLength()>n+2&&text[n]>=L'1'&&text[n]<=L'3'&&text[n+1]==L':'?n+2:0;
+}
+}
+bool HasStepLabel(const Annotation& a){const int prefix=StepPrefix(a.text);if(!prefix)return false;const auto label=a.text.Mid(prefix);return !label.IsEmpty()&&label.GetLength()<=16&&std::none_of(label.GetString(),label.GetString()+label.GetLength(),[](wchar_t c){return c<32||c==127;});}
+CString StepCaption(const Annotation& a){if(HasStepLabel(a))return a.text.Mid(StepPrefix(a.text));CString numeric;numeric.Format(L"%d",a.number);return numeric;}
+int ExplicitStepMode(const Annotation& a){if(!HasStepLabel(a))return 0;const CString prefix=L"\x001FSCT.STEP.2:";return a.text.Left(prefix.GetLength())==prefix?a.text[prefix.GetLength()]-L'0':-1;}
+bool AdjustStepNumber(Annotation& a,int delta){if(a.tool!=Tool::Step||a.locked||a.hidden||a.group)throw std::runtime_error("Choose one unlocked step marker");const int mode=ExplicitStepMode(a);if(mode<0||mode==3)return false;
+    const int next=int(std::clamp<int64_t>(int64_t(a.number)+delta,1,100000));if(next==a.number)return false;a.number=next;if(mode)a.text=StepText(next,mode);return true;
+}
 
 DocumentState SetStepLabels(const DocumentState& input,const composition::Indices& selected,int mode,const CString& custom){
     auto ids=selected;if(ids.empty())for(size_t i=0;i<input.objects.size();++i)if(input.objects[i].tool==Tool::Step&&!input.objects[i].hidden)ids.push_back(int(i));

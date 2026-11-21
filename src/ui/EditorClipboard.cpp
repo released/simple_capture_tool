@@ -3,6 +3,7 @@
 #include "../core/PixelTools.h"
 #include "../core/ImageOperations.h"
 #include "../core/DocumentationTools.h"
+#include "../core/EditorEfficiency.h"
 #include "../services/DocumentRenderer.h"
 #include "../services/ClipboardTransfer.h"
 namespace sct::ui {
@@ -15,19 +16,20 @@ bool EditorFrame::PrepareClipboardAction(UINT id)
         if(id==Cut&&pixelSelection_.IsRectEmpty()&&cropRegion_.IsRectEmpty()&&selected_<0)return true;
         CompleteClipboardCopy(false);copyTicket_=services::BeginClipboardTransfer();SetCopyNotice(CopyNotice::Pending);status_.SetWindowText(copyNoticeText_);
     }
-    if(id==PasteImage){
+    if(id==PasteImage||id==PasteAtView||id==PasteHere){
         if(pasteTicket_)return false;
+        waitingPasteCommand_=id;
         pasteTicket_=services::ClipboardTransferForPaste();
         if(pasteTicket_){status_.SetWindowText(Tr(Text::ClipboardWaiting));PollClipboardPaste();return false;}
     }
     return true;
 }
 void EditorFrame::CompleteClipboardCopy(bool success,std::optional<uint32_t> sequence){const bool pending=copyTicket_!=0;services::CompleteClipboardTransfer(copyTicket_,success,sequence);copyTicket_=0;if(pending&&!success)SetCopyNotice(CopyNotice::Failed);}
-void EditorFrame::QueueAction(UINT id){if(id!=Copy&&id!=Cut&&(pendingAction_==Copy||pendingAction_==Cut))CompleteClipboardCopy(false);pendingAction_=id;pendingRevision_=revision_;pendingMaskEpoch_=maskEpoch_;pendingSelected_=selected_;pendingRegion_=pixelSelection_;pendingObjects_=Selection();pendingCrop_=cropGeneration_;}
+void EditorFrame::QueueAction(UINT id){if(id!=Copy&&id!=Cut&&(pendingAction_==Copy||pendingAction_==Cut))CompleteClipboardCopy(false);if(id!=PasteAtView&&id!=PasteHere)positionedPaste_.reset();pendingAction_=id;pendingRevision_=revision_;pendingMaskEpoch_=maskEpoch_;pendingSelected_=selected_;pendingRegion_=pixelSelection_;pendingObjects_=Selection();pendingCrop_=cropGeneration_;}
 void EditorFrame::RunPendingAction()
 {
     if(job_.Busy()||!pendingAction_)return;const UINT id=pendingAction_;pendingAction_=0;
-    if(pendingMaskEpoch_!=maskEpoch_||pendingRevision_!=revision_||pendingSelected_!=selected_||pendingRegion_!=pixelSelection_||pendingObjects_!=Selection()||pendingCrop_!=cropGeneration_){CompleteClipboardCopy(false);status_.SetWindowText(Tr(Text::Busy));return;}
+    if(pendingMaskEpoch_!=maskEpoch_||pendingRevision_!=revision_||pendingSelected_!=selected_||pendingRegion_!=pixelSelection_||pendingObjects_!=Selection()||pendingCrop_!=cropGeneration_){positionedPaste_.reset();CompleteClipboardCopy(false);status_.SetWindowText(Tr(Text::Busy));return;}
     // Replaying a queued copy must retain its original intent, not create a newer one.
     if(id!=Copy&&id!=Cut){OnAction(id);return;}
     try{ClipboardCommand(id);}catch(const std::exception& e){CompleteClipboardCopy(false);CString error;error.Format(L"%s (%hs)",Tr(Text::Failed),e.what());status_.SetWindowText(error);}
@@ -36,7 +38,7 @@ void EditorFrame::PollClipboardPaste()
 {
     if(!pasteTicket_||job_.Busy())return;
     const auto state=services::InspectClipboardTransfer(pasteTicket_);if(state==services::ClipboardTransferState::Pending)return;
-    pasteTicket_=0;if(state==services::ClipboardTransferState::Failed){status_.SetWindowText(Tr(Text::ClipboardCopyFailed));return;}OnAction(PasteImage);
+    pasteTicket_=0;if(state==services::ClipboardTransferState::Failed){positionedPaste_.reset();status_.SetWindowText(Tr(Text::ClipboardCopyFailed));return;}OnAction(waitingPasteCommand_);
 }
 void EditorFrame::PublishClipboardResult(WorkResult& result)
 {
@@ -64,10 +66,13 @@ void EditorFrame::PublishClipboardResult(WorkResult& result)
 void EditorFrame::CompleteImagePaste(WorkResult& result)
 {
     if(result.revision!=revision_){status_.SetWindowText(Tr(Text::Busy));return;}
+    const bool positioned=result.command==PasteAtView||result.command==PasteHere;
+    if(positioned&&(result.transformSource!=document_.State().base||result.maskEpoch!=maskEpoch_||result.preview!=cropGeneration_||result.expected!=Selection())){status_.SetWindowText(Tr(Text::LayoutStale));return;}
     document_.Commit(std::move(result.state));image_=std::move(result.image);thumbnail_=std::move(result.thumbnail);
     dirty_=true;++revision_;++previewGeneration_;rendered_=revision_;renderPending_=false;CancelMask();CancelCrop();pixelSelection_.SetRectEmpty();
     fit_=false;zoom_=1;offsetX_=offsetY_=0;style_.tool=core::Tool::Select;
-    Select(static_cast<int>(document_.State().objects.size())-1);NotifyWorkspace();InvalidateRect(canvas_,FALSE);
+    if(positioned){SetSelection(std::move(result.selected));const CRect box=core::composition::Bounds(document_.State(),Selection());offsetX_=std::max<LONG>(0,box.CenterPoint().x-canvas_.Width()/2);offsetY_=std::max<LONG>(0,box.CenterPoint().y-canvas_.Height()/2);ClampViewport();TextPosition();ViewStatus();}
+    else Select(static_cast<int>(document_.State().objects.size())-1);NotifyWorkspace();InvalidateRect(canvas_,FALSE);
 }
 void EditorFrame::ClipboardCommand(UINT id)
 {
@@ -75,15 +80,19 @@ void EditorFrame::ClipboardCommand(UINT id)
     if(id==DeselectPixels){CancelMask();CancelCrop();pixelSelection_.SetRectEmpty();InvalidateRect(canvas_,FALSE);return;}
     const auto state=document_.State();const auto revision=revision_;const int selected=selected_;const auto ids=Selection();const CRect region=style_.tool==core::Tool::Crop&&cropRevision_==revision_?cropRegion_:pixelSelection_;
     const auto mask=ActiveMask();const auto epoch=maskEpoch_;if(mask&&(uint64_t(state.base->pixels.size())*2+uint64_t(mask->bounds.Width())*mask->bounds.Height()*4>512ULL*1024*1024)){if(id==Cut||id==Copy)CompleteClipboardCopy(false);throw std::runtime_error("Masked operation direct-buffer limit");}if(mask&&(id==Cut||id==DeleteObject||id==SelectPixels)&&std::any_of(state.objects.begin(),state.objects.end(),[](const auto& a){return a.locked;})){if(id==Cut)CompleteClipboardCopy(false);if(id==SelectPixels){pixelSelection_=pixelOriginal_;Preview();}status_.SetWindowText(Tr(Text::ObjectsLocked));return;}
-    if(id==PasteImage){
+    if(id==PasteImage||id==PasteAtView||id==PasteHere){
+        const auto placement=positionedPaste_;positionedPaste_.reset();
+        if(id!=PasteImage&&(!placement||placement->command!=id||!PastePositionCurrent(*placement))){status_.SetWindowText(Tr(Text::LayoutStale));return;}
         const HWND owner=m_hWnd;const DWORD sequence=GetClipboardSequenceNumber();const CString changed=Tr(Text::ClipboardCopyFailed),limit=Tr(Text::PasteImageLimit);const auto reader=pasteReadAudit_;
-        activeAction_=WorkComposition;StartWork([state,revision,owner,sequence,changed,limit,reader]{WorkResult r;r.action=WorkComposition;r.revision=revision;
+        activeAction_=placement?WorkImagePaste:WorkComposition;StartWork([state,revision,owner,sequence,changed,limit,reader,placement,id]{WorkResult r;r.action=WorkComposition;r.revision=revision;r.command=id;
+            if(placement){r.maskEpoch=placement->epoch;r.preview=placement->crop;r.expected=placement->selected;r.transformSource=placement->source;}
             if(!reader&&sequence!=GetClipboardSequenceNumber()){r.error=changed;return r;}core::DocumentState clipboard;
             if(reader){if(!reader(clipboard,r.image,r.error))return r;}
             else{bool found=false;if(!services::ReadClipboardObjects(owner,clipboard,found,r.error))return r;if((!found||clipboard.objects.empty())&&!services::ReadClipboardImage(owner,r.image,r.error))return r;}
-            if(!clipboard.objects.empty()){r.state=state;core::composition::Append(r.state,clipboard.objects);for(size_t i=state.objects.size();i<r.state.objects.size();++i)r.selected.push_back(static_cast<int>(i));}
-            else{r.action=WorkImagePaste;if(!core::PasteImageOriginalSize(state,std::move(r.image),r.state)){r.error=limit;return r;}
-                if(services::RenderDocument(r.state,r.image,r.error)){const double scale=std::min({1.0,144.0/r.image.width,96.0/r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,static_cast<int>(r.image.width*scale)),std::max(1,static_cast<int>(r.image.height*scale)));}}
+            if(!clipboard.objects.empty()){if(placement)r.state=core::PasteObjectsAt(state,clipboard,placement->point,placement->centered,r.selected);
+                else{r.state=state;core::composition::Append(r.state,clipboard.objects);for(size_t i=state.objects.size();i<r.state.objects.size();++i)r.selected.push_back(static_cast<int>(i));}}
+            else{r.action=WorkImagePaste;const bool prepared=placement?core::PasteImageAt(state,std::move(r.image),placement->point,placement->centered,r.state):core::PasteImageOriginalSize(state,std::move(r.image),r.state);if(!prepared){r.error=limit;return r;}r.selected={static_cast<int>(r.state.objects.size())-1};}
+            if(placement||r.action==WorkImagePaste){r.action=WorkImagePaste;if(services::RenderDocument(r.state,r.image,r.error)){const double scale=std::min({1.0,144.0/r.image.width,96.0/r.image.height});r.thumbnail=core::Resize(r.image,std::max(1,static_cast<int>(r.image.width*scale)),std::max(1,static_cast<int>(r.image.height*scale)));}}
             if(!reader&&sequence!=GetClipboardSequenceNumber())r.error=changed;return r;});return;
     }
     if(id==SelectPixels||id==DeleteObject){if(region.IsRectEmpty())return;if(!state.objects.empty()&&MessageBox(Tr(Text::FlattenNotice),Tr(Text::PixelSelection),MB_YESNO|MB_ICONQUESTION)!=IDYES){pixelSelection_=pixelOriginal_;return;}
