@@ -1,7 +1,7 @@
 #pragma once
 #include "ProjectFormat.h"
 namespace sct::services::testing {
-enum class PacketField {Group,EffectBrush,FlowKind,ConnectorLabel,LabelAlong,LabelOffsetX,LabelOffsetY};
+enum class PacketField {Group,EffectBrush,FlowKind,ConnectorLabel,LabelAlong,LabelOffsetX,LabelOffsetY,TargetAnchor,HighlightBlend,TextRunStyle};
 inline void SealPacket(std::vector<BYTE>& bytes){
     if(bytes.size()<16)throw std::runtime_error("Fixture packet too short");uint32_t crc=~0u;
     for(size_t i=0;i<bytes.size()-4;++i){crc^=bytes[i];for(int bit=0;bit<8;++bit)crc=(crc>>1)^(0xEDB88320u&uint32_t(-int(crc&1)));}crc=~crc;memcpy(bytes.data()+bytes.size()-4,&crc,4);
@@ -17,8 +17,10 @@ inline size_t LastPacketField(const std::vector<BYTE>& bytes,PacketField field){
         skip(4+sizeof(RECT));counted(sizeof(POINT),1000000);counted(2,65536);counted(2,65536);skip(9*4);if(version>=2)skip(sizeof(POINT));counted(1,512*1024*1024);
         if(version>=3)skip(4*4);if(version>=4)skip(4);if(version>=5)skip(4);if(version>=7){counted(2,80);skip(4);}
         if(version>=6){if(i==count-1&&field==PacketField::Group)found=at;skip(8);}
-        if(version>=8){skip(sizeof(RECT));const int runs=integer();if(runs<0||runs>512)throw std::runtime_error("Fixture run count");for(int j=0;j<runs;++j){skip(8);counted(2,128);skip(12);}}
-        if(version>=9)skip(7*4);if(version>=10)skip(11*4);if(version>=11)skip(4);if(version>=12)skip(4*4);
+        if(version>=8){skip(sizeof(RECT));const int runs=integer();if(runs<0||runs>512)throw std::runtime_error("Fixture run count");for(int j=0;j<runs;++j){skip(8);counted(2,128);skip(8);if(i==count-1&&j==runs-1&&field==PacketField::TextRunStyle)found=at;skip(4);}}
+        if(version>=9)skip(7*4);if(version>=10)skip(11*4);
+        if(version>=11){if(i==count-1&&field==PacketField::HighlightBlend)found=at;skip(4);}
+        if(version>=12){skip(3*4);if(i==count-1&&field==PacketField::TargetAnchor)found=at;skip(4);}
         if(version>=13){if(i==count-1&&field==PacketField::EffectBrush)found=at;skip(4);}
         if(version>=14){if(i==count-1&&field==PacketField::FlowKind)found=at;skip(4);if(i==count-1&&field==PacketField::ConnectorLabel)found=at;skip(4);}
         if(version>=15){if(i==count-1&&field==PacketField::LabelAlong)found=at;skip(4);if(i==count-1&&field==PacketField::LabelOffsetX)found=at;skip(4);if(i==count-1&&field==PacketField::LabelOffsetY)found=at;skip(4);}

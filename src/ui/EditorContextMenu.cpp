@@ -19,6 +19,9 @@ void EditorFrame::OnContextMenu(CWnd* source,CPoint point){
     if(!::IsWindow(host)||CWnd::FromHandlePermanent(host)!=this)return;screenColorModal_=false;
     if(revision!=revision_||selected!=Selection()||generation!=cropGeneration_||pixels!=pixelSelection_||!IsWindowEnabled()||(root&&!::IsWindowEnabled(root))||std::find(allowed.begin(),allowed.end(),command)==allowed.end())return;
     if(command==ObjectsHere){overlapPoint_=point;ScreenToClient(&overlapPoint_);}
-    if(command==PasteHere){auto client=point;ScreenToClient(&client);contextPastePoint_=PasteAnchor(client);}SendMessage(WM_COMMAND,command);
+    if(command==PasteHere){
+        if(pasteTicket_){status_.SetWindowText(Tr(Text::ClipboardWaiting));return;}
+        positionedPaste_.reset();auto client=point;ScreenToClient(&client);contextPastePoint_=PasteAnchor(client);
+    }SendMessage(WM_COMMAND,command);
 }
 }

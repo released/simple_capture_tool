@@ -11,7 +11,14 @@ public:
     bool Start(std::function<T()> job,T failure){
         std::lock_guard<std::mutex> lock(mutex_);if(busy_)return false;
         failure.error=L"Background operation failed (insufficient memory or unexpected failure)";
-        auto fallback=std::make_unique<T>(std::move(failure));auto prepared=std::make_unique<T>();fallback_=std::move(fallback);prepared_=std::move(prepared);cancel=false;busy_=true;job_=std::move(job);wake_.notify_one();return true;
+#if SCT_ENABLE_SELFTESTS
+        if(startFault==1)throw std::bad_alloc();
+#endif
+        auto fallback=std::make_unique<T>(std::move(failure));
+#if SCT_ENABLE_SELFTESTS
+        if(startFault==2)throw std::bad_alloc();
+#endif
+        auto prepared=std::make_unique<T>();fallback_=std::move(fallback);prepared_=std::move(prepared);cancel=false;busy_=true;job_=std::move(job);wake_.notify_one();return true;
     }
     bool Busy()const{return busy_;}
     std::unique_ptr<T> TakeOwned(){
@@ -22,6 +29,7 @@ public:
     std::atomic_bool cancel{false};
 #if SCT_ENABLE_SELFTESTS
     std::atomic_bool diagnosticFault{false};
+    std::atomic_int startFault{0};
 #endif
 private:
     void Run(){

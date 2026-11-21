@@ -35,7 +35,7 @@ private:
     PerspectiveSurface original_,result_;CStatic originalLabel_,resultLabel_,info_;CComboBox corner_;CButton coordinates_,reset_,ok_,cancel_;CFont font_;
     core::BackgroundJob<Result> job_;
 #if SCT_ENABLE_SELFTESTS
-    std::function<void(PerspectiveDialog&)> initAudit_,readyAudit_;std::function<void()> workAudit_;
+    std::function<void(PerspectiveDialog&)> initAudit_,readyAudit_;std::function<void()> workAudit_,submitAudit_;
     std::function<INT_PTR(FormDialog&)> coordinatesAudit_;
     CRect workAreaAudit_;
 #endif

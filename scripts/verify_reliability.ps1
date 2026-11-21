@@ -1,6 +1,6 @@
 ﻿param(
     [ValidateSet('Release','Debug','Both')][string]$Configuration='Both',
-    [ValidateSet('EditorEfficiencyProperties','EditorEfficiency','ImagePrecision','PasteOriginal','RuntimeContracts','ReviewPolish','Discussion','Sidebar','Discovery','FlowDiagram','ObjectAlignment','CommandTools','EditorMenus','WheelNavigation','Instance','ReviewFollowup','ReviewRefinements','EditableLayout','ObjectPayload','NoticeAlignment','Status','ReviewReliability','ReviewOptimization','SaveDirectory','EditorTransitions','Composition','ClipboardFeedback','SelectionToolbar','CaptureMagnifier','CaptureLatency','Startup')]
+    [ValidateSet('AssetSelection','DocumentationTools','TextRuns','EditorRecovery','EditorEfficiencyProperties','EditorEfficiency','ImagePrecision','PasteOriginal','RuntimeContracts','ReviewPolish','Discussion','Sidebar','Discovery','FlowDiagram','ObjectAlignment','CommandTools','EditorMenus','WheelNavigation','Instance','ReviewFollowup','ReviewRefinements','EditableLayout','ObjectPayload','NoticeAlignment','Status','ReviewReliability','ReviewOptimization','SaveDirectory','EditorTransitions','Composition','ClipboardFeedback','SelectionToolbar','CaptureMagnifier','CaptureLatency','Startup')]
     [string[]]$Scope=@('ReviewReliability'),
     [string]$HubRoot='',
     [ValidatePattern('^[a-z][a-z0-9-]{0,63}$')][string]$AuditName='reliability-075'
@@ -14,7 +14,8 @@ $audit=Join-Path $project ('artifacts\audits\'+$AuditName)
 $records=New-Object 'Collections.Generic.List[object]'
 $producers=New-Object 'Collections.Generic.List[object]'
 $workers=New-Object 'Collections.Generic.List[object]'
-$arguments=@{EditorEfficiencyProperties='editor-efficiency-properties';EditorEfficiency='editor-efficiency';ImagePrecision='image-precision';PasteOriginal='paste-original';RuntimeContracts='runtime-contracts';ReviewPolish='review-polish';Discussion='discussion';Sidebar='sidebar';Discovery='discovery';FlowDiagram='flow-diagram';ObjectAlignment='object-alignment';CommandTools='command-tools';EditorMenus='editor-menus';WheelNavigation='wheel-navigation';Instance='instance';ReviewFollowup='review-followup';ReviewRefinements='review-refinements';EditableLayout='editable-layout';ObjectPayload='object-payload';NoticeAlignment='notice-alignment';Status='status';ReviewReliability='review-reliability';ReviewOptimization='review-optimization';SaveDirectory='save-directory';EditorTransitions='editor-transitions';Composition='composition';ClipboardFeedback='clipboard-feedback';SelectionToolbar='selection-toolbar';CaptureMagnifier='capture-magnifier';CaptureLatency='capture-latency'}
+$arguments=@{EditorRecovery='editor-recovery';AssetSelection='asset-selection';DocumentationTools='documentation-tools';TextRuns='text-runs'}
+$arguments+=@{EditorEfficiencyProperties='editor-efficiency-properties';EditorEfficiency='editor-efficiency';ImagePrecision='image-precision';PasteOriginal='paste-original';RuntimeContracts='runtime-contracts';ReviewPolish='review-polish';Discussion='discussion';Sidebar='sidebar';Discovery='discovery';FlowDiagram='flow-diagram';ObjectAlignment='object-alignment';CommandTools='command-tools';EditorMenus='editor-menus';WheelNavigation='wheel-navigation';Instance='instance';ReviewFollowup='review-followup';ReviewRefinements='review-refinements';EditableLayout='editable-layout';ObjectPayload='object-payload';NoticeAlignment='notice-alignment';Status='status';ReviewReliability='review-reliability';ReviewOptimization='review-optimization';SaveDirectory='save-directory';EditorTransitions='editor-transitions';Composition='composition';ClipboardFeedback='clipboard-feedback';SelectionToolbar='selection-toolbar';CaptureMagnifier='capture-magnifier';CaptureLatency='capture-latency'}
 if(-not('SctReliability.Native' -as [type])){Add-Type -TypeDefinition @'
 using System;
 using System.Text;
@@ -100,6 +101,16 @@ $result=Invoke-HubOwnedTest -ProjectRoot $project -Purpose 'selected native owne
                 [void][IO.Directory]::CreateDirectory($audit)
                 $destination=Join-Path $audit ('toolbar-'+$config+'-'+$run.Id+'-'+$previewName)
                 if(Test-Path -LiteralPath $destination){throw 'Unknown toolbar preview destination'}
+                Copy-Item -LiteralPath $preview -Destination $destination
+            }
+        }
+        if($name -eq 'EditorRecovery' -and $child.ExitCode -eq 0 -and $config -eq 'Release'){
+            foreach($previewName in 'label-form-tw-96.png','label-form-en-144.png'){
+                $preview=Join-Path $evidence ('alignment\'+$previewName)
+                if(!(Test-Path -LiteralPath $preview) -or (Get-Item -LiteralPath $preview).Length -gt 1MB){throw 'Missing or oversized label validation preview'}
+                [void][IO.Directory]::CreateDirectory($audit)
+                $destination=Join-Path $audit ($config+'-'+$run.Id+'-'+$previewName)
+                if(Test-Path -LiteralPath $destination){throw 'Unknown label preview destination'}
                 Copy-Item -LiteralPath $preview -Destination $destination
             }
         }

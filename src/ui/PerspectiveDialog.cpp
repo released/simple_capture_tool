@@ -35,12 +35,14 @@ void PerspectiveDialog::RefreshText(){BindText(*this,Text::Perspective);original
     const int selected=std::clamp(corner_.GetCurSel(),0,3);corner_.ResetContent();for(int i=0;i<4;++i){CString value;value.Format(Tr(Text::PerspectiveCorner),i+1,int(corners_[i].x),int(corners_[i].y));corner_.AddString(value);}corner_.SetCurSel(selected);original_.SetWindowText(Tr(Text::PerspectiveSource));result_.SetWindowText(Tr(Text::PerspectiveResult));}
 void PerspectiveDialog::Changed(){if(closing_)return;++generation_;ready_=0;pending_=Valid();ok_.EnableWindow(FALSE);info_.SetWindowText(Tr(pending_?Text::Busy:core::PerspectiveSizeValid(output_.cx,output_.cy,source_->pixels.size())?Text::PerspectiveInvalid:Text::PerspectiveSizeLimit));RefreshText();original_.Invalidate(FALSE);if(job_.Busy())job_.cancel=true;else StartPreview();}
 void PerspectiveDialog::StartPreview(){
-    if(closing_||!pending_||job_.Busy())return;pending_=false;const auto source=source_;const auto corners=corners_;const auto generation=generation_;
+    if(closing_||!pending_||job_.Busy())return;
+    try{const auto source=source_;const auto corners=corners_;const auto generation=generation_;
     const double scale=std::min({1.,512./output_.cx,512./output_.cy});const CSize size(std::max(2,int(output_.cx*scale)),std::max(2,int(output_.cy*scale)));Result failure;failure.generation=generation;
 #if SCT_ENABLE_SELFTESTS
     const auto audit=workAudit_;
+    if(submitAudit_)submitAudit_();
 #endif
-    job_.Start([source,corners,generation,size
+    if(job_.Start([source,corners,generation,size
 #if SCT_ENABLE_SELFTESTS
         ,audit
 #endif
@@ -48,7 +50,9 @@ void PerspectiveDialog::StartPreview(){
 #if SCT_ENABLE_SELFTESTS
         if(audit)audit();
 #endif
-        core::CancellationPoint();r.image=core::CorrectPerspective(*source,corners,size.cx,size.cy);return r;},std::move(failure));
+        core::CancellationPoint();r.image=core::CorrectPerspective(*source,corners,size.cx,size.cy);return r;},std::move(failure))){pending_=false;return;}
+    }catch(CException* error){error->Delete();}catch(...){/* Keep the last good preview and original source. */}
+    pending_=false;ready_=0;ok_.EnableWindow(FALSE);info_.SetWindowText(Tr(Text::Failed));
 }
 void PerspectiveDialog::OnTimer(UINT_PTR){
     auto result=job_.TakeOwned();if(!Current()&&!closing_){OnCancel();return;}

@@ -4,6 +4,13 @@
 #include "../core/FlowDiagram.h"
 #include "../core/DiscussionTools.h"
 namespace sct::ui {
+namespace {
+int LabelAlong(const Field& field){
+    CString text=field.value;text.Trim();wchar_t* end=nullptr;errno=0;const double value=wcstod(text,&end);
+    if(text.IsEmpty()||end==text.GetString()||*end||errno==ERANGE||!std::isfinite(value)||value<0||value>100)throw std::runtime_error("Label position must be0..100 percent");
+    return int(std::lround(value*10));
+}
+}
 void EditorFrame::EfficiencyCommand(UINT id){
     if(id==NavigatorToggle){if(!navigator_.GetSafeHwnd()&&!navigator_.Create(this)){status_.SetWindowText(Tr(Text::Failed));return;}navigator_.Toggle();return;}
     if(id==FilterObjects){LayerCommand(ObjectPanel);sidebar_.FocusFilter();return;}
@@ -12,9 +19,12 @@ void EditorFrame::EfficiencyCommand(UINT id){
     if(id==ResetFlowLabel){a.labelAlong=500;a.labelOffset={};}
     else if(id==FlowLabelPosition){CString along;along.Format(L"%.1f",a.labelAlong/10.);
         FormDialog form(this,Text::FlowLabelPosition,{{Text::LabelAlong,along},{Text::LabelOffsetX,Number(a.labelOffset.x)},{Text::LabelOffsetY,Number(a.labelOffset.y)}});
-        if(!ProductivityForm(form))return;CString text=form.Fields()[0].value;text.Trim();wchar_t* end=nullptr;const double value=wcstod(text,&end);
-        if(text.IsEmpty()||*end||!std::isfinite(value)||value<0||value>100)throw std::runtime_error("Label position must be0..100 percent");
-        a.labelAlong=int(std::lround(value*10));a.labelOffset={Range(form.Fields()[1],-32768,32768),Range(form.Fields()[2],-32768,32768)};
+        form.SetValidator([](const std::vector<Field>& fields)->std::optional<FormIssue>{
+            try{LabelAlong(fields[0]);}catch(const std::exception&){return FormIssue{0,CString(Tr(Text::InvalidValue))+L": "+Tr(Text::LabelAlong)+L" (0 ~ 100%)"};}
+            if(auto issue=IntegerIssue(fields,1,-32768,32768))return issue;return IntegerIssue(fields,2,-32768,32768);
+        });
+        if(!ProductivityForm(form))return;
+        a.labelAlong=LabelAlong(form.Fields()[0]);a.labelOffset={Range(form.Fields()[1],-32768,32768),Range(form.Fields()[2],-32768,32768)};
     }else return;
     core::ValidateFlow(a);core::FlowLabelCenter(a);if(core::SameAnnotation(a,document_.State().objects[ids[0]]))return;
     document_.Replace(ids[0],std::move(a));Changed();

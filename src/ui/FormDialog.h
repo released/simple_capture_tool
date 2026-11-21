@@ -31,7 +31,7 @@ protected:
     afx_msg LRESULT OnLanguageChanged(WPARAM,LPARAM);void Layout();
 private:
 #if SCT_ENABLE_SELFTESTS
-    friend class DiscussionAccess;friend class ReviewPolishAccess;inline static thread_local std::function<CRect(HWND)> workAreaAudit_;inline static thread_local std::function<void(FormDialog&)> initObserver_;
+    friend class DiscussionAccess;friend class ReviewPolishAccess;friend class EditorEfficiencyAccess;inline static thread_local std::function<CRect(HWND)> workAreaAudit_;inline static thread_local std::function<void(FormDialog&)> initObserver_;
 #endif
     friend class FormViewport;void Scroll(int);void EnsureVisible(HWND);void PositionFields();CRect WorkArea()const;
     CWnd* owner_;Text title_;std::vector<Field> fields_;std::vector<std::unique_ptr<CWnd>> controls_,labels_;CFont font_;CButton ok_,cancel_;CStatic error_;FormViewport viewport_;FormValidator validator_;

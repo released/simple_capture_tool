@@ -8,8 +8,8 @@
 namespace sct::ui {
 void EditorFrame::BeginPerspective(){
     auto* workspace=dynamic_cast<EditorWorkspace*>(workspace_);if(!workspace||closing_||job_.Busy()||document_.Width()<2||document_.Height()<2){status_.SetWindowText(Tr(Text::PerspectiveInvalid));return;}
-    const auto state=document_.State();const auto revision=revision_,epoch=maskEpoch_,crop=cropGeneration_;const auto ids=Selection();const auto pixels=pixelSelection_,cropRegion=cropRegion_;const auto tool=style_.tool;const HWND window=workspace->m_hWnd;
-    activeAction_=WorkPerspectivePreview;StartWork([state,revision,epoch,crop,ids,workspace,window,pixels,cropRegion,tool]{WorkResult r;r.action=WorkPerspectivePreview;r.command=Perspective;r.revision=revision;r.maskEpoch=epoch;r.preview=crop;r.expected=ids;r.transformSource=state.base;r.workspaceOwner=workspace;r.workspaceWindow=window;r.screen=pixels;r.colorCrop=cropRegion;r.colorTool=tool;
+    auto state=document_.State();const auto revision=revision_,epoch=maskEpoch_,crop=cropGeneration_;const auto ids=Selection();const auto pixels=pixelSelection_,cropRegion=cropRegion_;const auto tool=style_.tool;const HWND window=workspace->m_hWnd;
+    activeAction_=WorkPerspectivePreview;StartWork([state=std::move(state),revision,epoch,crop,ids,workspace,window,pixels,cropRegion,tool]{WorkResult r;r.action=WorkPerspectivePreview;r.command=Perspective;r.revision=revision;r.maskEpoch=epoch;r.preview=crop;r.expected=ids;r.transformSource=state.base;r.workspaceOwner=workspace;r.workspaceWindow=window;r.screen=pixels;r.colorCrop=cropRegion;r.colorTool=tool;
         if(services::RenderDocument(state,r.image,r.error)){const double scale=std::min({1.,512./r.image.width,512./r.image.height});r.thumbnail=core::Resize(r.image,std::max(2,int(r.image.width*scale)),std::max(2,int(r.image.height*scale)));}return r;});
 }
 void EditorFrame::CompletePerspectivePreview(WorkResult& r){

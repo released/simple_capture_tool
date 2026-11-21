@@ -73,7 +73,7 @@ private:
     struct PositionedPaste {UINT command=0;CPoint point;bool centered=false;uint64_t revision=0,epoch=0,crop=0;
         std::shared_ptr<const core::Image> source;core::composition::Indices selected;};
     std::optional<PositionedPaste> positionedPaste_;std::optional<CPoint> contextPastePoint_;UINT waitingPasteCommand_=PasteImage;
-    bool PreparePastePosition(UINT);bool PastePositionCurrent(const PositionedPaste&)const;CPoint PasteAnchor(CPoint)const;
+    bool PreparePastePosition(UINT);bool PastePositionAvailable(UINT)const;bool PastePositionCurrent(const PositionedPaste&)const;CPoint PasteAnchor(CPoint)const;
     friend class NavigatorPanel;NavigatorPanel navigator_;void EfficiencyCommand(UINT);
     void BeginPerspective();void CompletePerspectivePreview(WorkResult&);const PerspectiveDialog* perspectiveDialog_=nullptr;
 #if SCT_ENABLE_SELFTESTS

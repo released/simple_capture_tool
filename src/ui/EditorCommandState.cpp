@@ -12,7 +12,7 @@ UINT EditorFrame::CommandMenuFlags(UINT id)const
     if(id==Undo)return checked|(document_.UndoCount()?0:MF_GRAYED);
     if(id==Redo)return checked|(document_.RedoCount()?0:MF_GRAYED);
     const auto ids=Selection();
-    if(id==PasteHere&&!contextPastePoint_)return checked|MF_GRAYED;
+    if(id==PasteHere&&!PastePositionAvailable(id))return checked|MF_GRAYED;
     if(id==FlowLabelPosition||id==ResetFlowLabel){if(ids.size()!=1)return checked|MF_GRAYED;const auto& a=document_.State().objects[ids[0]];if(!a.connectorLabel||a.text.IsEmpty()||a.hidden||a.locked||a.group)return checked|MF_GRAYED;}
     if(id==FlowEditLabel){
         if(ids.size()!=1)return checked|MF_GRAYED;const auto& a=document_.State().objects[ids[0]];

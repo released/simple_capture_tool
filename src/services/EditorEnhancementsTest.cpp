@@ -3,6 +3,7 @@
 #include "LanguageService.h"
 #include "ImageCodec.h"
 #include "ProjectService.h"
+#include "ProjectPacketTest.h"
 #include "DocumentRenderer.h"
 #include "RichTextService.h"
 #include "ToolStyleService.h"
@@ -86,7 +87,7 @@ class EditorEnhancementsAccess {
  auto uniform=formatted.objects[0];services::CopyToolStyle(state.objects[0],uniform);check(uniform.textRuns.empty()&&uniform.text==L"Alpha Beta","explicit whole-object tool style replaces local formatting without changing text");
  auto packet=services::PrepareClipboardImage(image,error);check(packet&&services::AddClipboardObjects(*packet,formatted,error)&&packet->objects,"private clipboard packet retains formatted objects without publication");
  if(packet&&packet->objects){const auto* data=static_cast<const BYTE*>(GlobalLock(packet->objects));std::vector<BYTE> payload(data,data+GlobalSize(packet->objects));GlobalUnlock(packet->objects);core::DocumentState restored;check(services::DecodeProject(payload,restored,error)&&restored.objects[0].textRuns.front().underline,"private v8 object payload round trips underline and text runs");}
- services::EncodeProject(formatted,bytes,error);auto bad=bytes;int invalid=8;memcpy(bad.data()+bad.size()-116,&invalid,4);std::vector<BYTE> content(bad.begin(),bad.end()-4);auto crc=Crc(content);memcpy(bad.data()+bad.size()-4,&crc,4);const auto savedBase=loaded.base;check(!services::DecodeProject(bad,loaded,error)&&loaded.base==savedBase,"valid-checksum payload with invalid text style flags rejects transactionally");
+ services::EncodeProject(formatted,bytes,error);auto bad=bytes;services::testing::PatchLastPacketInt(bad,services::testing::PacketField::TextRunStyle,8);const auto savedBase=loaded.base;check(!services::DecodeProject(bad,loaded,error)&&loaded.base==savedBase,"valid-checksum payload with invalid text style flags rejects transactionally");
  auto badRun=formatted.objects[0];badRun.textRuns.front().length=65536;check(Reject([&]{core::ValidateExtensions(badRun);}),"out-of-text formatting bounds reject before model commit");
  const auto revision=p->revision_;p->BeginText(formatted.objects[0],0);p->text_.SetSel(0,5);p->SendMessage(WM_COMMAND,RunBold);p->FinishText(false);Wait(p);check(p->revision_==revision&&p->document_.State().objects[0].textRuns.front().italic,"cancelled inline formatting preserves original document revision");
  p->BeginText(formatted.objects[0],0);p->text_.SetSel(0,5);p->enhancementFormAudit_=[](FormDialog& f){f.Fields()[0].value=L"invalid-HEX";return IDOK;};p->SendMessage(WM_COMMAND,RunColor);CString status;p->status_.GetWindowText(status);check(p->textEditing_&&!p->screenColorModal_&&status.Find(Tr(Text::InvalidValue))>=0&&p->revision_==revision,"invalid character-color input remains editable and reports status without escaping native command");p->FinishText(false);Wait(p);
